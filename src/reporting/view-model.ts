@@ -6,6 +6,7 @@ import type {
   Intervention,
   RiskCluster,
 } from '../schema/report.v1.js';
+import { MECHANISM_FOR_SIGNAL } from '../schema/report.v1.js';
 
 export type ReportView = 'facts' | 'summary' | 'actions' | 'all';
 
@@ -52,6 +53,7 @@ export type SummaryAxisRow = {
   scoreLabel: string;
   contributionPoints: number;
   confidence: number;
+  scoreBreakdown: AxisAssessment['scoreBreakdown'];
   topRationale: string;
 };
 
@@ -66,6 +68,7 @@ export type SummaryView = {
   scoreBand: string;
   confidence: number;
   calibrationStatus: string;
+  calibrationMissingConditions: string[];
   unevaluatedAxisCount: number;
   disclaimer: string;
   scoreBreakdown: DiagnosisReport['repository']['scoreBreakdown'];
@@ -112,6 +115,31 @@ function sortEvidence(items: Evidence[]): Evidence[] {
   });
 }
 
+function sortFactEvidence(items: Evidence[]): Evidence[] {
+  return [...items].sort((a, b) => {
+    const roleDiff = Number(a.pathRole !== 'product') - Number(b.pathRole !== 'product');
+    if (roleDiff !== 0) {
+      return roleDiff;
+    }
+    const strengthDiff = b.strength - a.strength;
+    if (strengthDiff !== 0) {
+      return strengthDiff;
+    }
+    const severityDiff = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+    if (severityDiff !== 0) {
+      return severityDiff;
+    }
+    return a.evidenceId.localeCompare(b.evidenceId);
+  });
+}
+
+function mechanismForEvidence(item: Evidence): string {
+  if (item.signalId === 'semantic-ambiguity') {
+    return item.signalId;
+  }
+  return MECHANISM_FOR_SIGNAL[item.signalId];
+}
+
 function axisHasSignals(report: DiagnosisReport, axisId: AxisAssessment['axisId']): boolean {
   return report.evidence.some((item) => item.axisId === axisId) ||
     report.semanticFindings.some((item) => item.axisId === axisId);
@@ -147,19 +175,31 @@ function clusterById(report: DiagnosisReport): Map<string, RiskCluster> {
 
 function buildLimitationSummaries(report: DiagnosisReport): string[] {
   const lines: string[] = [];
+  const summarizedLanguages = new Set<string>();
   for (const capability of report.capabilities) {
     if (capability.unevaluatedSignals.length > 0) {
+      summarizedLanguages.add(capability.language);
       lines.push(
         `${capability.language}: ${capability.unevaluatedSignals.length} unevaluated signals (${capability.completeness})`,
       );
     }
   }
+  const semanticLimitationSummarized =
+    report.metadata.semanticProviderStatus === 'not-configured' ||
+    report.metadata.semanticProviderStatus === 'unavailable';
   if (report.metadata.semanticProviderStatus === 'not-configured') {
     lines.push('semantic-ambiguity: LLM provider not configured');
   } else if (report.metadata.semanticProviderStatus === 'unavailable') {
     lines.push(`semantic-ambiguity: provider unavailable (${report.metadata.semanticProviderReason ?? 'unknown'})`);
   }
   for (const area of report.metadata.unevaluatedAreas) {
+    if (semanticLimitationSummarized && area === 'Semantic Ambiguity') {
+      continue;
+    }
+    const capabilitySignal = /^([^:]+):signal:/.exec(area);
+    if (capabilitySignal?.[1] && summarizedLanguages.has(capabilitySignal[1])) {
+      continue;
+    }
     lines.push(area);
   }
   return [...new Set(lines)];
@@ -179,10 +219,10 @@ function buildFactGroups(report: DiagnosisReport, limits: ReportViewLimits): Fac
   }
 
   const grouped = new Map<string, { mechanismLabel: string; triggerSummary: string; evidence: Evidence[] }>();
-  for (const item of sortEvidence(report.evidence)) {
+  for (const item of sortFactEvidence(report.evidence)) {
     const mapping = evidenceToMechanism.get(item.evidenceId);
-    const mechanismId = mapping?.mechanismId ?? item.signalId;
-    const mechanismLabel = mapping?.mechanismLabel ?? item.signalId;
+    const mechanismId = mapping?.mechanismId ?? mechanismForEvidence(item);
+    const mechanismLabel = mapping?.mechanismLabel ?? mechanismId;
     const triggerSummary = mapping?.triggerSummary ?? item.message;
     const existing = grouped.get(mechanismId);
     if (existing) {
@@ -217,7 +257,9 @@ function buildFactGroups(report: DiagnosisReport, limits: ReportViewLimits): Fac
 }
 
 function topAxisRationale(report: DiagnosisReport, axisId: AxisAssessment['axisId']): string {
-  const axisEvidence = sortEvidence(report.evidence.filter((item) => item.axisId === axisId));
+  const axisEvidence = sortEvidence(
+    report.evidence.filter((item) => item.axisId === axisId && item.pathRole === 'product'),
+  );
   if (axisEvidence.length > 0) {
     const top = axisEvidence[0]!;
     return `${top.signalId} @ ${top.path ?? 'repo'}: ${top.rationale}`;
@@ -233,6 +275,7 @@ function buildSummaryAxes(report: DiagnosisReport): SummaryAxisRow[] {
     scoreLabel: formatAxisScoreLabel(axis, report),
     contributionPoints: axis.contributionPoints,
     confidence: axis.confidence,
+    scoreBreakdown: axis.scoreBreakdown,
     topRationale: topAxisRationale(report, axis.axisId),
   }));
 }
@@ -279,12 +322,20 @@ function buildActionItems(report: DiagnosisReport, limits: ReportViewLimits): {
       const linkedEvidenceIds = new Set(
         linkedClusters.flatMap((cluster) => cluster.evidenceIds),
       );
-      const linkedEvidence = sortEvidence(
+      const allLinkedEvidence = sortEvidence(
         report.evidence.filter((item) =>
           linkedEvidenceIds.has(item.evidenceId) && intervention.linkedSignalIds.includes(item.signalId),
         ),
-      ).slice(0, limits.actionEvidencePerItem);
-      const displayPaths = intervention.targetPaths.slice(0, limits.actionPathsPerItem);
+      );
+      const linkedEvidence = allLinkedEvidence.slice(0, limits.actionEvidencePerItem);
+      const targetPathSet = new Set(intervention.targetPaths);
+      const preferredPaths = allLinkedEvidence
+        .map((item) => item.path)
+        .filter((itemPath): itemPath is string =>
+          typeof itemPath === 'string' && targetPathSet.has(itemPath),
+        );
+      const displayPaths = [...new Set([...preferredPaths, ...intervention.targetPaths])]
+        .slice(0, limits.actionPathsPerItem);
       const clusterConfidence = linkedClusters.length > 0
         ? Math.min(...linkedClusters.map((cluster) => cluster.confidence))
         : report.repository.confidence;
@@ -325,6 +376,7 @@ export function buildReportViewModel(
       scoreBand: scoreBand(report.repository.regressionRiskScore),
       confidence: report.repository.confidence,
       calibrationStatus: report.repository.calibration.status,
+      calibrationMissingConditions: report.repository.calibration.missingConditions ?? [],
       unevaluatedAxisCount,
       disclaimer: report.repository.disclaimer,
       scoreBreakdown: report.repository.scoreBreakdown,

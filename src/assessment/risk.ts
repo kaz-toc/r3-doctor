@@ -24,7 +24,7 @@ import {
   evaluableMechanismIdsForAxis,
 } from './capability.js';
 import { buildMechanismClusters } from './clusters.js';
-import { computeEvidenceConfidence } from './confidence.js';
+import { computeAxisEvidenceConfidence, computeEvidenceConfidence } from './confidence.js';
 import { assignContributionPoints, scoreAxis, scoreRepository } from './score.js';
 
 const AXIS_NAMES: Record<RiskAxisId, string> = {
@@ -82,18 +82,13 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
           snapshotPaths,
           evidenceById,
         });
-    const axisConfidence = unevaluated
-      ? 0
-      : axisId === 'semantic-ambiguity' && semantic.length > 0
-        ? Math.max(...semantic.map((finding) => finding.confidence))
-        : Math.min(1, Number(((axisEvidence.length > 0 ? 0.6 : 0) + 0.4).toFixed(2)));
     return {
       axisId,
       name: AXIS_NAMES[axisId],
       score: axisResult.score,
       contributionPoints: 0,
       scoreBreakdown: axisResult.scoreBreakdown,
-      confidence: axisConfidence,
+      confidence: 0,
       unevaluated,
     };
   });
@@ -110,6 +105,25 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     semanticResolution: input.semanticResolution,
     axes,
   });
+  for (const axis of axes) {
+    if (axis.unevaluated) {
+      axis.confidence = 0;
+    } else if (axis.axisId === 'semantic-ambiguity') {
+      const semantic = input.semanticFindings.filter((item) => item.axisId === axis.axisId);
+      axis.confidence = semantic.length > 0
+        ? Math.max(...semantic.map((finding) => finding.confidence))
+        : 0;
+    } else {
+      axis.confidence = computeAxisEvidenceConfidence({
+        snapshot: input.snapshot,
+        capabilities: input.capabilities,
+        selectedAnalyzers: input.selectedAnalyzers,
+        successfulAnalyzers: input.successfulAnalyzers,
+        semanticResolution: input.semanticResolution,
+        axes,
+      }, axis.axisId);
+    }
+  }
 
   const unevaluatedAreas = axes.filter((a) => a.unevaluated).map((a) => a.name);
   for (const capability of input.capabilities) {

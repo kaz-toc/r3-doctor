@@ -63,8 +63,113 @@ describe('reporting views', () => {
 
     expect(markdown).toContain('strength=90');
     expect(markdown).toContain('metrics=cycleLength=2');
+    expect(markdown).toContain('role=product');
+    expect(markdown).toMatch(/\n  - `evidence:/);
     expect(consoleOut).toContain('strength=90');
     expect(consoleOut).toContain('metrics=cycleLength=2');
+  });
+
+  it('groups score-excluded evidence under the canonical mechanism after product evidence', () => {
+    const mixedReport = structuredClone(report);
+    mixedReport.evidence.push(
+      {
+        ...mixedReport.evidence[0]!,
+        evidenceId: 'evidence:git-churn:src/hot.ts',
+        signalId: 'git-churn',
+        axisId: 'change-volatility',
+        path: 'src/hot.ts',
+        pathRole: 'product',
+        relatedPaths: ['src/hot.ts'],
+        strength: 50,
+        severity: 'medium',
+        message: 'product churn',
+      },
+      {
+        ...mixedReport.evidence[0]!,
+        evidenceId: 'evidence:git-churn:tests/hot.test.ts',
+        signalId: 'git-churn',
+        axisId: 'change-volatility',
+        path: 'tests/hot.test.ts',
+        pathRole: 'test',
+        relatedPaths: ['tests/hot.test.ts'],
+        strength: 100,
+        severity: 'high',
+        message: 'test churn',
+      },
+    );
+
+    const model = buildReportViewModel(mixedReport, DEFAULT_REPORT_VIEW_LIMITS);
+    const volatility = model.facts.factGroups.find((group) => group.mechanismId === 'volatility');
+    expect(model.facts.factGroups.some((group) => group.mechanismId === 'git-churn')).toBe(false);
+    expect(volatility?.evidence.map((item) => item.path)).toEqual(['src/hot.ts', 'tests/hot.test.ts']);
+    expect(model.summary.axes.find((axis) => axis.axisId === 'change-volatility')?.topRationale)
+      .toContain('src/hot.ts');
+
+    const markdown = formatMarkdownReport(mixedReport, { view: 'facts' });
+    expect(markdown).toContain('role=test score=excluded');
+  });
+
+  it('collapses capability and semantic limitations without hiding unrelated intake issues', () => {
+    const limitedReport = structuredClone(report);
+    limitedReport.metadata.unevaluatedAreas.push(
+      'python:signal:dep-cycle',
+      'go:signal:missing-test-pair',
+      'io-error:src/unreadable.ts',
+    );
+
+    const limitations = buildReportViewModel(limitedReport).facts.limitationSummaries;
+    expect(limitations).toContain('python: 3 unevaluated signals (partial)');
+    expect(limitations).toContain('go: 3 unevaluated signals (partial)');
+    expect(limitations).toContain('semantic-ambiguity: LLM provider not configured');
+    expect(limitations).toContain('io-error:src/unreadable.ts');
+    expect(limitations).not.toContain('Semantic Ambiguity');
+    expect(limitations).not.toContain('python:signal:dep-cycle');
+    expect(limitations).not.toContain('go:signal:missing-test-pair');
+  });
+
+  it('shows score components and incomplete calibration conditions in summary', () => {
+    const provisionalReport = structuredClone(report);
+    provisionalReport.repository.calibration = {
+      status: 'provisional',
+      sampleCount: 2,
+      missingConditions: ['at least 30 labeled samples', 'all score bands represented'],
+    };
+
+    const markdown = formatMarkdownReport(provisionalReport, { view: 'summary' });
+    expect(markdown).toContain('Calibration gaps: at least 30 labeled samples; all score bands represented');
+    expect(markdown).toContain('| Axis | Score | Peak | Breadth | Diversity | Contribution | Confidence | Top rationale |');
+    expect(markdown).toContain('| Structural Fragility | 82 | 82 | 70 | 40 | 82 | 0.9 |');
+  });
+
+  it('keeps the strongest linked target visible and explains action ranking', () => {
+    const reorderedReport = structuredClone(report);
+    const first = reorderedReport.interventions[0]!;
+    first.targetPaths = [
+      'src/module-01.ts',
+      'src/module-02.ts',
+      'src/module-03.ts',
+      'src/module-00.ts',
+    ];
+
+    const firstAction = buildReportViewModel(reorderedReport).actions.items[0]!;
+    expect(firstAction.displayPaths[0]).toBe('src/module-00.ts');
+
+    const markdown = formatMarkdownReport(reorderedReport, { view: 'actions' });
+    expect(markdown).toContain('- Priority score: 95');
+    expect(markdown).toContain('Cost: medium');
+    expect(markdown).toContain('- Targets: src/module-00.ts,');
+
+    const tiedReport = structuredClone(report);
+    const tiedPaths = ['src/z.ts', 'src/y.ts', 'src/x.ts', 'src/a-anchor.ts'];
+    for (const [index, itemPath] of tiedPaths.entries()) {
+      const item = tiedReport.evidence[index]!;
+      item.path = itemPath;
+      item.strength = 100;
+      item.severity = 'high';
+    }
+    tiedReport.interventions[0]!.targetPaths = [...tiedPaths].sort();
+    const tiedAction = buildReportViewModel(tiedReport).actions.items[0]!;
+    expect(tiedAction.displayPaths[0]).toBe('src/z.ts');
   });
 
   it('REG-2026-021 renders bounded actionable views with calibration status', () => {

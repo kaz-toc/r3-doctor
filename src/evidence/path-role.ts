@@ -18,6 +18,10 @@ export function classifyPathRole(relativePath: string, diagnosticSkipRoots: stri
     return 'fixture';
   }
 
+  if (normalized.startsWith('tests/') || normalized === 'tests') {
+    return 'test';
+  }
+
   for (const root of ['harness', 'scripts', ...diagnosticSkipRoots]) {
     if (normalized === root || normalized.startsWith(`${root}/`)) {
       return root === 'tests/fixtures' || root.startsWith('tests/fixtures') ? 'fixture' : 'tooling';

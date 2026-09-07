@@ -100,6 +100,28 @@ describe('continuous axis scoring', () => {
     ).toBeCloseTo(report.repository.scoreBreakdown.axisBase, 1);
   });
 
+  it('does not report perfect axis confidence when inputs are incomplete', () => {
+    const report = assessRisk({
+      snapshot: {
+        ...baseSnapshot,
+        truncated: true,
+        files: [{ relativePath: 'src/a.ts', absolutePath: '/tmp/repo/src/a.ts', extension: '.ts', content: '', contentHash: 'a', nonBlankLines: 1 }],
+      } as never,
+      evidence: [caseWithChurn(10).evidence[0]!],
+      semanticFindings: [],
+      capabilities: fullCapabilities,
+      analyzers: ['typescript-javascript-v1'],
+      selectedAnalyzers: 1,
+      successfulAnalyzers: 1,
+      semanticResolution: { status: 'unavailable', reason: 'LLM not configured' },
+    });
+
+    const volatility = report.axes.find((axis) => axis.axisId === 'change-volatility');
+    expect(volatility?.unevaluated).toBe(false);
+    expect(volatility?.confidence).toBeLessThan(1);
+    expect(volatility?.confidence).toBeGreaterThan(0);
+  });
+
   it('does not change product score when test or tooling evidence is added', () => {
     const productOnly = assessRisk({
       snapshot: {
