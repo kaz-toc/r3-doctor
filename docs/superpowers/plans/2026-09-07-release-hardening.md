@@ -103,4 +103,4 @@
 - [x] Build an npm tarball in a temporary directory and run installed CLI smoke tests.
 - [x] Review `main...HEAD` against repository standards and this spec; fix every confirmed issue.
 - [x] Re-run full verification after review fixes.
-- [ ] Commit coherent changes, push `fix/release-hardening`, and create a PR with findings and verification evidence.
+- [x] Commit coherent changes, push `fix/release-hardening`, and create a PR with findings and verification evidence.
