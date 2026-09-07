@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RepositorySnapshot } from '../../src/intake/snapshot.js';
 import type { Evidence } from '../../src/schema/report.v1.js';
 import { buildBudgetedSemanticPrompt } from '../../src/semantic/semantic-prompt.js';
+import { SEMANTIC_PROVIDER_IMPL_VERSION } from '../../src/semantic/providers/acp-semantic-provider.js';
 import { defaultConfig } from '../../src/shared/config.js';
 
 const snapshot: RepositorySnapshot = {
@@ -49,5 +50,9 @@ describe('semantic prompt boundary', () => {
     expect(() => buildBudgetedSemanticPrompt(snapshot, evidence, 1)).toThrow(
       'fixed content exceeds 1 byte limit',
     );
+  });
+
+  it('publishes a new provider implementation identity for the prompt contract', () => {
+    expect(SEMANTIC_PROVIDER_IMPL_VERSION).toBe('2.0.0');
   });
 });

@@ -23,7 +23,7 @@ type SemanticProvider = {
 | `codex` | `codex-acp` | `openai` |
 | `claude` | `claude-agent-acp` | `anthropic` |
 
-`implementationVersion`（現行 `1.0.0`）は同じ provider 名の実装リリースを識別する不変値である。プロンプト契約またはパース契約を変え得る変更時は必ず更新し、ベースライン互換性 fingerprint に含める。
+`implementationVersion`（現行 `2.0.0`）は同じ provider 名の実装リリースを識別する不変値である。プロンプト契約またはパース契約を変え得る変更時は必ず更新し、ベースライン互換性 fingerprint に含める。
 
 ### Operator-owned execution policy
 
