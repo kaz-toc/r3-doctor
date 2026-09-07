@@ -140,9 +140,9 @@ summaryの上限は変更しない。
 | facts Evidence per group | 5 | 8 |
 | actions | 5 | 8 |
 | action target paths | 3 | 5 |
-| action linked Evidence | 3 | 5 |
+| action linked Evidence（actions view） | 3 | 5 |
 
-共有されている `evidencePerCluster` と `pathsPerItem` を、summary用とaction用に分離する。`all` はコンパクトなsummary blockと、拡張したactions/facts blockを合成する。JSONは従来どおり上限を適用しない。
+共有されている `evidencePerCluster` と `pathsPerItem` を、summary用とaction用に分離する。`all` はコンパクトなsummary blockと、最大8件・各5 target pathsのactions block、各group最大8 Evidenceのfacts blockを合成する。`all` のactions blockでは同じEvidenceをfacts blockと重複表示しない。JSONは従来どおり上限を適用しない。
 
 ## Error Handling and Compatibility
 
@@ -173,7 +173,8 @@ summaryの上限は変更しない。
 
 - summaryの件数上限が5 cluster、各3 Evidenceのままであること。
 - factsが各group最大8 Evidenceを表示すること。
-- actions/allが最大8 action、各5 paths、各5 linked Evidenceを表示すること。
+- actionsが最大8 action、各5 paths、各5 linked Evidenceを表示すること。
+- allが最大8 actionと各5 pathsを表示し、linked Evidence本文はfactsとの重複を避けること。
 - JSON出力が全interventionと既存schemaを保持すること。
 
 ### Verification commands
