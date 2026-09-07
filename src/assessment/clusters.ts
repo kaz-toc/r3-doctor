@@ -2,7 +2,7 @@ import type { Evidence, RiskAxisId, RiskCluster, SemanticFinding, SignalId } fro
 import { MECHANISM_FOR_SIGNAL } from '../schema/report.v1.js';
 import type { ReportLocale } from '../i18n/locale.js';
 import { DEFAULT_LOCALE } from '../i18n/locale.js';
-import { t, type MessageKey } from '../i18n/messages.js';
+import { formatPathCount, t, type MessageKey } from '../i18n/messages.js';
 import { MESSAGE_KEYS } from '../i18n/catalog.js';
 import { semanticRiskStrength } from '../semantic/semantic-response.js';
 import { CLUSTER_PEAK_WEIGHTS, weightedPeak } from './score.js';
@@ -148,7 +148,11 @@ function clusterTitle(
   if (pathCount === 0) {
     return t(locale, 'cluster.title.repositoryWide', { label });
   }
-  return t(locale, 'cluster.title.centered', { anchor, label, pathCount });
+  return t(locale, 'cluster.title.centered', {
+    anchor,
+    label,
+    pathCountLabel: formatPathCount(locale, pathCount),
+  });
 }
 
 function clusterConfidence(componentEvidence: Evidence[]): number {

@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,7 +36,45 @@ import type { AnalyzerPlugin } from '../src/plugins/analyzer.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const fixturesRoot = path.join(root, 'fixtures');
+const repoRoot = path.join(root, '..');
 const execFileAsync = promisify(execFile);
+
+function runCli(args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
+  const cliPath = path.join(repoRoot, 'src', 'cli.ts');
+  const tsxPath = path.join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  return execFileAsync(process.execPath, [tsxPath, cliPath, ...args], {
+    cwd: options.cwd,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+}
+
+function runCliWithPipedStdout(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+  const cliPath = path.join(repoRoot, 'src', 'cli.ts');
+  const tsxPath = path.join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [tsxPath, cliPath, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+    child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+    child.on('error', reject);
+    child.on('close', (exitCode) => {
+      resolve({
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        exitCode,
+      });
+    });
+  });
+}
+
+type ScanReport = {
+  metadata: { inputId: string; reportLocale?: string };
+  repository: { regressionRiskScore: number; confidence: number; disclaimer: string };
+  evidence: Array<{ evidenceId: string; metrics?: Record<string, unknown> }>;
+};
 
 function minimalV4Repository(overrides: Record<string, unknown> = {}) {
   return {
@@ -855,5 +893,70 @@ describe('integration: github outputs', () => {
     expect(formatDiffMarkdownReport(diff)).toContain('### Blast radius');
     expect(formatDiffMarkdownReport(diff)).toContain('[new]');
     await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe('integration: CLI locale', () => {
+  it('uses config locale ja and --locale en override via real CLI', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-locale-cli-'));
+    try {
+      await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
+      await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const a = 1;\n');
+      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({
+        schemaVersion: 1,
+        locale: 'ja',
+      }));
+
+      const jaReport = JSON.parse((await runCli(['scan', repositoryPath, '--format', 'json'])).stdout) as ScanReport;
+      const enReport = JSON.parse((await runCli(['scan', repositoryPath, '--format', 'json', '--locale', 'en'])).stdout) as ScanReport;
+
+      expect(jaReport.metadata.reportLocale).toBe('ja');
+      expect(jaReport.repository.disclaimer).toContain('確率');
+      expect(enReport.metadata.reportLocale).toBe('en');
+      expect(enReport.repository.disclaimer).toContain('probability');
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps score, evidence IDs, and metrics aligned across en and ja CLI output', async () => {
+    const repositoryPath = path.join(fixturesRoot, 'fragile-cart');
+    const jaReport = JSON.parse((await runCli(['scan', repositoryPath, '--format', 'json', '--locale', 'ja'])).stdout) as ScanReport;
+    const enReport = JSON.parse((await runCli(['scan', repositoryPath, '--format', 'json', '--locale', 'en'])).stdout) as ScanReport;
+
+    expect(jaReport.metadata.inputId).toBe(enReport.metadata.inputId);
+    expect(jaReport.repository.regressionRiskScore).toBe(enReport.repository.regressionRiskScore);
+    expect(jaReport.repository.confidence).toBe(enReport.repository.confidence);
+    expect(jaReport.evidence.map((item) => item.evidenceId)).toEqual(enReport.evidence.map((item) => item.evidenceId));
+    expect(jaReport.evidence.map((item) => item.metrics)).toEqual(enReport.evidence.map((item) => item.metrics));
+  });
+
+  it('rejects unsupported locale with exit code 2', async () => {
+    const repositoryPath = path.join(fixturesRoot, 'stable-cart');
+    await expect(runCli(['scan', repositoryPath, '--locale', 'fr'])).rejects.toMatchObject({
+      code: 2,
+    });
+  });
+
+  it('streams JSON larger than 64 KiB through a pipe without truncation', async () => {
+    const { stdout, exitCode } = await runCliWithPipedStdout(['scan', repoRoot, '--format', 'json', '--locale', 'en']);
+    expect(exitCode).toBe(0);
+    expect(stdout.length).toBeGreaterThan(65_536);
+    expect(() => JSON.parse(stdout)).not.toThrow();
+  });
+});
+
+describe('integration: diff summary without baseline', () => {
+  it('shows current score and baseline guidance in summary view', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const diff = await runDiffDiagnosis(repo.path, repo.baseSha);
+      const summary = formatDiffConsoleReport(diff, { view: 'summary' });
+      expect(diff.comparison.compatible).toBe(false);
+      expect(summary).toContain(`Current score: ${diff.current.repository.regressionRiskScore}`);
+      expect(summary).toContain('--save-baseline');
+    } finally {
+      await repo.cleanup();
+    }
   });
 });

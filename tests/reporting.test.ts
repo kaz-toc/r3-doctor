@@ -72,7 +72,7 @@ describe('reporting views', () => {
     expect(facts).toContain('## Current state');
     expect(facts).not.toContain('## Improvement points');
     expect(facts).not.toContain('Regression Risk Score');
-    expect(facts).toContain('他 65 evidence');
+    expect(facts).toContain('残り65件');
 
     expect(summary).toContain('## Assessment summary');
     expect(summary).not.toContain('## Improvement points');
@@ -99,13 +99,13 @@ describe('reporting views', () => {
     expect(summary).toContain('Confidence:');
     expect(summary).toContain('Calibration:');
     expect(summary).toContain('確率');
-    expect(actions).toContain('他');
+    expect(actions).toContain('残り');
   });
 
   it('uses English suffixes when locale override is en', () => {
     const facts = formatMarkdownReport(report, { view: 'facts', locale: 'en' });
-    expect(facts).toContain('and 65 more evidence');
-    expect(facts).not.toContain('他 65 evidence');
+    expect(facts).toContain('and 65 more evidence items');
+    expect(facts).not.toContain('残り65件');
   });
 
   it('returns full JSON regardless of view selection', () => {

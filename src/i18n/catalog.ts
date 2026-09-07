@@ -116,10 +116,19 @@ export const MESSAGE_KEYS = [
   'intervention.default.firstStep',
   'intervention.default.verification',
   'intervention.default.verificationHorizon',
-  'format.remainingEvidence',
-  'format.remainingClusters',
-  'format.remainingPaths',
-  'format.remainingInterventions',
+  'format.remainingEvidence.one',
+  'format.remainingEvidence.other',
+  'format.remainingClusters.one',
+  'format.remainingClusters.other',
+  'format.remainingPaths.one',
+  'format.remainingPaths.other',
+  'format.remainingInterventions.one',
+  'format.remainingInterventions.other',
+  'format.pathCount.one',
+  'format.pathCount.other',
+  'format.pathCount',
+  'diff.noBaseline.currentScore',
+  'diff.noBaseline.nextStep',
 ] as const;
 
 export type MessageKey = (typeof MESSAGE_KEYS)[number];
@@ -172,7 +181,7 @@ const en: Catalog = {
   'mechanism.barrel-export.trigger.0': 'changes to related files',
   'mechanism.deep-nesting.label': 'deep nesting',
   'mechanism.unresolved-import.label': 'unresolved import',
-  'cluster.title.centered': '{label} region centered on {anchor} ({pathCount} paths)',
+  'cluster.title.centered': '{label} centered on {anchor} ({pathCountLabel})',
   'cluster.title.repositoryWide': '{label} (repository-wide)',
   'cluster.fallback.failure': 'Structural weakness related to {mechanismId}.',
   'cluster.fallback.trigger': 'changes to related files',
@@ -296,10 +305,19 @@ const en: Catalog = {
     'Run test command for {primaryPath} and confirm linked signals/clusters decrease.',
   'intervention.default.verificationHorizon':
     'Linked cluster score decreases on the next scan.',
-  'format.remainingEvidence': 'and {count} more evidence',
-  'format.remainingClusters': 'and {count} more clusters',
-  'format.remainingPaths': 'and {count} more paths',
-  'format.remainingInterventions': 'and {count} more interventions',
+  'format.remainingEvidence.one': 'and 1 more evidence item',
+  'format.remainingEvidence.other': 'and {count} more evidence items',
+  'format.remainingClusters.one': 'and 1 more cluster',
+  'format.remainingClusters.other': 'and {count} more clusters',
+  'format.remainingPaths.one': 'and 1 more path',
+  'format.remainingPaths.other': 'and {count} more paths',
+  'format.remainingInterventions.one': 'and 1 more intervention',
+  'format.remainingInterventions.other': 'and {count} more interventions',
+  'format.pathCount.one': '1 path',
+  'format.pathCount.other': '{count} paths',
+  'format.pathCount': '{count} paths',
+  'diff.noBaseline.currentScore': 'Current score: {score}',
+  'diff.noBaseline.nextStep': 'Next step: run "r3-doctor scan <path> --save-baseline" to create a baseline for comparison',
 };
 
 const ja: Catalog = {
@@ -343,7 +361,7 @@ const ja: Catalog = {
   'mechanism.barrel-export.trigger.0': '関連ファイルの変更',
   'mechanism.deep-nesting.label': '深いネスト',
   'mechanism.unresolved-import.label': '未解決 import',
-  'cluster.title.centered': '{anchor} を中心とする{label}（{pathCount} paths）',
+  'cluster.title.centered': '{anchor} を中心とする{label}（{pathCountLabel}）',
   'cluster.title.repositoryWide': '{label}（repository-wide）',
   'cluster.fallback.failure': '{mechanismId} に関連する構造上の弱点。',
   'cluster.fallback.trigger': '関連ファイルの変更',
@@ -389,7 +407,7 @@ const ja: Catalog = {
   'intervention.volatility.verification':
     '{primaryPath} の regression test と change checklist/ownership が存在することを確認する。',
   'intervention.volatility.verificationHorizon':
-    '{churnDays} 経過後の trend で git-churn linked signal/cluster が減少していること。',
+    '{churnDays}日経過後の trend で git-churn linked signal/cluster が減少していること。',
   'intervention.large-file.title': '責務ごとにモジュールを分割する',
   'intervention.large-file.description': '単一ファイルへの責務集中を解消し、変更単位を小さくする。',
   'intervention.large-file.expectedEffect': 'structural-fragility の低下',
@@ -452,10 +470,19 @@ const ja: Catalog = {
   'intervention.default.verification':
     '{primaryPath} 向け test command を実行し、linked signal/cluster の減少を確認する。',
   'intervention.default.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
-  'format.remainingEvidence': '他 {count} evidence',
-  'format.remainingClusters': '他 {count} clusters',
-  'format.remainingPaths': '他 {count} paths',
-  'format.remainingInterventions': '他 {count} interventions',
+  'format.remainingEvidence.one': '残り1件',
+  'format.remainingEvidence.other': '残り{count}件',
+  'format.remainingClusters.one': '残り1クラスタ',
+  'format.remainingClusters.other': '残り{count}クラスタ',
+  'format.remainingPaths.one': '残り1ファイル',
+  'format.remainingPaths.other': '残り{count}ファイル',
+  'format.remainingInterventions.one': '残り1件の改善提案',
+  'format.remainingInterventions.other': '残り{count}件の改善提案',
+  'format.pathCount.one': '1ファイル',
+  'format.pathCount.other': '{count}ファイル',
+  'format.pathCount': '{count}ファイル',
+  'diff.noBaseline.currentScore': '現在のスコア: {score}',
+  'diff.noBaseline.nextStep': '次の操作: 比較用 baseline を作成するには "r3-doctor scan <path> --save-baseline" を実行してください',
 };
 
 export const catalogs: Record<ReportLocale, Catalog> = { en, ja };

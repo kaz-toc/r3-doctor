@@ -132,7 +132,6 @@ addLlmOptions(program
     }
 
     process.stdout.write(output);
-    process.exit(0);
   });
 
 addLlmOptions(program
@@ -172,7 +171,6 @@ addLlmOptions(program
     }
 
     process.stdout.write(reporter.formatDiff(redacted, format, { view }));
-    process.exit(0);
   });
 
 program

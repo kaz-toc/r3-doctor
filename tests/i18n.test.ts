@@ -15,7 +15,7 @@ describe('i18n catalog', () => {
       'evidence.highFanIn',
       'mechanism.high-connectivity.failure',
       'intervention.volatility.title',
-      'format.remainingEvidence',
+      'format.remainingEvidence.other',
     ] as const;
 
     for (const key of sampleKeys) {
