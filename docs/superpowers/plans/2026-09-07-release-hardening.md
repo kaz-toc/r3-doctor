@@ -27,29 +27,29 @@
 - Modify: `src/cli.ts`
 - Modify/Create: package and CLI tests under `tests/`
 
-- [ ] Add a package regression test that packs, extracts, and runs golden calibration and policy evaluation.
-- [ ] Add a CLI regression test requiring every registered plugin to report non-empty capabilities.
-- [ ] Run the focused tests and verify RED.
-- [ ] Include runtime fixtures in the package and render plugin declarations directly.
-- [ ] Run the focused tests and verify GREEN.
+- [x] Add a package regression test that packs, extracts, and runs golden calibration and policy evaluation.
+- [x] Add a CLI regression test requiring every registered plugin to report non-empty capabilities.
+- [x] Run the focused tests and verify RED.
+- [x] Include runtime fixtures in the package and render plugin declarations directly.
+- [x] Run the focused tests and verify GREEN.
 
 ### Task 2: Ground Semantic Results and Preserve Them in Reports
 
 **Files:**
-- Modify: `src/semantic/semantic-response.ts`
+- Modify: `src/semantic/provider.ts`
 - Modify: `src/assessment/risk.ts`
 - Modify: `src/reporting/format.ts`
 - Modify: `src/schema/report.v1.ts`
 - Test: semantic, risk, and reporting test files under `tests/`
 
-- [ ] Add regressions for absolute, escaping, prefix-sibling, and missing finding paths.
-- [ ] Add semantic-only formatting and cluster path/score/confidence regressions.
-- [ ] Add unrelated same-mechanism evidence clustering regression.
-- [ ] Run focused tests and verify RED.
-- [ ] Validate finding paths against exact snapshot membership and related evidence membership.
-- [ ] Split non-cycle clusters by path and derive semantic cluster values from findings.
-- [ ] Treat semantic findings as visible axis signals and update the assessment contract.
-- [ ] Run focused tests and verify GREEN.
+- [x] Add regressions for absolute, escaping, prefix-sibling, and missing finding paths.
+- [x] Add semantic-only formatting and cluster path/score/confidence regressions.
+- [x] Add unrelated same-mechanism evidence clustering regression.
+- [x] Run focused tests and verify RED.
+- [x] Validate finding paths against exact snapshot membership and related evidence membership.
+- [x] Split non-cycle clusters by path and derive semantic cluster values from findings.
+- [x] Treat semantic findings as visible axis signals and update the assessment contract.
+- [x] Run focused tests and verify GREEN.
 
 ### Task 3: Enforce Prompt and ACP Setup Deadlines
 
@@ -59,12 +59,12 @@
 - Modify: `src/semantic/acp/acp-client.ts`, `src/semantic/acp/constants.ts`
 - Test: semantic prompt/provider/ACP tests under `tests/`
 
-- [ ] Add a provider-spy regression proving an oversized completed prompt is never sent.
-- [ ] Add silent initialize and silent session setup timeout regressions with short injected deadlines.
-- [ ] Run focused tests and verify RED.
-- [ ] Validate final UTF-8 prompt bytes before provider dispatch.
-- [ ] Add independently configurable initialization and session-setup deadlines with process cleanup.
-- [ ] Run focused tests and verify GREEN.
+- [x] Add a provider-spy regression proving an oversized completed prompt is never sent.
+- [x] Add silent initialize and silent session setup timeout regressions with short injected deadlines.
+- [x] Run focused tests and verify RED.
+- [x] Validate final UTF-8 prompt bytes before provider dispatch.
+- [x] Add independently configurable initialization and session-setup deadlines with process cleanup.
+- [x] Run focused tests and verify GREEN.
 
 ### Task 4: Parse Imports and Retain Deleted-Target Blast Radius
 
@@ -74,33 +74,33 @@
 - Modify: `package.json`, `package-lock.json`
 - Test: evidence and diff tests under `tests/`
 
-- [ ] Add regressions for comments, `require()`, dynamic `import()`, and all index extension variants.
-- [ ] Add deleted and renamed TypeScript target blast-radius regressions.
-- [ ] Run focused tests and verify RED.
-- [ ] Replace regex extraction with TypeScript AST traversal and move TypeScript to runtime dependencies.
-- [ ] Resolve against snapshot files plus changed-file virtual targets with extension substitution.
-- [ ] Run focused tests and verify GREEN.
+- [x] Add regressions for comments, `require()`, dynamic `import()`, and all index extension variants.
+- [x] Add deleted and renamed TypeScript target blast-radius regressions.
+- [x] Run focused tests and verify RED.
+- [x] Replace regex extraction with TypeScript AST traversal and move TypeScript to runtime dependencies.
+- [x] Resolve against snapshot files plus changed-file virtual targets with extension substitution.
+- [x] Run focused tests and verify GREEN.
 
 ### Task 5: Escape Glob Literals and Bind Trend Writes to Snapshots
 
 **Files:**
 - Modify: `src/intake/snapshot.ts`
-- Modify: `src/operations/trend.ts`, `src/persistence/trend-store.ts`
+- Modify: `src/persistence/snapshot-integrity.ts`, `src/persistence/trend-store.ts`
 - Test: snapshot/config and trend tests under `tests/`
 
-- [ ] Add literal regex-metacharacter glob regressions.
-- [ ] Add a Git fixture that advances HEAD after diagnosis and requires trend persistence to reject it.
-- [ ] Add report/snapshot mismatch and unchanged-state success regressions.
-- [ ] Run focused tests and verify RED.
-- [ ] Compile glob patterns character-by-character with explicit wildcard semantics.
-- [ ] Persist `snapshot.sourceCommitSha` only after repository-state and metadata validation.
-- [ ] Run focused tests and verify GREEN.
+- [x] Add literal regex-metacharacter glob regressions.
+- [x] Add a Git fixture that advances HEAD after diagnosis and requires trend persistence to reject it.
+- [x] Add report/snapshot mismatch and unchanged-state success regressions.
+- [x] Run focused tests and verify RED.
+- [x] Compile glob patterns character-by-character with explicit wildcard semantics.
+- [x] Persist `snapshot.sourceCommitSha` only after repository-state and metadata validation.
+- [x] Run focused tests and verify GREEN.
 
 ### Task 6: Verification, Review, and PR
 
-- [ ] Run all focused regression files.
-- [ ] Run `npm run validate` and `git diff --check`.
-- [ ] Build an npm tarball in a temporary directory and run installed CLI smoke tests.
-- [ ] Review `main...HEAD` against repository standards and this spec; fix every confirmed issue.
-- [ ] Re-run full verification after review fixes.
+- [x] Run all focused regression files.
+- [x] Run `npm run validate` and `git diff --check`.
+- [x] Build an npm tarball in a temporary directory and run installed CLI smoke tests.
+- [x] Review `main...HEAD` against repository standards and this spec; fix every confirmed issue.
+- [x] Re-run full verification after review fixes.
 - [ ] Commit coherent changes, push `fix/release-hardening`, and create a PR with findings and verification evidence.

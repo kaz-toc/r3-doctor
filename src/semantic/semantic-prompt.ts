@@ -1,6 +1,7 @@
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { Evidence } from '../schema/report.v1.js';
 import type { ContextPacket } from './context-budget.js';
+import { buildContextPacket } from './context-budget.js';
 
 /**
  * Provider-neutral contract for every semantic analysis prompt.
@@ -24,8 +25,8 @@ export function buildSemanticPrompt(
   snapshot: RepositorySnapshot,
   evidence: Evidence[],
   packet: ContextPacket,
+  fence = untrustedDataFence(),
 ): string {
-  const fence = untrustedDataFence();
   return [
     TEXT_ONLY_ANALYSIS_CONTRACT,
     'Analyze semantic ambiguity in the supplied regression-risk evidence.',
@@ -50,4 +51,26 @@ export function buildSemanticPrompt(
     packet.prompt,
     fence.end,
   ].join('\n');
+}
+
+export function buildBudgetedSemanticPrompt(
+  snapshot: RepositorySnapshot,
+  evidence: Evidence[],
+  maxPromptBytes: number,
+): string {
+  const emptyPacket: ContextPacket = { prompt: '', includedFilePaths: [], omittedFileCount: snapshot.files.length };
+  const fence = untrustedDataFence();
+  const fixedPrompt = buildSemanticPrompt(snapshot, evidence, emptyPacket, fence);
+  const fixedBytes = Buffer.byteLength(fixedPrompt, 'utf8');
+  if (fixedBytes > maxPromptBytes) {
+    throw new Error(`semantic prompt byte length ${fixedBytes} exceeds maxPromptBytes ${maxPromptBytes}`);
+  }
+
+  const packet = buildContextPacket(snapshot, maxPromptBytes - fixedBytes);
+  const prompt = buildSemanticPrompt(snapshot, evidence, packet, fence);
+  const promptBytes = Buffer.byteLength(prompt, 'utf8');
+  if (promptBytes > maxPromptBytes) {
+    throw new Error(`semantic prompt byte length ${promptBytes} exceeds maxPromptBytes ${maxPromptBytes}`);
+  }
+  return prompt;
 }

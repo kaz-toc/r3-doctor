@@ -28,6 +28,7 @@
   },
   "files": [
     "dist",
+    "tests/fixtures",
     "README.md",
     "LICENSE"
   ],
@@ -53,12 +54,12 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "1.4.0",
     "commander": "^14.0.0",
+    "typescript": "^5.7.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",
     "tsx": "^4.19.4",
-    "typescript": "^5.7.3",
     "vitest": "^3.2.6"
   }
 }

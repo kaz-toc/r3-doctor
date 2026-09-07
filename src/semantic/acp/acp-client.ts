@@ -10,6 +10,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 
 import {
+  LLM_ACP_SETUP_TIMEOUT_MS,
   LLM_PROMPT_HARD_TIMEOUT_MS,
   LLM_PROMPT_IDLE_TIMEOUT_MS,
   LLM_TOOL_CALL_ABORT_THRESHOLD,
@@ -208,6 +209,23 @@ function connect(options: { spec: LlmLaunchSpec; spawn?: LlmSpawn }): Connection
 
 async function race<T>(operation: Promise<T>, resource: ConnectionResource): Promise<T> {
   return Promise.race([operation, resource.error]);
+}
+
+async function raceWithTimeout<T>(
+  operation: Promise<T>,
+  resource: ConnectionResource,
+  timeoutMs: number,
+  phase: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`llm_acp_timeout_${phase}`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, resource.error, deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function sendSessionCancel(resource: ConnectionResource, sessionId: string): Promise<void> {
@@ -451,7 +469,7 @@ async function promptSession(
 }
 
 async function withConnection<T>(
-  input: { spec: LlmLaunchSpec; spawn?: LlmSpawn; signal?: AbortSignal },
+  input: { spec: LlmLaunchSpec; spawn?: LlmSpawn; signal?: AbortSignal; setupTimeoutMs: number },
   run: (resource: ConnectionResource) => Promise<LlmResult<T>>,
 ): Promise<LlmResult<T>> {
   let resource: ConnectionResource;
@@ -463,7 +481,7 @@ async function withConnection<T>(
 
   try {
     if (input.signal?.aborted) throw new Error('llm_acp_cancelled');
-    await race(initialize(resource, input.signal), resource);
+    await raceWithTimeout(initialize(resource, input.signal), resource, input.setupTimeoutMs, 'initialize');
     return await run(resource);
   } catch (error) {
     return fail(mapFailure(error));
@@ -476,20 +494,26 @@ async function withConnection<T>(
 export function createOneShotAcpClient(input?: {
   spawn?: LlmSpawn;
   promptPolicy?: LlmPromptPolicy;
+  setupTimeoutMs?: number;
 }): OneShotAcpClient {
   const promptPolicy = input?.promptPolicy ?? DEFAULT_LLM_PROMPT_POLICY;
+  const setupTimeoutMs = input?.setupTimeoutMs ?? LLM_ACP_SETUP_TIMEOUT_MS;
 
   return {
     async inspect({ spec, signal }) {
-      return withConnection({ spec, spawn: input?.spawn, signal }, async (resource) =>
+      return withConnection({ spec, spawn: input?.spawn, signal, setupTimeoutMs }, async (resource) =>
         ok(resource.inspection),
       );
     },
 
     async oneShotPrompt({ spec, prompt, outputMaxBytes, modelIdentifier, signal }) {
-      return withConnection({ spec, spawn: input?.spawn, signal }, async (resource) => {
-        const session = await createSession(resource, spec, signal);
-        const configured = await configureSession(resource, session, modelIdentifier, signal);
+      return withConnection({ spec, spawn: input?.spawn, signal, setupTimeoutMs }, async (resource) => {
+        const setup = await raceWithTimeout((async () => {
+          const session = await createSession(resource, spec, signal);
+          const configured = await configureSession(resource, session, modelIdentifier, signal);
+          return { session, configured };
+        })(), resource, setupTimeoutMs, 'session_setup');
+        const { session, configured } = setup;
         if (!configured.ok) return configured;
         return promptSession(resource, session, prompt, outputMaxBytes, promptPolicy, signal);
       });

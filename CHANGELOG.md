@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Markdown, JSON, and console report formats
 - GitHub PR advisory workflow integration
 
+### Fixed
+
+- Package runtime fixtures, plugin capability listing, semantic grounding/reporting, import and rename-aware blast-radius analysis, prompt/ACP deadlines, trend snapshot identity, and literal glob matching
+- Assessment contract updated to v3 for corrected semantic cluster scoring and confidence
+
 ### Notes
 
 - Read-only diagnostic tool; does not auto-fix code

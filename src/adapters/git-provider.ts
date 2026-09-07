@@ -40,6 +40,26 @@ async function listUntrackedFiles(repositoryPath: string): Promise<string[]> {
   }
 }
 
+async function listChangedPaths(repositoryPath: string, args: string[]): Promise<string[]> {
+  const { stdout } = await execFileAsync('git', [...args, '--name-status', '-z'], {
+    cwd: repositoryPath,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const tokens = stdout.split('\0');
+  const paths: string[] = [];
+  for (let index = 0; index < tokens.length;) {
+    const status = tokens[index++];
+    if (!status) continue;
+    const firstPath = tokens[index++];
+    if (firstPath) paths.push(firstPath);
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const secondPath = tokens[index++];
+      if (secondPath) paths.push(secondPath);
+    }
+  }
+  return normalizeChangedFiles(paths);
+}
+
 export class DefaultGitProvider implements GitProvider {
   async inspectRepository(
     repositoryPath: string,
@@ -87,17 +107,15 @@ export class DefaultGitProvider implements GitProvider {
     const collected = new Set<string>();
 
     const commands: string[][] = [
-      ['diff', '--name-only', baseRef],
-      ['diff', '--cached', '--name-only', baseRef],
-      ['diff', '--name-only', `${baseRef}...HEAD`],
+      ['diff', baseRef],
+      ['diff', '--cached', baseRef],
+      ['diff', `${baseRef}...HEAD`],
     ];
 
     for (const args of commands) {
       try {
-        for (const line of await runGit(repositoryPath, args)) {
-          if (SOURCE_FILE_PATTERN.test(line.trim())) {
-            collected.add(line.trim());
-          }
+        for (const changedPath of await listChangedPaths(repositoryPath, args)) {
+          collected.add(changedPath);
         }
       } catch {
         continue;

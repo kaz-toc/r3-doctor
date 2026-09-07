@@ -29,6 +29,13 @@ describe('intake contract', () => {
     expect(isExcluded('src/index.ts', ['node_modules'])).toBe(false);
   });
 
+  it('REG-2026-011 treats regular-expression metacharacters in globs as literal path characters', () => {
+    expect(isExcluded('src/foo+bar/generated/a.ts', ['src/foo+bar/**'])).toBe(true);
+    expect(isExcluded('src/foooobar/generated/a.ts', ['src/foo+bar/**'])).toBe(false);
+    expect(isExcluded('src/[draft]/a.ts', ['src/[draft]/**'])).toBe(true);
+    expect(isExcluded('src/d/a.ts', ['src/[draft]/**'])).toBe(false);
+  });
+
   it('throws config error for invalid JSON config', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), '{invalid');

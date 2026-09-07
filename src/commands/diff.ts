@@ -59,10 +59,10 @@ export function computeBlastRadius(
     intakeIssues: [],
     config: {} as never,
   };
-  const edges = buildImportGraph(snapshot as never)
+  const normalizedChanged = [...new Set(changedFiles.map((file) => file.replace(/\\/g, '/')))].sort();
+  const edges = buildImportGraph(snapshot as never, normalizedChanged)
     .filter((edge) => edge.kind === 'relative')
     .map((edge) => ({ from: edge.from, to: edge.to }));
-  const normalizedChanged = [...new Set(changedFiles.map((file) => file.replace(/\\/g, '/')))].sort();
 
   return normalizedChanged.map((changedFile) => {
     const directDependents = edges.filter((edge) => edge.to === changedFile).map((edge) => edge.from).sort();

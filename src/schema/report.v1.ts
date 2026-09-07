@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const ASSESSMENT_CONTRACT_VERSION = 2;
+export const ASSESSMENT_CONTRACT_VERSION = 3;
 export const REPORT_SCHEMA_VERSION = 1;
 export const BASELINE_SCHEMA_VERSION = 3;
 export const DIFF_SCHEMA_VERSION = 2;

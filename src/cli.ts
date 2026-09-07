@@ -16,7 +16,6 @@ import {
   GoStubAnalyzerPlugin,
   PythonStubAnalyzerPlugin,
   TypeScriptAnalyzerPlugin,
-  negotiateCapabilities,
 } from './plugins/analyzer.js';
 import { extractEvidenceWithPlugins, getDefaultPlugins } from './plugins/analyzer.js';
 import { R3DoctorError } from './shared/errors.js';
@@ -26,9 +25,8 @@ import type { RetentionAudit } from './persistence/retention.js';
 import { resolveSafeStorageDir } from './persistence/storage-boundary.js';
 import { createOneShotAcpClient } from './semantic/acp/acp-client.js';
 import { buildLlmLaunchSpec, getLlmProviderDefinition } from './semantic/acp/provider-registry.js';
-import { buildContextPacket } from './semantic/context-budget.js';
 import { normalizeProviderId, selectLlmCandidateFiles } from './semantic/provider.js';
-import { buildSemanticPrompt } from './semantic/semantic-prompt.js';
+import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const reporter = new DefaultReporterAdapter();
@@ -72,12 +70,12 @@ program
         ...snapshot,
         files: selectLlmCandidateFiles(snapshot, evidence),
       };
-      const packet = buildContextPacket(
+      const prompt = buildBudgetedSemanticPrompt(
         scopedSnapshot,
         evidence,
         snapshot.config.llm.maxPromptBytes,
       );
-      process.stdout.write(`${buildSemanticPrompt(scopedSnapshot, evidence, packet)}\n`);
+      process.stdout.write(`${prompt}\n`);
       return;
     }
 
@@ -246,21 +244,14 @@ program
   .description('list analyzer plugin capabilities')
   .action(async () => {
     const plugins = [new TypeScriptAnalyzerPlugin(), new PythonStubAnalyzerPlugin(), new GoStubAnalyzerPlugin()];
-    const negotiation = negotiateCapabilities(
-      {
-        repositoryPath: process.cwd(),
-        files: [],
-        inputId: 'plugins',
-        gitAvailable: false,
-        gitDirty: false,
-        analysisContextFingerprint: '0'.repeat(64),
-        truncated: false,
-        intakeIssues: [],
-        config: { schemaVersion: 1 } as never,
-      },
-      plugins,
-    );
-    process.stdout.write(`${JSON.stringify({ plugins: plugins.map((p) => p.id), ...negotiation }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      plugins: plugins.map((plugin) => ({
+        id: plugin.id,
+        implementationVersion: plugin.implementationVersion,
+        extensions: plugin.extensions,
+        capabilities: plugin.capabilities,
+      })),
+    }, null, 2)}\n`);
   });
 
 const llm = program.command('llm').description('LLM provider utilities');

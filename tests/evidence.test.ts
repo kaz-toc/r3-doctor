@@ -10,6 +10,67 @@ const fixturesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fi
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('deterministic evidence', () => {
+  it('REG-2026-003 parses executable CommonJS and dynamic imports without matching comments or strings', () => {
+    const sourceFile = (relativePath: string, content: string) => ({
+      relativePath,
+      absolutePath: path.join('/repo', relativePath),
+      extension: path.extname(relativePath),
+      content,
+      contentHash: relativePath,
+      nonBlankLines: 1,
+    });
+    const snapshot = {
+      repositoryPath: '/repo',
+      files: [
+        sourceFile('src/main.ts', [
+          "// import commented from './commented.js';",
+          "const example = \"require('./string-only.js')\";",
+          "const common = require('./common.js');",
+          "const lazy = import('./lazy.js');",
+        ].join('\n')),
+        sourceFile('src/common.ts', 'export const common = true;'),
+        sourceFile('src/lazy.ts', 'export const lazy = true;'),
+      ],
+    } as never;
+
+    const edges = buildImportGraph(snapshot);
+
+    expect(edges).toEqual([
+      { from: 'src/main.ts', to: 'src/common.ts', kind: 'relative' },
+      { from: 'src/main.ts', to: 'src/lazy.ts', kind: 'relative' },
+    ]);
+  });
+
+  it.each(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'])('resolves directory index.%s imports', (extension) => {
+    const snapshot = {
+      repositoryPath: '/repo',
+      files: [
+        {
+          relativePath: 'src/main.ts',
+          absolutePath: '/repo/src/main.ts',
+          extension: '.ts',
+          content: "import './feature';",
+          contentHash: 'main',
+          nonBlankLines: 1,
+        },
+        {
+          relativePath: `src/feature/index.${extension}`,
+          absolutePath: `/repo/src/feature/index.${extension}`,
+          extension: `.${extension}`,
+          content: 'export const feature = true;',
+          contentHash: extension,
+          nonBlankLines: 1,
+        },
+      ],
+    } as never;
+
+    expect(buildImportGraph(snapshot)).toContainEqual({
+      from: 'src/main.ts',
+      to: `src/feature/index.${extension}`,
+      kind: 'relative',
+    });
+  });
+
   it('finds simple two-node cycle', () => {
     const cycles = findImportCycles([
       { from: 'a.ts', to: 'b.ts', kind: 'relative' },

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-002",
+  "status": "active",
+  "title": "Semantic findings accept nonexistent repository paths",
+  "invariant": "Every semantic finding path is repository-relative and exactly names a file in the analyzed snapshot.",
+  "incident": "codebase-review-2026-09-07#semantic-path-grounding",
+  "productionFiles": ["src/semantic/provider.ts"],
+  "testFiles": ["tests/schema.test.ts"],
+  "verificationCommands": ["npm test -- tests/schema.test.ts"]
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-004",
+  "status": "active",
+  "title": "Deleted and renamed targets lose incoming blast radius",
+  "invariant": "Changed-file discovery and import resolution preserve incoming edges for deleted paths and both sides of renames.",
+  "incident": "codebase-review-2026-09-07#deleted-target-blast-radius",
+  "productionFiles": ["src/adapters/git-provider.ts", "src/commands/diff.ts", "src/evidence/deterministic.ts"],
+  "testFiles": ["tests/diff.test.ts"],
+  "verificationCommands": ["npm test -- tests/diff.test.ts"]
+}

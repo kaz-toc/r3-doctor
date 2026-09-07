@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import path from 'node:path';
 
 import type { SemanticFinding } from '../schema/report.v1.js';
 import { findingIdSchema, riskAxisIdSchema, semanticFindingSchema, evidenceIdSchema } from '../schema/report.v1.js';
@@ -60,17 +61,22 @@ export function validateSemanticFindings(
 ): SemanticFinding[] {
   const parsed = providerOutputSchema.parse(raw).filter((item) => item.axisId === 'semantic-ambiguity');
   const evidenceIds = new Set(evidence.map((item) => item.evidenceId));
-  const repoPrefix = snapshot.repositoryPath;
+  const snapshotPaths = new Set(snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')));
 
   return parsed.map((item, index) => {
+    let normalizedPath: string | undefined;
     if (item.path) {
-      const resolved = item.path.startsWith('/') ? item.path : item.path;
-      if (resolved.includes('..')) {
+      const portablePath = item.path.replaceAll('\\', '/');
+      const pathSegments = portablePath.split('/');
+      if (path.posix.isAbsolute(portablePath) || /^[A-Za-z]:\//u.test(portablePath)) {
+        throw new Error(`semantic finding path must be repository-relative: ${item.path}`);
+      }
+      if (pathSegments.includes('..')) {
         throw new Error(`semantic finding path escapes repository: ${item.path}`);
       }
-      const absolute = resolved.startsWith('/') ? resolved : `${repoPrefix}/${resolved}`;
-      if (!absolute.startsWith(repoPrefix)) {
-        throw new Error(`semantic finding path outside repository: ${item.path}`);
+      normalizedPath = path.posix.normalize(portablePath);
+      if (normalizedPath === '.' || !snapshotPaths.has(normalizedPath)) {
+        throw new Error(`semantic finding path is not in the repository snapshot: ${item.path}`);
       }
     }
 
@@ -83,7 +89,7 @@ export function validateSemanticFindings(
     const finding: SemanticFinding = {
       findingId: item.findingId ?? `finding:semantic:${index + 1}`,
       axisId: item.axisId,
-      path: item.path,
+      path: normalizedPath,
       summary: item.summary,
       relatedEvidenceIds: item.relatedEvidenceIds,
       confidence: item.confidence,

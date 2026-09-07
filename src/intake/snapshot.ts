@@ -50,15 +50,23 @@ function hashContent(content: string): string {
 
 function matchGlob(relativePath: string, pattern: string): boolean {
   const normalized = relativePath.replace(/\\/g, '/');
-  const regex = new RegExp(
-    `^${pattern
-      .replace(/\\/g, '/')
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '§§')
-      .replace(/\*/g, '[^/]*')
-      .replace(/§§/g, '.*')
-      .replace(/\?/g, '[^/]')}$`,
-  );
+  const normalizedPattern = pattern.replace(/\\/g, '/');
+  let source = '^';
+  for (let index = 0; index < normalizedPattern.length; index += 1) {
+    const character = normalizedPattern[index]!;
+    if (character === '*' && normalizedPattern[index + 1] === '*') {
+      source += '.*';
+      index += 1;
+    } else if (character === '*') {
+      source += '[^/]*';
+    } else if (character === '?') {
+      source += '[^/]';
+    } else {
+      source += character.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    }
+  }
+  source += '$';
+  const regex = new RegExp(source);
   return regex.test(normalized);
 }
 
