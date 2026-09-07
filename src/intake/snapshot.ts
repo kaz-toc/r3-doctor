@@ -2,8 +2,14 @@ import { createHash } from 'node:crypto';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { R3DoctorConfig } from '../shared/config.js';
-import { configSchema, defaultConfig, normalizeConfig } from '../shared/config.js';
+import type { LlmConfig, R3DoctorConfig } from '../shared/config.js';
+import {
+  configSchema,
+  defaultConfig,
+  defaultLlmConfig,
+  normalizeConfig,
+  repositoryConfigSchema,
+} from '../shared/config.js';
 import { ConfigError, IntakeError } from '../shared/errors.js';
 import { ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import { getRegisteredExtensions } from '../plugins/language-extensions.js';
@@ -172,7 +178,10 @@ export function computeInputId(unitId: string | undefined, files: SourceFile[], 
   return hash.digest('hex').slice(0, 16);
 }
 
-export async function loadConfig(repositoryPath: string): Promise<R3DoctorConfig> {
+export async function loadConfig(
+  repositoryPath: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<R3DoctorConfig> {
   const configPath = path.join(repositoryPath, 'r3-doctor.config.json');
   try {
     await access(configPath);
@@ -182,14 +191,19 @@ export async function loadConfig(repositoryPath: string): Promise<R3DoctorConfig
 
   try {
     const raw = await readFile(configPath, 'utf8');
-    return configSchema.parse(JSON.parse(raw));
+    const repositoryConfig = repositoryConfigSchema.parse(JSON.parse(raw));
+    return configSchema.parse({ ...repositoryConfig, llm: llmConfig });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(configPath, reason);
   }
 }
 
-export async function createRepositorySnapshot(repositoryPath: string, unitId?: string): Promise<RepositorySnapshot> {
+export async function createRepositorySnapshot(
+  repositoryPath: string,
+  unitId?: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<RepositorySnapshot> {
   const resolved = path.resolve(repositoryPath);
   try {
     const rootStat = await stat(resolved);
@@ -203,7 +217,7 @@ export async function createRepositorySnapshot(repositoryPath: string, unitId?: 
     throw new IntakeError(`repository path does not exist: ${resolved}`);
   }
 
-  const config = await loadConfig(resolved);
+  const config = await loadConfig(resolved, llmConfig);
   const unit = unitId ? config.units.find((entry) => entry.id === unitId) : undefined;
   if (unitId && !unit) {
     throw new IntakeError(`unknown unit: ${unitId}`);

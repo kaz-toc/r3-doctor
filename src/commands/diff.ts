@@ -11,6 +11,7 @@ import { runDiagnosis } from '../pipeline/diagnose.js';
 import { DIFF_SCHEMA_VERSION } from '../schema/report.v1.js';
 import type { BlastRadiusEntry, DiffReport } from '../schema/report.v1.js';
 import { redactDiffReport, redactionPolicyFingerprint } from '../shared/redaction.js';
+import { defaultLlmConfig, type LlmConfig } from '../shared/config.js';
 
 function transitiveReach(start: string, edges: Array<{ from: string; to: string }>, direction: 'dependents' | 'dependencies'): {
   nodes: Set<string>;
@@ -80,9 +81,13 @@ export function computeBlastRadius(
   });
 }
 
-export async function runDiffDiagnosis(repositoryPath: string, baseRef: string): Promise<DiffReport> {
+export async function runDiffDiagnosis(
+  repositoryPath: string,
+  baseRef: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<DiffReport> {
   const resolved = path.resolve(repositoryPath);
-  const currentSnapshot = await createRepositorySnapshot(resolved);
+  const currentSnapshot = await createRepositorySnapshot(resolved, undefined, llmConfig);
   const current = await runDiagnosis(currentSnapshot);
   const policy = await loadPolicy(currentSnapshot.repositoryPath, currentSnapshot.config.policyFile);
   if (!currentSnapshot.gitAvailable || !currentSnapshot.sourceCommitSha) {

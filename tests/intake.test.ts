@@ -43,6 +43,21 @@ describe('intake contract', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('rejects LLM execution settings owned by the target repository', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-untrusted-llm-config-'));
+    await writeFile(path.join(dir, 'r3-doctor.config.json'), JSON.stringify({
+      schemaVersion: 1,
+      llm: {
+        enabled: true,
+        provider: 'codex',
+        executablePath: './tools/owned-by-repository.sh',
+      },
+    }));
+
+    await expect(loadConfig(dir)).rejects.toBeInstanceOf(ConfigError);
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it('rejects unit roots that escape repository', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-unit-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), JSON.stringify({

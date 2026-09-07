@@ -7,12 +7,28 @@ export function normalizeProviderAlias(value: unknown): unknown {
   return value;
 }
 
-const llmProviderSchema = z.preprocess(
+export const llmProviderSchema = z.preprocess(
   normalizeProviderAlias,
   z.enum(['none', 'copilot', 'cursor', 'codex', 'claude']),
 );
 
-export const configSchema = z
+export const llmConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    provider: llmProviderSchema.default('none'),
+    model: z.string().trim().min(1).optional(),
+    executablePath: z.string().trim().min(1).optional(),
+    maxPromptBytes: z.number().int().positive().max(1_000_000).default(80_000),
+    maxFiles: z.number().int().positive().max(100).default(20),
+    sendScope: z.enum(['changed', 'cluster-context', 'all']).default('cluster-context'),
+  })
+  .strict();
+
+export type LlmConfig = z.infer<typeof llmConfigSchema>;
+
+export const defaultLlmConfig: LlmConfig = llmConfigSchema.parse({});
+
+export const repositoryConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
     exclude: z.array(z.string()).default(['node_modules', 'dist', 'build', 'coverage']),
@@ -21,23 +37,6 @@ export const configSchema = z
     fanOutThreshold: z.number().int().positive().default(8),
     fanInThreshold: z.number().int().positive().default(8),
     churnDays: z.number().int().positive().default(90),
-    llm: z
-      .object({
-        enabled: z.boolean().default(false),
-        provider: llmProviderSchema.default('none'),
-        model: z.string().optional(),
-        executablePath: z.string().optional(),
-        maxPromptBytes: z.number().int().positive().default(80_000),
-        maxFiles: z.number().int().positive().default(20),
-        sendScope: z.enum(['changed', 'cluster-context', 'all']).default('cluster-context'),
-      })
-      .default({
-        enabled: false,
-        provider: 'none',
-        maxPromptBytes: 80_000,
-        maxFiles: 20,
-        sendScope: 'cluster-context',
-      }),
     baselineDir: z.string().default('.r3-doctor/baselines'),
     trendDir: z.string().default('.r3-doctor/trends'),
     policyFile: z.string().default('.r3-doctor/policy.json'),
@@ -55,14 +54,17 @@ export const configSchema = z
   })
   .strict();
 
+export const configSchema = repositoryConfigSchema.extend({ llm: llmConfigSchema }).strict();
+
+export type RepositoryConfig = z.infer<typeof repositoryConfigSchema>;
+
 export type R3DoctorConfig = z.infer<typeof configSchema>;
 
 export const defaultConfig: R3DoctorConfig = configSchema.parse({
   schemaVersion: 1,
+  llm: defaultLlmConfig,
 });
 
 export function normalizeConfig(config: R3DoctorConfig): R3DoctorConfig {
   return configSchema.parse(config);
 }
-
-export type LlmConfig = R3DoctorConfig['llm'];
