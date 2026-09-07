@@ -1,7 +1,7 @@
 import type { DiagnosisReport, DiffReport, Evidence } from '../schema/report.v1.js';
 import type { ReportLocale } from '../i18n/locale.js';
 import { DEFAULT_LOCALE } from '../i18n/locale.js';
-import { t } from '../i18n/messages.js';
+import { t, tCount } from '../i18n/messages.js';
 import {
   buildReportViewModel,
   DEFAULT_REPORT_VIEW_LIMITS,
@@ -24,8 +24,12 @@ function resolveFormatLocale(report: DiagnosisReport, options: FormatReportOptio
   return options.locale ?? report.metadata.reportLocale ?? DEFAULT_LOCALE;
 }
 
-function remainingSuffix(locale: ReportLocale, key: 'format.remainingEvidence' | 'format.remainingClusters' | 'format.remainingPaths' | 'format.remainingInterventions', count: number): string {
-  return t(locale, key, { count });
+function remainingSuffix(
+  locale: ReportLocale,
+  key: 'format.remainingEvidence' | 'format.remainingClusters' | 'format.remainingPaths' | 'format.remainingInterventions',
+  count: number,
+): string {
+  return tCount(locale, key, count);
 }
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 1 } as const;
@@ -515,7 +519,12 @@ function formatSignalChangeMarkdownLines(diff: DiffReport): string[] {
   return lines;
 }
 
-function diffSummaryLines(diff: DiffReport): string[] {
+function isMissingStoredBaseline(diff: DiffReport): boolean {
+  return !diff.comparison.compatible
+    && (diff.comparison.reason?.includes('no stored baseline manifest') ?? false);
+}
+
+function diffSummaryLines(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const lines = ['Diff summary:'];
   lines.push(`  compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
@@ -525,12 +534,15 @@ function diffSummaryLines(diff: DiffReport): string[] {
     lines.push(`  baseline: ${diff.comparison.baselineId ?? diff.base.metadata.inputId}`);
     lines.push(`  Base score: ${diff.base.repository.regressionRiskScore}`);
     lines.push(`  risk delta: ${diff.comparison.riskDelta ?? 0}`);
+  } else if (isMissingStoredBaseline(diff)) {
+    lines.push(`  ${t(locale, 'diff.noBaseline.currentScore', { score: diff.current.repository.regressionRiskScore })}`);
+    lines.push(`  ${t(locale, 'diff.noBaseline.nextStep')}`);
   }
   lines.push(`  changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
   return lines;
 }
 
-function diffSummaryMarkdown(diff: DiffReport, heading = '## Diff Comparison'): string[] {
+function diffSummaryMarkdown(diff: DiffReport, heading = '## Diff Comparison', locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const lines = [heading, ''];
   lines.push(`- Compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
@@ -540,14 +552,17 @@ function diffSummaryMarkdown(diff: DiffReport, heading = '## Diff Comparison'): 
     lines.push(`- Baseline: ${diff.comparison.baselineId ?? diff.base.metadata.inputId}`);
     lines.push(`- Base score: ${diff.base.repository.regressionRiskScore}`);
     lines.push(`- Risk delta: ${diff.comparison.riskDelta ?? 0}`);
+  } else if (isMissingStoredBaseline(diff)) {
+    lines.push(`- ${t(locale, 'diff.noBaseline.currentScore', { score: diff.current.repository.regressionRiskScore })}`);
+    lines.push(`- ${t(locale, 'diff.noBaseline.nextStep')}`);
   }
   lines.push(`- Changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
   lines.push('');
   return lines;
 }
 
-function renderDiffFactsConsole(diff: DiffReport, heading = 'Current state'): string[] {
-  const lines = [heading, ...diffSummaryLines(diff), ''];
+function renderDiffFactsConsole(diff: DiffReport, heading = 'Current state', locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  const lines = [heading, ...diffSummaryLines(diff, locale), ''];
   for (const line of formatBlastRadiusConsoleLines(diff)) {
     lines.push(line === 'Blast radius:' ? `  ${line}` : `  ${line}`);
   }
@@ -558,19 +573,19 @@ function renderDiffFactsConsole(diff: DiffReport, heading = 'Current state'): st
   return lines;
 }
 
-function renderDiffFactsMarkdown(diff: DiffReport, heading = '## Current state'): string[] {
+function renderDiffFactsMarkdown(diff: DiffReport, heading = '## Current state', locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const lines = [
     heading,
     '',
-    ...diffSummaryMarkdown(diff, '### Diff comparison'),
+    ...diffSummaryMarkdown(diff, '### Diff comparison', locale),
     ...formatBlastRadiusMarkdownLines(diff),
     ...formatSignalChangeMarkdownLines(diff),
   ];
   return lines;
 }
 
-function renderDiffSummaryConsole(diff: DiffReport): string[] {
-  const lines = [...diffSummaryLines(diff)];
+function renderDiffSummaryConsole(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  const lines = [...diffSummaryLines(diff, locale)];
   const changedClusters = diff.current.clusters.filter((cluster) =>
     cluster.evidenceIds.some((id) =>
       diff.comparison.newSignals.some((change) => change.evidenceId === id) ||
@@ -588,8 +603,8 @@ function renderDiffSummaryConsole(diff: DiffReport): string[] {
   return lines;
 }
 
-function renderDiffSummaryMarkdown(diff: DiffReport): string[] {
-  const lines = [...diffSummaryMarkdown(diff), '### Changed clusters', ''];
+function renderDiffSummaryMarkdown(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  const lines = [...diffSummaryMarkdown(diff, '## Diff Comparison', locale), '### Changed clusters', ''];
   const changedClusters = diff.current.clusters.filter((cluster) =>
     cluster.evidenceIds.some((id) =>
       diff.comparison.newSignals.some((change) => change.evidenceId === id) ||
@@ -652,7 +667,7 @@ function renderDiffAllConsole(diff: DiffReport, locale: ReportLocale = DEFAULT_L
     '',
     ...renderDiffActionsConsole(diff, locale),
     '',
-    ...renderDiffFactsConsole(diff),
+    ...renderDiffFactsConsole(diff, 'Current state', locale),
   ];
 }
 
@@ -661,7 +676,7 @@ function renderDiffAllMarkdown(diff: DiffReport, locale: ReportLocale = DEFAULT_
   return [
     ...renderSummaryMarkdown(model, '## Diagnosis summary', { includeClusterEvidence: false, locale }),
     ...renderDiffActionsMarkdown(diff, locale),
-    ...renderDiffFactsMarkdown(diff),
+    ...renderDiffFactsMarkdown(diff, '## Current state', locale),
   ];
 }
 
@@ -671,10 +686,10 @@ export function formatDiffConsoleReport(diff: DiffReport, options: FormatReportO
   const lines: string[] = [];
   switch (view) {
     case 'facts':
-      lines.push(...renderDiffFactsConsole(diff));
+      lines.push(...renderDiffFactsConsole(diff, 'Current state', locale));
       break;
     case 'summary':
-      lines.push(...renderDiffSummaryConsole(diff));
+      lines.push(...renderDiffSummaryConsole(diff, locale));
       break;
     case 'actions':
       lines.push(...renderDiffActionsConsole(diff, locale));
@@ -692,10 +707,10 @@ export function formatDiffMarkdownReport(diff: DiffReport, options: FormatReport
   const lines = [...reportHeaderLines(diff.current)];
   switch (view) {
     case 'facts':
-      lines.push(...renderDiffFactsMarkdown(diff));
+      lines.push(...renderDiffFactsMarkdown(diff, '## Current state', locale));
       break;
     case 'summary':
-      lines.push(...renderDiffSummaryMarkdown(diff));
+      lines.push(...renderDiffSummaryMarkdown(diff, locale));
       break;
     case 'actions':
       lines.push(...renderDiffActionsMarkdown(diff, locale));
