@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Report locale setting (`locale: en | ja`, default `en`) in config and `--locale` on `scan` / `diff`
+- `src/i18n/` catalog with type-safe `t()` helper and `metadata.reportLocale` on diagnosis reports
+- `tests/i18n.test.ts` for catalog completeness
+
+### Changed
+
+- **Breaking:** Default scan output uses English narrative prose (disclaimer, evidence messages, clusters, interventions)
+- Formatter suffixes (`and N more evidence` / `他 N evidence`) follow `metadata.reportLocale`; section headings and metric labels stay English
+- `parseView` CLI error message is English
+
+### Added (prior)
+
 - Assessment contract v4 with contribution points, score breakdown, calibration status, and actionable intervention fields
 - Report views (`facts`, `summary`, `actions`, `all`) for independently selectable human-readable output
 - Calibration quality summary (`uncalibrated`, `provisional`, `validated`) on standard diagnosis reports

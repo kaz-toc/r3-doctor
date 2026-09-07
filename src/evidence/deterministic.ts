@@ -3,6 +3,9 @@ import ts from 'typescript';
 
 import type { Evidence, RiskAxisId, SignalId } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
+import type { ReportLocale } from '../i18n/locale.js';
+import { DEFAULT_LOCALE } from '../i18n/locale.js';
+import { t } from '../i18n/messages.js';
 import { isNonProductPath, isTestFile } from './diagnostic-paths.js';
 import { classifyPathRole } from './path-role.js';
 import {
@@ -351,7 +354,10 @@ function makeEvidence(
   };
 }
 
-export async function extractDeterministicEvidence(snapshot: RepositorySnapshot): Promise<Evidence[]> {
+export async function extractDeterministicEvidence(
+  snapshot: RepositorySnapshot,
+  locale: ReportLocale = DEFAULT_LOCALE,
+): Promise<Evidence[]> {
   const evidence: Evidence[] = [];
   const edges = buildImportGraph(snapshot);
   const availablePaths = new Set(snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')));
@@ -376,7 +382,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
             testCoverage,
             'unresolved-import',
             'structural-fragility',
-            `解決不能な相対 import: ${edge.to}`,
+            t(locale, 'evidence.unresolvedImport', { target: edge.to }),
             edge.from,
             { target: edge.to },
             {
@@ -398,7 +404,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'high-fan-out',
           'change-blast-radius',
-          `fan-out が高い (${count})`,
+          t(locale, 'evidence.highFanOut', { count }),
           filePath,
           { fanOut: count },
           {
@@ -419,7 +425,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'high-fan-in',
           'change-blast-radius',
-          `fan-in が高い (${count})`,
+          t(locale, 'evidence.highFanIn', { count }),
           filePath,
           { fanIn: count },
           {
@@ -447,7 +453,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
       axisId: 'structural-fragility',
       path: primaryPath,
       severity: built.severity,
-      message: `循環依存: ${unique.join(' -> ')}`,
+      message: t(locale, 'evidence.depCycle', { cycle: unique.join(' -> ') }),
       metrics: { cycle: unique.join('->') },
       source: 'deterministic',
       strength: built.strength,
@@ -470,7 +476,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'large-file',
           'structural-fragility',
-          `大規模ファイル (${file.nonBlankLines} 行)`,
+          t(locale, 'evidence.largeFile', { lines: file.nonBlankLines }),
           file.relativePath,
           { lines: file.nonBlankLines },
           {
@@ -493,7 +499,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'barrel-reexport',
           'structural-fragility',
-          'barrel 再エクスポートを検出',
+          t(locale, 'evidence.barrelReexport'),
           file.relativePath,
           undefined,
           {
@@ -514,7 +520,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'deep-nesting',
           'structural-fragility',
-          `深いネスト (深度 ${depth})`,
+          t(locale, 'evidence.deepNesting', { depth }),
           file.relativePath,
           { depth },
           {
@@ -536,7 +542,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
           testCoverage,
           'missing-test-pair',
           'verification-gap',
-          `対応テストが見つからない (期待: ${expectedTest})`,
+          t(locale, 'evidence.missingTestPair', { expectedTest }),
           file.relativePath,
           { expectedTest, coverageKind: 'missing' },
           {
@@ -559,7 +565,7 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
             testCoverage,
             'git-churn',
             'change-volatility',
-            `直近 ${snapshot.config.churnDays} 日で ${count} 回変更`,
+            t(locale, 'evidence.gitChurn', { count, days: snapshot.config.churnDays }),
             filePath,
             { churn: count, days: snapshot.config.churnDays },
             {

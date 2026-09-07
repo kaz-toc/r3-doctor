@@ -9,6 +9,7 @@ import type { AnalyzerPlugin } from '../plugins/analyzer.js';
 import { runSemanticAnalysis } from '../semantic/provider.js';
 import type { SemanticProviderFactory } from '../semantic/provider.js';
 import { resolveCalibrationQuality } from '../calibration/quality.js';
+import { resolveLocale } from '../i18n/locale.js';
 
 export type DiagnosisDependencies = {
   semanticProviderFactory?: SemanticProviderFactory;
@@ -54,6 +55,7 @@ export async function runDiagnosis(
     snapshot.config.diagnosticSkipRoots,
     report.repository.confidence,
     snapshot.config.churnDays,
+    resolveLocale(snapshot.config),
   );
   if (!dependencies.skipCalibrationResolution) {
     report.repository.calibration = await resolveCalibrationQuality(

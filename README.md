@@ -52,10 +52,22 @@ Node.js 22 以降で動作する TypeScript 製 CLI とし、最初は TypeScrip
 ```bash
 r3-doctor scan . --format markdown
 r3-doctor diff . --base origin/main --format json
+r3-doctor scan . --locale ja --format markdown
 r3-doctor llm inspect --provider codex
 r3-doctor scan . --llm-provider codex --llm-send-scope cluster-context
 r3-doctor scan . --dry-run-semantic --llm-send-scope changed
 ```
+
+`r3-doctor.config.json` でレポート narrative の locale を設定できます（既定 `en`）:
+
+```json
+{
+  "schemaVersion": 1,
+  "locale": "ja"
+}
+```
+
+`locale: ja` では disclaimer・mechanism・evidence.message・intervention が日本語になります。Regression Risk Score / Confidence / Calibration などのメトリクスラベルとセクション見出しは英語固定です。CLI の `--locale ja` は config を上書きします。
 
 ## LLM integration smoke test（開発者向け、課金あり）
 

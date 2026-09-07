@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { reportLocaleSchema } from '../shared/config.js';
+
 export const ASSESSMENT_CONTRACT_VERSION = 4;
 export const REPORT_SCHEMA_VERSION = 2;
 export const BASELINE_SCHEMA_VERSION = 4;
@@ -230,6 +232,7 @@ export const reportMetadataSchema = z
     semanticProviderStatus: z.enum(['available', 'unavailable', 'not-configured', 'failed']).optional(),
     semanticProviderReason: z.string().optional(),
     redactionPolicyFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    reportLocale: reportLocaleSchema.optional(),
   })
   .strict();
 
@@ -554,9 +557,6 @@ export type BlastRadiusEntry = z.infer<typeof blastRadiusEntrySchema>;
 export type DiffReport = z.infer<typeof diffReportSchema>;
 export type BaselineEntry = z.infer<typeof baselineEntrySchema>;
 export type TrendEntry = z.infer<typeof trendEntrySchema>;
-
-export const SCORE_DISCLAIMER =
-  'Regression Risk Score は将来のデグレ発生確率を保証しません。根拠と確信度とともに優先順位付けに使用してください。';
 
 export const ALL_SIGNAL_IDS = signalIdSchema.options.filter((id) => id !== 'semantic-ambiguity');
 

@@ -1,0 +1,465 @@
+import type { ReportLocale } from './locale.js';
+
+export type MessageParams = Record<string, string | number>;
+
+export const MESSAGE_KEYS = [
+  'disclaimer.score',
+  'evidence.unresolvedImport',
+  'evidence.highFanOut',
+  'evidence.highFanIn',
+  'evidence.depCycle',
+  'evidence.largeFile',
+  'evidence.barrelReexport',
+  'evidence.deepNesting',
+  'evidence.missingTestPair',
+  'evidence.gitChurn',
+  'evidence.largeFileLanguage',
+  'mechanism.dependency-cycle.label',
+  'mechanism.dependency-cycle.failure',
+  'mechanism.dependency-cycle.trigger.0',
+  'mechanism.dependency-cycle.trigger.1',
+  'mechanism.high-connectivity.label',
+  'mechanism.high-connectivity.failure',
+  'mechanism.high-connectivity.trigger.0',
+  'mechanism.high-connectivity.trigger.1',
+  'mechanism.verification-gap.label',
+  'mechanism.verification-gap.failure',
+  'mechanism.verification-gap.trigger.0',
+  'mechanism.verification-gap.trigger.1',
+  'mechanism.volatility.label',
+  'mechanism.volatility.failure',
+  'mechanism.volatility.trigger.0',
+  'mechanism.volatility.trigger.1',
+  'mechanism.semantic-ambiguity.label',
+  'mechanism.semantic-ambiguity.failure',
+  'mechanism.semantic-ambiguity.trigger.0',
+  'mechanism.semantic-ambiguity.trigger.1',
+  'mechanism.large-file.label',
+  'mechanism.large-file.failure',
+  'mechanism.large-file.trigger.0',
+  'mechanism.barrel-export.label',
+  'mechanism.barrel-export.failure',
+  'mechanism.barrel-export.trigger.0',
+  'mechanism.deep-nesting.label',
+  'mechanism.unresolved-import.label',
+  'cluster.title.centered',
+  'cluster.title.repositoryWide',
+  'cluster.fallback.failure',
+  'cluster.fallback.trigger',
+  'intervention.dependency-cycle.title',
+  'intervention.dependency-cycle.description',
+  'intervention.dependency-cycle.expectedEffect',
+  'intervention.dependency-cycle.rationale',
+  'intervention.dependency-cycle.firstStep',
+  'intervention.dependency-cycle.verification',
+  'intervention.dependency-cycle.verificationHorizon',
+  'intervention.high-connectivity.title',
+  'intervention.high-connectivity.description',
+  'intervention.high-connectivity.expectedEffect',
+  'intervention.high-connectivity.rationale',
+  'intervention.high-connectivity.firstStep',
+  'intervention.high-connectivity.verification',
+  'intervention.high-connectivity.verificationHorizon',
+  'intervention.verification-gap.title',
+  'intervention.verification-gap.description',
+  'intervention.verification-gap.expectedEffect',
+  'intervention.verification-gap.rationale',
+  'intervention.verification-gap.firstStep',
+  'intervention.verification-gap.verification',
+  'intervention.verification-gap.verificationHorizon',
+  'intervention.volatility.title',
+  'intervention.volatility.description',
+  'intervention.volatility.expectedEffect',
+  'intervention.volatility.rationale',
+  'intervention.volatility.firstStep',
+  'intervention.volatility.verification',
+  'intervention.volatility.verificationHorizon',
+  'intervention.large-file.title',
+  'intervention.large-file.description',
+  'intervention.large-file.expectedEffect',
+  'intervention.large-file.rationale',
+  'intervention.large-file.firstStep',
+  'intervention.large-file.verification',
+  'intervention.large-file.verificationHorizon',
+  'intervention.barrel-export.title',
+  'intervention.barrel-export.description',
+  'intervention.barrel-export.expectedEffect',
+  'intervention.barrel-export.rationale',
+  'intervention.barrel-export.firstStep',
+  'intervention.barrel-export.verification',
+  'intervention.barrel-export.verificationHorizon',
+  'intervention.deep-nesting.title',
+  'intervention.deep-nesting.description',
+  'intervention.deep-nesting.expectedEffect',
+  'intervention.deep-nesting.rationale',
+  'intervention.deep-nesting.firstStep',
+  'intervention.deep-nesting.verification',
+  'intervention.deep-nesting.verificationHorizon',
+  'intervention.unresolved-import.title',
+  'intervention.unresolved-import.description',
+  'intervention.unresolved-import.expectedEffect',
+  'intervention.unresolved-import.rationale',
+  'intervention.unresolved-import.firstStep',
+  'intervention.unresolved-import.verification',
+  'intervention.unresolved-import.verificationHorizon',
+  'intervention.semantic-ambiguity.title',
+  'intervention.semantic-ambiguity.description',
+  'intervention.semantic-ambiguity.expectedEffect',
+  'intervention.semantic-ambiguity.rationale',
+  'intervention.semantic-ambiguity.firstStep',
+  'intervention.semantic-ambiguity.verification',
+  'intervention.semantic-ambiguity.verificationHorizon',
+  'intervention.default.title',
+  'intervention.default.description',
+  'intervention.default.expectedEffect',
+  'intervention.default.rationale',
+  'intervention.default.firstStep',
+  'intervention.default.verification',
+  'intervention.default.verificationHorizon',
+  'format.remainingEvidence',
+  'format.remainingClusters',
+  'format.remainingPaths',
+  'format.remainingInterventions',
+] as const;
+
+export type MessageKey = (typeof MESSAGE_KEYS)[number];
+
+type Catalog = Record<MessageKey, string>;
+
+const en: Catalog = {
+  'disclaimer.score':
+    'Regression Risk Score does not guarantee future regression probability. Use it with evidence and confidence for prioritization.',
+  'evidence.unresolvedImport': 'unresolved relative import: {target}',
+  'evidence.highFanOut': 'high fan-out ({count})',
+  'evidence.highFanIn': 'high fan-in ({count})',
+  'evidence.depCycle': 'dependency cycle: {cycle}',
+  'evidence.largeFile': 'large file ({lines} lines)',
+  'evidence.barrelReexport': 'barrel re-export detected',
+  'evidence.deepNesting': 'deep nesting (depth {depth})',
+  'evidence.missingTestPair': 'missing test pair (expected: {expectedTest})',
+  'evidence.gitChurn': '{count} changes in the last {days} days',
+  'evidence.largeFileLanguage': '{language}: large file ({lines} lines)',
+  'mechanism.dependency-cycle.label': 'dependency cycle',
+  'mechanism.dependency-cycle.failure':
+    'Circular dependencies cause unpredictable cascading reactions to changes.',
+  'mechanism.dependency-cycle.trigger.0': 'shared module API changes',
+  'mechanism.dependency-cycle.trigger.1': 'refactoring files inside the cycle',
+  'mechanism.high-connectivity.label': 'high-connectivity region',
+  'mechanism.high-connectivity.failure':
+    'Small changes propagate widely due to high fan-in / fan-out.',
+  'mechanism.high-connectivity.trigger.0': 'hub module public API changes',
+  'mechanism.high-connectivity.trigger.1': 'shared type changes',
+  'mechanism.verification-gap.label': 'verification gap',
+  'mechanism.verification-gap.failure':
+    'Insufficient verification for change impact makes regressions harder to detect.',
+  'mechanism.verification-gap.trigger.0': 'feature additions in under-tested areas',
+  'mechanism.verification-gap.trigger.1': 'boundary condition changes',
+  'mechanism.volatility.label': 'change concentration',
+  'mechanism.volatility.failure': 'Frequent changes concentrate in unstable areas.',
+  'mechanism.volatility.trigger.0': 'consecutive edits to high-churn files',
+  'mechanism.volatility.trigger.1': 'fixes involving reverts',
+  'mechanism.semantic-ambiguity.label': 'semantic ambiguity',
+  'mechanism.semantic-ambiguity.failure':
+    'Implicit contracts or naming drift make intent recovery difficult.',
+  'mechanism.semantic-ambiguity.trigger.0': 'renaming',
+  'mechanism.semantic-ambiguity.trigger.1': 'adding exception branches',
+  'mechanism.large-file.label': 'large file',
+  'mechanism.large-file.failure':
+    'Responsibility concentration in a single file localizes change risk.',
+  'mechanism.large-file.trigger.0': 'changes to related files',
+  'mechanism.barrel-export.label': 'barrel re-export',
+  'mechanism.barrel-export.failure': 'Barrel re-exports blur dependency boundaries.',
+  'mechanism.barrel-export.trigger.0': 'changes to related files',
+  'mechanism.deep-nesting.label': 'deep nesting',
+  'mechanism.unresolved-import.label': 'unresolved import',
+  'cluster.title.centered': '{label} region centered on {anchor} ({pathCount} paths)',
+  'cluster.title.repositoryWide': '{label} (repository-wide)',
+  'cluster.fallback.failure': 'Structural weakness related to {mechanismId}.',
+  'cluster.fallback.trigger': 'changes to related files',
+  'intervention.dependency-cycle.title': 'Break dependency cycles',
+  'intervention.dependency-cycle.description':
+    'Reorganize dependency direction and move shared contracts to boundary modules.',
+  'intervention.dependency-cycle.expectedEffect': 'Lower structural-fragility and change-blast-radius',
+  'intervention.dependency-cycle.rationale':
+    '{mechanismId} forms cluster score {score} around {primaryPath} ({strongestMetric}).',
+  'intervention.dependency-cycle.firstStep':
+    'Starting from {primaryPath} ({strongestMetric}), break the cycle and move shared contracts to boundary modules.',
+  'intervention.dependency-cycle.verification':
+    'Run targeted tests around {primaryPath} and confirm {mechanismId} linked signals decrease on the next r3-doctor scan.',
+  'intervention.dependency-cycle.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.high-connectivity.title': 'Reduce shared module surface area',
+  'intervention.high-connectivity.description':
+    'Narrow the public API and introduce a facade that hides internal implementation.',
+  'intervention.high-connectivity.expectedEffect': 'Lower change-blast-radius',
+  'intervention.high-connectivity.rationale':
+    '{mechanismId} pushes cluster score {score} with {primaryPath} as a hub ({strongestMetric}).',
+  'intervention.high-connectivity.firstStep':
+    'Review {strongestMetric} at {primaryPath} and narrow the public API to a minimal set.',
+  'intervention.high-connectivity.verification':
+    'Add contract/regression tests for {primaryPath} and re-diagnose fan-in/fan-out metrics.',
+  'intervention.high-connectivity.verificationHorizon':
+    'Linked cluster score and connectivity metrics decrease on the next scan.',
+  'intervention.verification-gap.title': 'Add boundary tests before changing code',
+  'intervention.verification-gap.description':
+    'Add regression-detecting tests for high fan-in modules or shared contracts first.',
+  'intervention.verification-gap.expectedEffect': 'Lower verification-gap',
+  'intervention.verification-gap.rationale':
+    '{mechanismId} forms cluster score {score} at {primaryPath} ({strongestMetric}).',
+  'intervention.verification-gap.firstStep':
+    'Add boundary tests covering {strongestMetric} at {primaryPath} first.',
+  'intervention.verification-gap.verification':
+    'Add test command for {primaryPath} to CI and confirm missing-test-pair linked signals resolve.',
+  'intervention.verification-gap.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.volatility.title': 'Stabilize change process in high-churn areas',
+  'intervention.volatility.description':
+    'Enforce change checklists and small PR units for frequently breaking areas.',
+  'intervention.volatility.expectedEffect': 'Stabilize change-volatility',
+  'intervention.volatility.rationale':
+    '{mechanismId} concentrates changes at {primaryPath} (cluster score {score}, {strongestMetric}).',
+  'intervention.volatility.firstStep':
+    'Treat {strongestMetric} at {primaryPath} as a hotspot and add regression tests plus ownership/checklist.',
+  'intervention.volatility.verification':
+    'Confirm regression tests and change checklist/ownership exist for {primaryPath}.',
+  'intervention.volatility.verificationHorizon':
+    'After {churnDays} days, git-churn linked signal/cluster decreases in trend.',
+  'intervention.large-file.title': 'Split modules by responsibility',
+  'intervention.large-file.description':
+    'Resolve responsibility concentration in a single file and keep change units small.',
+  'intervention.large-file.expectedEffect': 'Lower structural-fragility',
+  'intervention.large-file.rationale':
+    '{mechanismId} forms cluster score {score} at {primaryPath} ({strongestMetric}).',
+  'intervention.large-file.firstStep':
+    'Review {strongestMetric} at {primaryPath} and split the file by responsibility.',
+  'intervention.large-file.verification':
+    'Run test command after splitting {primaryPath} and confirm large-file linked signals resolve.',
+  'intervention.large-file.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.barrel-export.title': 'Replace barrel re-exports with direct imports',
+  'intervention.barrel-export.description':
+    'Stop barrel re-exports and make dependency boundaries explicit.',
+  'intervention.barrel-export.expectedEffect': 'Lower structural-fragility',
+  'intervention.barrel-export.rationale':
+    '{mechanismId} forms cluster score {score} at {primaryPath} ({strongestMetric}).',
+  'intervention.barrel-export.firstStep':
+    'Review {strongestMetric} at {primaryPath} and replace export * with direct imports.',
+  'intervention.barrel-export.verification':
+    'Run test command around {primaryPath} and confirm barrel-reexport linked signals resolve.',
+  'intervention.barrel-export.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.deep-nesting.title': 'Resolve deep nesting with function extraction',
+  'intervention.deep-nesting.description':
+    'Split deep nesting into smaller functions and localize change units.',
+  'intervention.deep-nesting.expectedEffect': 'Lower structural-fragility',
+  'intervention.deep-nesting.rationale':
+    '{mechanismId} forms cluster score {score} at {primaryPath} ({strongestMetric}).',
+  'intervention.deep-nesting.firstStep':
+    'Review {strongestMetric} at {primaryPath} and extract deep branches into functions.',
+  'intervention.deep-nesting.verification':
+    'Run test command after refactoring {primaryPath} and confirm deep-nesting linked signals resolve.',
+  'intervention.deep-nesting.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.unresolved-import.title': 'Fix unresolved imports',
+  'intervention.unresolved-import.description':
+    'Fix unresolved imports and restore a healthy dependency graph.',
+  'intervention.unresolved-import.expectedEffect': 'Lower structural-fragility',
+  'intervention.unresolved-import.rationale':
+    '{mechanismId} forms cluster score {score} at {primaryPath} ({strongestMetric}).',
+  'intervention.unresolved-import.firstStep':
+    'Review {strongestMetric} at {primaryPath} and fix unresolved imports.',
+  'intervention.unresolved-import.verification':
+    'Run build/test command around {primaryPath} and confirm unresolved-import linked signals resolve.',
+  'intervention.unresolved-import.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'intervention.semantic-ambiguity.title':
+    'Fix implicit contracts with decision records or contract tests',
+  'intervention.semantic-ambiguity.description':
+    'Make naming and exception-branch implicit contracts visible via ADRs or contract tests.',
+  'intervention.semantic-ambiguity.expectedEffect': 'Lower semantic-ambiguity',
+  'intervention.semantic-ambiguity.rationale':
+    '{mechanismId} forms cluster score {score} around {primaryPath} ({strongestMetric}).',
+  'intervention.semantic-ambiguity.firstStep':
+    'Add contract tests or a decision record for {strongestMetric} at {primaryPath}.',
+  'intervention.semantic-ambiguity.verification':
+    'Add contract tests or an ADR for {primaryPath} and rerun semantic scan.',
+  'intervention.semantic-ambiguity.verificationHorizon':
+    'Linked cluster score decreases on the next semantic scan.',
+  'intervention.default.title': 'Address related risk',
+  'intervention.default.description': 'Resolve structural weaknesses linked to the cluster.',
+  'intervention.default.expectedEffect': 'Lower linked cluster score',
+  'intervention.default.rationale':
+    '{mechanismId} forms cluster score {score} around {primaryPath} ({strongestMetric}).',
+  'intervention.default.firstStep':
+    'Review {strongestMetric} at {primaryPath} and address the root cause of the linked cluster.',
+  'intervention.default.verification':
+    'Run test command for {primaryPath} and confirm linked signals/clusters decrease.',
+  'intervention.default.verificationHorizon':
+    'Linked cluster score decreases on the next scan.',
+  'format.remainingEvidence': 'and {count} more evidence',
+  'format.remainingClusters': 'and {count} more clusters',
+  'format.remainingPaths': 'and {count} more paths',
+  'format.remainingInterventions': 'and {count} more interventions',
+};
+
+const ja: Catalog = {
+  'disclaimer.score':
+    'Regression Risk Score は将来のデグレ発生確率を保証しません。根拠と確信度とともに優先順位付けに使用してください。',
+  'evidence.unresolvedImport': '解決不能な相対 import: {target}',
+  'evidence.highFanOut': 'fan-out が高い ({count})',
+  'evidence.highFanIn': 'fan-in が高い ({count})',
+  'evidence.depCycle': '循環依存: {cycle}',
+  'evidence.largeFile': '大規模ファイル ({lines} 行)',
+  'evidence.barrelReexport': 'barrel 再エクスポートを検出',
+  'evidence.deepNesting': '深いネスト (深度 {depth})',
+  'evidence.missingTestPair': '対応テストが見つからない (期待: {expectedTest})',
+  'evidence.gitChurn': '直近 {days} 日で {count} 回変更',
+  'evidence.largeFileLanguage': '{language}: 大規模ファイル ({lines} 行)',
+  'mechanism.dependency-cycle.label': '循環依存',
+  'mechanism.dependency-cycle.failure': '循環依存により変更が予測不能な連鎖反応を起こす。',
+  'mechanism.dependency-cycle.trigger.0': '共有モジュールの API 変更',
+  'mechanism.dependency-cycle.trigger.1': '循環内ファイルのリファクタリング',
+  'mechanism.high-connectivity.label': '高接続領域',
+  'mechanism.high-connectivity.failure': '高い fan-in / fan-out により小さな変更が広範囲へ波及する。',
+  'mechanism.high-connectivity.trigger.0': 'hub モジュールの公開 API 変更',
+  'mechanism.high-connectivity.trigger.1': '共通型の変更',
+  'mechanism.verification-gap.label': '検証ギャップ',
+  'mechanism.verification-gap.failure': '変更影響に対する検証が不足し、デグレが検出されにくい。',
+  'mechanism.verification-gap.trigger.0': 'テスト未整備領域の機能追加',
+  'mechanism.verification-gap.trigger.1': '境界条件の変更',
+  'mechanism.volatility.label': '変動集中',
+  'mechanism.volatility.failure': '頻繁な変更が不安定な領域へ集中している。',
+  'mechanism.volatility.trigger.0': '高 churn ファイルの連続変更',
+  'mechanism.volatility.trigger.1': 'revert を伴う修正',
+  'mechanism.semantic-ambiguity.label': '意味的曖昧性',
+  'mechanism.semantic-ambiguity.failure': '暗黙契約や命名の乖離により意図復元が困難。',
+  'mechanism.semantic-ambiguity.trigger.0': '命名変更',
+  'mechanism.semantic-ambiguity.trigger.1': '例外分岐の追加',
+  'mechanism.large-file.label': '大規模ファイル',
+  'mechanism.large-file.failure': '単一ファイルへの責務集中により変更リスクが局所化している。',
+  'mechanism.large-file.trigger.0': '関連ファイルの変更',
+  'mechanism.barrel-export.label': 'barrel 再エクスポート',
+  'mechanism.barrel-export.failure': 'barrel 再エクスポートが依存境界を曖昧にしている。',
+  'mechanism.barrel-export.trigger.0': '関連ファイルの変更',
+  'mechanism.deep-nesting.label': '深いネスト',
+  'mechanism.unresolved-import.label': '未解決 import',
+  'cluster.title.centered': '{anchor} を中心とする{label}（{pathCount} paths）',
+  'cluster.title.repositoryWide': '{label}（repository-wide）',
+  'cluster.fallback.failure': '{mechanismId} に関連する構造上の弱点。',
+  'cluster.fallback.trigger': '関連ファイルの変更',
+  'intervention.dependency-cycle.title': '循環依存を解消する',
+  'intervention.dependency-cycle.description': '依存方向を一方向に整理し、共有契約を境界モジュールへ移す。',
+  'intervention.dependency-cycle.expectedEffect': 'structural-fragility と change-blast-radius の低下',
+  'intervention.dependency-cycle.rationale':
+    '{mechanismId} が {primaryPath} 周辺で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.dependency-cycle.firstStep':
+    '{primaryPath} の {strongestMetric} を起点に循環を断ち、共有契約を境界モジュールへ移す。',
+  'intervention.dependency-cycle.verification':
+    '{primaryPath} 周辺の targeted test を実行し、r3-doctor scan で {mechanismId} linked signal が減ることを確認する。',
+  'intervention.dependency-cycle.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.high-connectivity.title': '共有モジュールの表面積を縮小する',
+  'intervention.high-connectivity.description': '公開 API を狭め、内部実装を隠蔽するファサードを導入する。',
+  'intervention.high-connectivity.expectedEffect': 'change-blast-radius の低下',
+  'intervention.high-connectivity.rationale':
+    '{mechanismId} が {primaryPath} を hub として cluster score {score} を押し上げている（{strongestMetric}）。',
+  'intervention.high-connectivity.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、公開 API を最小集合へ絞る。',
+  'intervention.high-connectivity.verification':
+    '{primaryPath} の contract/regression test を追加し、fan-in/fan-out metric の再診断を行う。',
+  'intervention.high-connectivity.verificationHorizon':
+    '次回 scan で linked cluster score と connectivity metric が低下していること。',
+  'intervention.verification-gap.title': '変更前に境界テストを追加する',
+  'intervention.verification-gap.description':
+    '高 fan-in モジュールまたは共有契約に対し、回帰を検出するテストを先に追加する。',
+  'intervention.verification-gap.expectedEffect': 'verification-gap の低下',
+  'intervention.verification-gap.rationale':
+    '{mechanismId} が {primaryPath} で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.verification-gap.firstStep':
+    '{primaryPath} の {strongestMetric} をカバーする境界テストを先に追加する。',
+  'intervention.verification-gap.verification':
+    '{primaryPath} 向け test command を CI に追加し、missing-test-pair linked signal の解消を確認する。',
+  'intervention.verification-gap.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.volatility.title': '高 churn 領域の変更手順を固定する',
+  'intervention.volatility.description': '頻繁に壊れる領域に対し、変更チェックリストと小さな PR 単位を強制する。',
+  'intervention.volatility.expectedEffect': 'change-volatility の安定化',
+  'intervention.volatility.rationale':
+    '{mechanismId} が {primaryPath} に変更集中している（cluster score {score}, {strongestMetric}）。',
+  'intervention.volatility.firstStep':
+    '{primaryPath} の {strongestMetric} を hotspot として regression test と ownership/checklist を整備する。',
+  'intervention.volatility.verification':
+    '{primaryPath} の regression test と change checklist/ownership が存在することを確認する。',
+  'intervention.volatility.verificationHorizon':
+    '{churnDays} 経過後の trend で git-churn linked signal/cluster が減少していること。',
+  'intervention.large-file.title': '責務ごとにモジュールを分割する',
+  'intervention.large-file.description': '単一ファイルへの責務集中を解消し、変更単位を小さくする。',
+  'intervention.large-file.expectedEffect': 'structural-fragility の低下',
+  'intervention.large-file.rationale':
+    '{mechanismId} が {primaryPath} で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.large-file.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、責務単位でファイルを分割する。',
+  'intervention.large-file.verification':
+    '{primaryPath} の split 後 test command を実行し、large-file linked signal の解消を確認する。',
+  'intervention.large-file.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.barrel-export.title': 'barrel 再エクスポートを具体 import に置き換える',
+  'intervention.barrel-export.description': 'barrel 再エクスポートをやめ、依存境界を明示する。',
+  'intervention.barrel-export.expectedEffect': 'structural-fragility の低下',
+  'intervention.barrel-export.rationale':
+    '{mechanismId} が {primaryPath} で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.barrel-export.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、export * を具体 import へ置き換える。',
+  'intervention.barrel-export.verification':
+    '{primaryPath} 周辺 test command を実行し、barrel-reexport linked signal の解消を確認する。',
+  'intervention.barrel-export.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.deep-nesting.title': '深いネストを関数分割で解消する',
+  'intervention.deep-nesting.description': '深いネストを小さな関数へ分割し、変更単位を局所化する。',
+  'intervention.deep-nesting.expectedEffect': 'structural-fragility の低下',
+  'intervention.deep-nesting.rationale':
+    '{mechanismId} が {primaryPath} で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.deep-nesting.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、深い分岐を関数へ抽出する。',
+  'intervention.deep-nesting.verification':
+    '{primaryPath} の refactor 後 test command を実行し、deep-nesting linked signal の解消を確認する。',
+  'intervention.deep-nesting.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.unresolved-import.title': '未解決 import を修正する',
+  'intervention.unresolved-import.description': '未解決 import を修正し、依存グラフを健全化する。',
+  'intervention.unresolved-import.expectedEffect': 'structural-fragility の低下',
+  'intervention.unresolved-import.rationale':
+    '{mechanismId} が {primaryPath} で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.unresolved-import.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、未解決 import を修正する。',
+  'intervention.unresolved-import.verification':
+    '{primaryPath} 周辺 build/test command を実行し、unresolved-import linked signal の解消を確認する。',
+  'intervention.unresolved-import.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.semantic-ambiguity.title': '暗黙契約を decision record または contract test で固定する',
+  'intervention.semantic-ambiguity.description':
+    '命名や例外分岐の暗黙契約を ADR または contract test で可視化する。',
+  'intervention.semantic-ambiguity.expectedEffect': 'semantic-ambiguity の低下',
+  'intervention.semantic-ambiguity.rationale':
+    '{mechanismId} が {primaryPath} 周辺で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.semantic-ambiguity.firstStep':
+    '{primaryPath} の {strongestMetric} を題材に contract test または decision record を追加する。',
+  'intervention.semantic-ambiguity.verification':
+    '{primaryPath} 向け contract test または ADR を追加し、semantic scan を再実行する。',
+  'intervention.semantic-ambiguity.verificationHorizon':
+    '次回 semantic scan で linked cluster score が低下していること。',
+  'intervention.default.title': '関連リスクを解消する',
+  'intervention.default.description': 'cluster に関連する構造上の弱点を解消する。',
+  'intervention.default.expectedEffect': 'linked cluster score の低下',
+  'intervention.default.rationale':
+    '{mechanismId} が {primaryPath} 周辺で cluster score {score} を形成している（{strongestMetric}）。',
+  'intervention.default.firstStep':
+    '{primaryPath} の {strongestMetric} を確認し、linked cluster の根本原因を解消する。',
+  'intervention.default.verification':
+    '{primaryPath} 向け test command を実行し、linked signal/cluster の減少を確認する。',
+  'intervention.default.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'format.remainingEvidence': '他 {count} evidence',
+  'format.remainingClusters': '他 {count} clusters',
+  'format.remainingPaths': '他 {count} paths',
+  'format.remainingInterventions': '他 {count} interventions',
+};
+
+export const catalogs: Record<ReportLocale, Catalog> = { en, ja };
+
+export function catalogKeys(locale: ReportLocale): string[] {
+  return Object.keys(catalogs[locale]).sort();
+}

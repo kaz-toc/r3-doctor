@@ -62,6 +62,20 @@ repositoryScore = round(axisBase + 0.30 * max(0, maxClusterScore - axisBase))
 
 ## 表示上の免責
 
-すべてのレポートに次を含める:
+すべてのレポートに locale に応じた disclaimer prose を含める（既定 `en`）:
 
-> Regression Risk Score は将来のデグレ発生確率を保証しません。根拠と確信度とともに優先順位付けに使用してください。
+> Regression Risk Score does not guarantee future regression probability. Use it with evidence and confidence for prioritization.
+
+`locale: ja` では従来の日本語 disclaimer を使用する。
+
+## レポート locale（`metadata.reportLocale`）
+
+- 設定: `r3-doctor.config.json` の `"locale": "en" | "ja"`（既定 `en`）、または `scan` / `diff` の `--locale`
+- 診断時に `metadata.reportLocale` へ記録（後方互換のため optional）
+- **ハイブリッド表示**（`locale: ja` でも固定英語）: メトリクス行ラベル（Regression Risk Score, Confidence, Calibration, Unevaluated axes）、セクション見出し、フィールドラベル、軸名、Limitations 行
+- **locale 依存**: disclaimer / mechanism / evidence.message / intervention 全文、formatter の残件 suffix（`and N more evidence` ↔ `他 N evidence`）
+- legacy JSON（`reportLocale` なし）: formatter は suffix のみ `metadata.reportLocale ?? 'en'` で決定。本文 prose は生成時の言語のまま
+
+## analysisContext fingerprint と locale
+
+`analysisContextFingerprint` には **locale を含めない**。locale 変更は score / evidence ID に影響せず、同一リポジトリで `en` / `ja` を切り替えても baseline score 比較は可能。文言差分は `metadata.reportLocale` と各 message フィールドで追跡する。

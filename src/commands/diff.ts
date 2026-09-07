@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 import { compareDiagnosis } from '../comparison/compare.js';
 import { buildImportGraph } from '../evidence/deterministic.js';
-import { createRepositorySnapshot } from '../intake/snapshot.js';
+import { createRepositorySnapshot, type RepositorySnapshot } from '../intake/snapshot.js';
 import { diagnosisContextFingerprint } from '../intake/analysis-context.js';
 import { loadPolicy } from '../operations/policy.js';
 import { loadBaseline } from '../persistence/baseline-store.js';
@@ -85,9 +85,10 @@ export async function runDiffDiagnosis(
   repositoryPath: string,
   baseRef: string,
   llmConfig: LlmConfig = defaultLlmConfig,
+  snapshotOverride?: RepositorySnapshot,
 ): Promise<DiffReport> {
   const resolved = path.resolve(repositoryPath);
-  const currentSnapshot = await createRepositorySnapshot(resolved, undefined, llmConfig);
+  const currentSnapshot = snapshotOverride ?? await createRepositorySnapshot(resolved, undefined, llmConfig);
   const current = await runDiagnosis(currentSnapshot);
   const policy = await loadPolicy(currentSnapshot.repositoryPath, currentSnapshot.config.policyFile);
   if (!currentSnapshot.gitAvailable || !currentSnapshot.sourceCommitSha) {

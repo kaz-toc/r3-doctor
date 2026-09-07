@@ -1,4 +1,7 @@
 import type { DiagnosisReport, DiffReport, Evidence } from '../schema/report.v1.js';
+import type { ReportLocale } from '../i18n/locale.js';
+import { DEFAULT_LOCALE } from '../i18n/locale.js';
+import { t } from '../i18n/messages.js';
 import {
   buildReportViewModel,
   DEFAULT_REPORT_VIEW_LIMITS,
@@ -14,7 +17,16 @@ export type { ReportView } from './view-model.js';
 
 export type FormatReportOptions = {
   view?: ReportView;
+  locale?: ReportLocale;
 };
+
+function resolveFormatLocale(report: DiagnosisReport, options: FormatReportOptions = {}): ReportLocale {
+  return options.locale ?? report.metadata.reportLocale ?? DEFAULT_LOCALE;
+}
+
+function remainingSuffix(locale: ReportLocale, key: 'format.remainingEvidence' | 'format.remainingClusters' | 'format.remainingPaths' | 'format.remainingInterventions', count: number): string {
+  return t(locale, key, { count });
+}
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 1 } as const;
 
@@ -56,7 +68,7 @@ function formatEvidenceConsoleBullet(item: Evidence): string {
   return `  - [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
 }
 
-function renderFactGroupMarkdown(group: FactEvidenceGroup): string[] {
+function renderFactGroupMarkdown(group: FactEvidenceGroup, locale: ReportLocale): string[] {
   const lines = [
     `### ${group.mechanismLabel}`,
     `- Mechanism ID: ${group.mechanismId}`,
@@ -67,13 +79,13 @@ function renderFactGroupMarkdown(group: FactEvidenceGroup): string[] {
     lines.push(`  ${formatEvidenceBullet(item).replace(/^- /, '')}`);
   }
   if (group.remainingEvidenceCount > 0) {
-    lines.push(`  - 他 ${group.remainingEvidenceCount} evidence`);
+    lines.push(`  - ${remainingSuffix(locale, 'format.remainingEvidence', group.remainingEvidenceCount)}`);
   }
   lines.push('');
   return lines;
 }
 
-function renderFactGroupConsole(group: FactEvidenceGroup): string[] {
+function renderFactGroupConsole(group: FactEvidenceGroup, locale: ReportLocale): string[] {
   const lines = [
     `  - ${group.mechanismLabel} (${group.mechanismId})`,
     `    trigger: ${group.triggerSummary}`,
@@ -83,12 +95,12 @@ function renderFactGroupConsole(group: FactEvidenceGroup): string[] {
     lines.push(`  ${formatEvidenceConsoleBullet(item)}`);
   }
   if (group.remainingEvidenceCount > 0) {
-    lines.push(`    - 他 ${group.remainingEvidenceCount} evidence`);
+    lines.push(`    - ${remainingSuffix(locale, 'format.remainingEvidence', group.remainingEvidenceCount)}`);
   }
   return lines;
 }
 
-function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state'): string[] {
+function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state', locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const { facts } = model;
   const lines = [heading, '', '### Analysis coverage', ''];
   for (const capability of facts.capabilities) {
@@ -106,7 +118,7 @@ function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state
   }
   lines.push('### Grouped evidence', '');
   for (const group of facts.factGroups) {
-    lines.push(...renderFactGroupMarkdown(group));
+    lines.push(...renderFactGroupMarkdown(group, locale));
   }
   if (facts.totalEvidenceCount > facts.factGroups.reduce((sum, group) => sum + group.evidence.length + group.remainingEvidenceCount, 0)) {
     lines.push(`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
@@ -118,7 +130,7 @@ function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state
   return lines;
 }
 
-function renderFactsConsole(model: ReportViewModel, heading = 'Current state'): string[] {
+function renderFactsConsole(model: ReportViewModel, heading = 'Current state', locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const { facts } = model;
   const lines = [heading, 'Analysis coverage:'];
   for (const capability of facts.capabilities) {
@@ -134,13 +146,18 @@ function renderFactsConsole(model: ReportViewModel, heading = 'Current state'): 
   }
   lines.push('Grouped evidence:');
   for (const group of facts.factGroups) {
-    lines.push(...renderFactGroupConsole(group));
+    lines.push(...renderFactGroupConsole(group, locale));
   }
   lines.push(`Full evidence list available via --format json (${facts.totalEvidenceCount} total)`);
   return lines;
 }
 
-function renderSummaryMarkdown(model: ReportViewModel, heading = '## Assessment summary', options: { includeClusterEvidence?: boolean } = {}): string[] {
+function renderSummaryMarkdown(
+  model: ReportViewModel,
+  heading = '## Assessment summary',
+  options: { includeClusterEvidence?: boolean; locale?: ReportLocale } = {},
+): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const { summary } = model;
   const lines = [
     heading,
@@ -168,10 +185,10 @@ function renderSummaryMarkdown(model: ReportViewModel, heading = '## Assessment 
   lines.push('');
   lines.push('## Top risk clusters', '');
   for (const block of summary.clusters) {
-    lines.push(...renderClusterMarkdown(block, { includeEvidence: options.includeClusterEvidence }));
+    lines.push(...renderClusterMarkdown(block, { includeEvidence: options.includeClusterEvidence, locale }));
   }
   if (summary.remainingClusterCount > 0) {
-    lines.push(`- 他 ${summary.remainingClusterCount} clusters`);
+    lines.push(`- ${remainingSuffix(locale, 'format.remainingClusters', summary.remainingClusterCount)}`);
     lines.push('');
   }
   if (summary.limitations.length > 0) {
@@ -184,7 +201,11 @@ function renderSummaryMarkdown(model: ReportViewModel, heading = '## Assessment 
   return lines;
 }
 
-function renderClusterMarkdown(block: SummaryClusterBlock, options: { includeEvidence?: boolean } = {}): string[] {
+function renderClusterMarkdown(
+  block: SummaryClusterBlock,
+  options: { includeEvidence?: boolean; locale?: ReportLocale } = {},
+): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const { cluster, evidence, remainingEvidenceCount } = block;
   const includeEvidence = options.includeEvidence ?? true;
   const lines = [
@@ -199,7 +220,7 @@ function renderClusterMarkdown(block: SummaryClusterBlock, options: { includeEvi
       lines.push(`  - \`${item.evidenceId}\` ${item.path ?? 'repo'}: ${item.message}`);
     }
     if (remainingEvidenceCount > 0) {
-      lines.push(`  - 他 ${remainingEvidenceCount} evidence`);
+      lines.push(`  - ${remainingSuffix(locale, 'format.remainingEvidence', remainingEvidenceCount)}`);
     }
   } else {
     const totalEvidence = evidence.length + remainingEvidenceCount;
@@ -209,7 +230,12 @@ function renderClusterMarkdown(block: SummaryClusterBlock, options: { includeEvi
   return lines;
 }
 
-function renderSummaryConsole(model: ReportViewModel, heading = 'Assessment summary', options: { includeClusterEvidence?: boolean } = {}): string[] {
+function renderSummaryConsole(
+  model: ReportViewModel,
+  heading = 'Assessment summary',
+  options: { includeClusterEvidence?: boolean; locale?: ReportLocale } = {},
+): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const { summary } = model;
   const lines = [
     heading,
@@ -237,14 +263,14 @@ function renderSummaryConsole(model: ReportViewModel, heading = 'Assessment summ
         lines.push(`      - ${item.evidenceId} ${item.path ?? 'repo'}: ${item.message}`);
       }
       if (remainingEvidenceCount > 0) {
-        lines.push(`      - 他 ${remainingEvidenceCount} evidence`);
+        lines.push(`      - ${remainingSuffix(locale, 'format.remainingEvidence', remainingEvidenceCount)}`);
       }
     } else {
       lines.push(`    evidence: ${evidence.length + remainingEvidenceCount} items (see Current state)`);
     }
   }
   if (summary.remainingClusterCount > 0) {
-    lines.push(`  - 他 ${summary.remainingClusterCount} clusters`);
+    lines.push(`  - ${remainingSuffix(locale, 'format.remainingClusters', summary.remainingClusterCount)}`);
   }
   if (summary.limitations.length > 0) {
     lines.push('Limitations:');
@@ -255,14 +281,21 @@ function renderSummaryConsole(model: ReportViewModel, heading = 'Assessment summ
   return lines;
 }
 
-function renderActionItemMarkdown(item: ActionItemView, options: { includeLinkedEvidence?: boolean } = {}): string[] {
+function renderActionItemMarkdown(
+  item: ActionItemView,
+  options: { includeLinkedEvidence?: boolean; locale?: ReportLocale } = {},
+): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
   const includeLinkedEvidence = options.includeLinkedEvidence ?? true;
+  const pathSuffix = remainingPathCount > 0
+    ? ` (${remainingSuffix(locale, 'format.remainingPaths', remainingPathCount)})`
+    : '';
   const lines = [
     `### ${intervention.priority}. ${intervention.title}`,
     `- Rationale: ${intervention.rationale}`,
     `- First step: ${intervention.firstStep}`,
-    `- Targets: ${displayPaths.join(', ') || 'n/a'}${remainingPathCount > 0 ? ` (他 ${remainingPathCount} paths)` : ''}`,
+    `- Targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`,
     `- Verify: ${intervention.verification}`,
     `- Horizon: ${intervention.verificationHorizon}`,
   ];
@@ -279,14 +312,15 @@ function renderActionItemMarkdown(item: ActionItemView, options: { includeLinked
 function renderActionsMarkdown(
   model: ReportViewModel,
   heading = '## Improvement points',
-  options: { includeLinkedEvidence?: boolean } = {},
+  options: { includeLinkedEvidence?: boolean; locale?: ReportLocale } = {},
 ): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const lines = [heading, ''];
   for (const item of model.actions.items) {
-    lines.push(...renderActionItemMarkdown(item, options));
+    lines.push(...renderActionItemMarkdown(item, { ...options, locale }));
   }
   if (model.actions.remainingActionCount > 0) {
-    lines.push(`- 他 ${model.actions.remainingActionCount} interventions`);
+    lines.push(`- ${remainingSuffix(locale, 'format.remainingInterventions', model.actions.remainingActionCount)}`);
     lines.push('');
   }
   return lines;
@@ -295,15 +329,19 @@ function renderActionsMarkdown(
 function renderActionsConsole(
   model: ReportViewModel,
   heading = 'Improvement points',
-  options: { includeLinkedEvidence?: boolean } = {},
+  options: { includeLinkedEvidence?: boolean; locale?: ReportLocale } = {},
 ): string[] {
+  const locale = options.locale ?? DEFAULT_LOCALE;
   const lines = [heading];
   for (const item of model.actions.items) {
     const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
+    const pathSuffix = remainingPathCount > 0
+      ? ` (${remainingSuffix(locale, 'format.remainingPaths', remainingPathCount)})`
+      : '';
     lines.push(`  - (${intervention.priority}) ${intervention.title}`);
     lines.push(`    rationale: ${intervention.rationale}`);
     lines.push(`    first step: ${intervention.firstStep}`);
-    lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${remainingPathCount > 0 ? ` (他 ${remainingPathCount} paths)` : ''}`);
+    lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`);
     lines.push(`    verify: ${intervention.verification}`);
     if (linkedClusters.length > 0) {
       lines.push(`    linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
@@ -313,24 +351,24 @@ function renderActionsConsole(
     }
   }
   if (model.actions.remainingActionCount > 0) {
-    lines.push(`  - 他 ${model.actions.remainingActionCount} interventions`);
+    lines.push(`  - ${remainingSuffix(locale, 'format.remainingInterventions', model.actions.remainingActionCount)}`);
   }
   return lines;
 }
 
-function renderAllMarkdown(model: ReportViewModel): string[] {
-  const summaryLines = renderSummaryMarkdown(model, '## Diagnosis summary', { includeClusterEvidence: false });
-  const actionsLines = renderActionsMarkdown(model, '## Improvement points', { includeLinkedEvidence: false });
-  const factsLines = renderFactsMarkdown(model, '## Current state');
+function renderAllMarkdown(model: ReportViewModel, locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  const summaryLines = renderSummaryMarkdown(model, '## Diagnosis summary', { includeClusterEvidence: false, locale });
+  const actionsLines = renderActionsMarkdown(model, '## Improvement points', { includeLinkedEvidence: false, locale });
+  const factsLines = renderFactsMarkdown(model, '## Current state', locale);
   const limitationsStart = summaryLines.findIndex((line) => line === '## Limitations');
   const trimmedSummary = limitationsStart >= 0 ? summaryLines.slice(0, limitationsStart) : summaryLines;
   return [...trimmedSummary, ...actionsLines, ...factsLines];
 }
 
-function renderAllConsole(model: ReportViewModel): string[] {
-  const summaryLines = renderSummaryConsole(model, 'Diagnosis summary', { includeClusterEvidence: false });
-  const actionsLines = renderActionsConsole(model, 'Improvement points', { includeLinkedEvidence: false });
-  const factsLines = renderFactsConsole(model, 'Current state');
+function renderAllConsole(model: ReportViewModel, locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  const summaryLines = renderSummaryConsole(model, 'Diagnosis summary', { includeClusterEvidence: false, locale });
+  const actionsLines = renderActionsConsole(model, 'Improvement points', { includeLinkedEvidence: false, locale });
+  const factsLines = renderFactsConsole(model, 'Current state', locale);
   const limitationsIndex = summaryLines.findIndex((line) => line === 'Limitations:');
   const trimmedSummary = limitationsIndex >= 0 ? summaryLines.slice(0, limitationsIndex) : summaryLines;
   return [...trimmedSummary, '', ...actionsLines, '', ...factsLines];
@@ -350,21 +388,22 @@ export function formatDiffJsonReport(diff: DiffReport): string {
 
 export function formatConsoleReport(report: DiagnosisReport, options: FormatReportOptions = {}): string {
   const view = options.view ?? 'all';
+  const locale = resolveFormatLocale(report, options);
   const model = resolveViewModel(report);
   const lines: string[] = [];
 
   switch (view) {
     case 'facts':
-      lines.push(...renderFactsConsole(model));
+      lines.push(...renderFactsConsole(model, 'Current state', locale));
       break;
     case 'summary':
-      lines.push(...renderSummaryConsole(model));
+      lines.push(...renderSummaryConsole(model, 'Assessment summary', { locale }));
       break;
     case 'actions':
-      lines.push(...renderActionsConsole(model));
+      lines.push(...renderActionsConsole(model, 'Improvement points', { locale }));
       break;
     case 'all':
-      lines.push(...renderAllConsole(model));
+      lines.push(...renderAllConsole(model, locale));
       break;
   }
 
@@ -373,21 +412,22 @@ export function formatConsoleReport(report: DiagnosisReport, options: FormatRepo
 
 export function formatMarkdownReport(report: DiagnosisReport, options: FormatReportOptions = {}): string {
   const view = options.view ?? 'all';
+  const locale = resolveFormatLocale(report, options);
   const model = resolveViewModel(report);
   const lines = [...reportHeaderLines(report)];
 
   switch (view) {
     case 'facts':
-      lines.push(...renderFactsMarkdown(model));
+      lines.push(...renderFactsMarkdown(model, '## Current state', locale));
       break;
     case 'summary':
-      lines.push(...renderSummaryMarkdown(model));
+      lines.push(...renderSummaryMarkdown(model, '## Assessment summary', { locale }));
       break;
     case 'actions':
-      lines.push(...renderActionsMarkdown(model));
+      lines.push(...renderActionsMarkdown(model, '## Improvement points', { locale }));
       break;
     case 'all':
-      lines.push(...renderAllMarkdown(model));
+      lines.push(...renderAllMarkdown(model, locale));
       break;
   }
 
@@ -590,43 +630,44 @@ function resolveChangedActionViewModel(diff: DiffReport): ReportViewModel {
   };
 }
 
-function renderDiffActionsConsole(diff: DiffReport): string[] {
+function renderDiffActionsConsole(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const model = resolveChangedActionViewModel(diff);
   const lines = ['Improvement points'];
   if (model.actions.items.length === 0) {
     lines.push('  - (none linked to changed risk)');
   } else {
-    lines.push(...renderActionsConsole(model).slice(1));
+    lines.push(...renderActionsConsole(model, 'Improvement points', { locale }).slice(1));
   }
   return lines;
 }
 
-function renderDiffActionsMarkdown(diff: DiffReport): string[] {
-  return renderActionsMarkdown(resolveChangedActionViewModel(diff), '## Improvement points');
+function renderDiffActionsMarkdown(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
+  return renderActionsMarkdown(resolveChangedActionViewModel(diff), '## Improvement points', { locale });
 }
 
-function renderDiffAllConsole(diff: DiffReport): string[] {
+function renderDiffAllConsole(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const model = resolveViewModel(diff.current);
   return [
-    ...renderSummaryConsole(model, 'Diagnosis summary'),
+    ...renderSummaryConsole(model, 'Diagnosis summary', { includeClusterEvidence: false, locale }),
     '',
-    ...renderDiffActionsConsole(diff),
+    ...renderDiffActionsConsole(diff, locale),
     '',
     ...renderDiffFactsConsole(diff),
   ];
 }
 
-function renderDiffAllMarkdown(diff: DiffReport): string[] {
+function renderDiffAllMarkdown(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const model = resolveViewModel(diff.current);
   return [
-    ...renderSummaryMarkdown(model, '## Diagnosis summary'),
-    ...renderDiffActionsMarkdown(diff),
+    ...renderSummaryMarkdown(model, '## Diagnosis summary', { includeClusterEvidence: false, locale }),
+    ...renderDiffActionsMarkdown(diff, locale),
     ...renderDiffFactsMarkdown(diff),
   ];
 }
 
 export function formatDiffConsoleReport(diff: DiffReport, options: FormatReportOptions = {}): string {
   const view = options.view ?? 'all';
+  const locale = resolveFormatLocale(diff.current, options);
   const lines: string[] = [];
   switch (view) {
     case 'facts':
@@ -636,10 +677,10 @@ export function formatDiffConsoleReport(diff: DiffReport, options: FormatReportO
       lines.push(...renderDiffSummaryConsole(diff));
       break;
     case 'actions':
-      lines.push(...renderDiffActionsConsole(diff));
+      lines.push(...renderDiffActionsConsole(diff, locale));
       break;
     case 'all':
-      lines.push(...renderDiffAllConsole(diff));
+      lines.push(...renderDiffAllConsole(diff, locale));
       break;
   }
   return `${lines.join('\n')}\n`;
@@ -647,6 +688,7 @@ export function formatDiffConsoleReport(diff: DiffReport, options: FormatReportO
 
 export function formatDiffMarkdownReport(diff: DiffReport, options: FormatReportOptions = {}): string {
   const view = options.view ?? 'all';
+  const locale = resolveFormatLocale(diff.current, options);
   const lines = [...reportHeaderLines(diff.current)];
   switch (view) {
     case 'facts':
@@ -656,10 +698,10 @@ export function formatDiffMarkdownReport(diff: DiffReport, options: FormatReport
       lines.push(...renderDiffSummaryMarkdown(diff));
       break;
     case 'actions':
-      lines.push(...renderDiffActionsMarkdown(diff));
+      lines.push(...renderDiffActionsMarkdown(diff, locale));
       break;
     case 'all':
-      lines.push(...renderDiffAllMarkdown(diff));
+      lines.push(...renderDiffAllMarkdown(diff, locale));
       break;
   }
   return `${lines.join('\n')}\n`;
