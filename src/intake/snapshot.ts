@@ -215,7 +215,7 @@ export async function loadConfig(
   try {
     await access(configPath);
   } catch {
-    return defaultConfig;
+    return normalizeConfig({ ...defaultConfig, llm: llmConfig });
   }
 
   try {

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { computeInputId, createRepositorySnapshot, isExcluded, loadConfig } from '../src/intake/snapshot.js';
 import { ConfigError, IntakeError } from '../src/shared/errors.js';
-import { defaultConfig } from '../src/shared/config.js';
+import { defaultConfig, defaultLlmConfig } from '../src/shared/config.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -64,6 +64,21 @@ describe('intake contract', () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-'));
     const config = await loadConfig(dir);
     expect(config).toEqual(defaultConfig);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('applies operator-owned LLM policy when repository config is missing', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-'));
+    const operatorPolicy = {
+      ...defaultLlmConfig,
+      enabled: true,
+      provider: 'codex' as const,
+      sendScope: 'all' as const,
+    };
+
+    const config = await loadConfig(dir, operatorPolicy);
+
+    expect(config.llm).toEqual(operatorPolicy);
     await rm(dir, { recursive: true, force: true });
   });
 
