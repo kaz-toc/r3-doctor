@@ -2,7 +2,13 @@ import { z } from 'zod';
 import path from 'node:path';
 
 import type { SemanticFinding } from '../schema/report.v1.js';
-import { findingIdSchema, riskAxisIdSchema, semanticFindingSchema, evidenceIdSchema } from '../schema/report.v1.js';
+import {
+  evidenceIdSchema,
+  findingIdSchema,
+  impactScopeSchema,
+  riskAxisIdSchema,
+  semanticFindingSchema,
+} from '../schema/report.v1.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { Evidence } from '../schema/report.v1.js';
 import { DefaultSemanticProviderFactory } from './provider-factory.js';
@@ -21,6 +27,7 @@ const providerOutputSchema = z.array(
       summary: z.string(),
       relatedEvidenceIds: z.array(evidenceIdSchema).default([]),
       confidence: z.number().min(0).max(1),
+      impactScope: impactScopeSchema.default('module'),
     })
     .strict(),
 );
@@ -93,6 +100,7 @@ export function validateSemanticFindings(
       summary: item.summary,
       relatedEvidenceIds: item.relatedEvidenceIds,
       confidence: item.confidence,
+      impactScope: item.impactScope,
     };
 
     return semanticFindingSchema.parse(finding);

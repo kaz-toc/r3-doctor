@@ -8,10 +8,12 @@ import { getDefaultPlugins, extractEvidenceWithPlugins, selectPlugins } from '..
 import type { AnalyzerPlugin } from '../plugins/analyzer.js';
 import { runSemanticAnalysis } from '../semantic/provider.js';
 import type { SemanticProviderFactory } from '../semantic/provider.js';
+import { resolveCalibrationQuality } from '../calibration/quality.js';
 
 export type DiagnosisDependencies = {
   semanticProviderFactory?: SemanticProviderFactory;
   analyzerPlugins?: AnalyzerPlugin[];
+  skipCalibrationResolution?: boolean;
 };
 
 export async function runDiagnosis(
@@ -50,6 +52,14 @@ export async function runDiagnosis(
     capabilityApprovedEvidence(report.evidence, report.capabilities),
     report.clusters,
     snapshot.config.diagnosticSkipRoots,
+    report.repository.confidence,
+    snapshot.config.churnDays,
   );
+  if (!dependencies.skipCalibrationResolution) {
+    report.repository.calibration = await resolveCalibrationQuality(
+      snapshot.repositoryPath,
+      snapshot.config.policyFile,
+    );
+  }
   return diagnosisReportSchema.parse(report);
 }

@@ -1,62 +1,38 @@
 import { describe, expect, it } from 'vitest';
 
-import { diffReportSchema } from '../src/schema/report.v1.js';
+import {
+  ASSESSMENT_CONTRACT_VERSION,
+  DIFF_SCHEMA_VERSION,
+  diffReportSchema,
+  provisionalEvidenceDetails,
+} from '../src/schema/report.v1.js';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { formatGitHubAnnotations, writeGitHubSummaryFile } from '../src/reporting/github.js';
+import { minimalReportMetadata, minimalRepository, minimalV4Report, sampleEvidence } from './helpers/v4-report-fixtures.js';
 
 describe('github annotations', () => {
   it('emits workflow annotation lines for new and worsened signals', () => {
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
-      current: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'c',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 80, confidence: 0.9, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [{
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current: minimalV4Report({
+        metadata: minimalReportMetadata({ inputId: 'c', repositoryPath: '/tmp' }),
+        repository: minimalRepository({ regressionRiskScore: 80, confidence: 0.9 }),
+        evidence: [sampleEvidence({
           evidenceId: 'evidence:dep-cycle:src/a.ts',
           signalId: 'dep-cycle',
-          axisId: 'structural-fragility',
           path: 'src/a.ts',
           severity: 'high',
           message: 'cycle detected',
-          source: 'deterministic',
-        }],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
-      base: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'b',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 50, confidence: 0.9, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
+          ...provisionalEvidenceDetails('high', 'src/a.ts'),
+        })],
+      }),
+      base: minimalV4Report({
+        metadata: minimalReportMetadata({ inputId: 'b', repositoryPath: '/tmp' }),
+        repository: minimalRepository({ regressionRiskScore: 50, confidence: 0.9 }),
+      }),
       comparison: {
         compatible: true,
         riskDelta: 30,
@@ -81,26 +57,10 @@ describe('github annotations', () => {
 
   it('emits a notice when comparison is incompatible', () => {
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
-      current: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'c',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 10, confidence: 1, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current: minimalV4Report({
+        metadata: minimalReportMetadata({ inputId: 'c', repositoryPath: '/tmp' }),
+      }),
       comparison: {
         compatible: false,
         reason: 'assessment contract mismatch',
@@ -116,36 +76,25 @@ describe('github annotations', () => {
   });
 
   it('REG-2026-013 escapes untrusted workflow command data and properties onto one line', () => {
-    const current = {
-      metadata: {
-        schemaVersion: 1,
-        assessmentContractVersion: 3,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        inputId: 'c',
-        repositoryPath: '/tmp',
-        analyzers: [],
-        truncated: false,
-        unevaluatedAreas: [],
-      },
-      repository: { regressionRiskScore: 50, confidence: 0.9, disclaimer: 'd' },
-      axes: [], clusters: [], semanticFindings: [], interventions: [], capabilities: [],
-      evidence: [{
+    const current = minimalV4Report({
+      metadata: minimalReportMetadata({ inputId: 'c', repositoryPath: '/tmp' }),
+      repository: minimalRepository({ regressionRiskScore: 50, confidence: 0.9 }),
+      evidence: [sampleEvidence({
         evidenceId: 'evidence:dep-cycle:unsafe',
         signalId: 'dep-cycle',
-        axisId: 'structural-fragility',
         severity: 'high',
         path: 'src/a:%\n::add-mask::TOKEN,\r.ts',
         message: 'bad %\n::error::forged\r',
-        source: 'deterministic',
-      }],
-    };
+        ...provisionalEvidenceDetails('high', 'src/a:%\n::add-mask::TOKEN,\r.ts'),
+      })],
+    });
     const base = {
       ...current,
       metadata: { ...current.metadata, inputId: 'b' },
       evidence: [],
     };
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: DIFF_SCHEMA_VERSION,
       current,
       base,
       comparison: {
@@ -190,19 +139,10 @@ describe('github annotations', () => {
     try {
       const output = path.join(dir, 'summary.md');
       const diff = diffReportSchema.parse({
-        schemaVersion: 2,
-        current: {
-          metadata: {
-            schemaVersion: 1,
-            assessmentContractVersion: 3,
-            generatedAt: '2026-01-01T00:00:00.000Z',
-            inputId: 'c',
-            repositoryPath: '/tmp',
-            analyzers: [], truncated: false, unevaluatedAreas: [],
-          },
-          repository: { regressionRiskScore: 10, confidence: 1, disclaimer: 'd' },
-          axes: [], clusters: [], evidence: [], semanticFindings: [], interventions: [], capabilities: [],
-        },
+        schemaVersion: DIFF_SCHEMA_VERSION,
+        current: minimalV4Report({
+          metadata: minimalReportMetadata({ inputId: 'c', repositoryPath: '/tmp' }),
+        }),
         comparison: {
           compatible: false,
           reason: 'mismatch\n# forged <script>',

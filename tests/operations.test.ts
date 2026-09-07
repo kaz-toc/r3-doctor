@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { runDiagnosis } from '../src/pipeline/diagnose.js';
-import { analyzeTrend } from '../src/operations/trend.js';
+import { analyzeTrend, rankInvestmentPriorities } from '../src/operations/trend.js';
 import type { TrendEntry } from '../src/schema/report.v1.js';
 import { loadPolicy, policySchema } from '../src/operations/policy.js';
 
@@ -90,5 +90,20 @@ describe('phase 5-6 operations', () => {
     expect(fragile.repository.regressionRiskScore).toBeGreaterThan(stable.repository.regressionRiskScore);
     expect(fragile.clusters.length).toBeGreaterThanOrEqual(stable.clusters.length);
     expect(fragile.evidence.length).toBeGreaterThan(stable.evidence.length);
+  });
+
+  it('ranks investment priorities by intervention priorityScore', async () => {
+    const fragile = await runDiagnosis(
+      await createRepositorySnapshot(path.join(root, 'fixtures', 'fragile-cart')),
+    );
+    const priorities = rankInvestmentPriorities(fragile);
+    expect(priorities.length).toBe(fragile.interventions.length);
+    expect(priorities[0]?.urgency).toBe(fragile.interventions[0]?.priorityScore);
+    expect(priorities.map((entry) => entry.intervention.priority)).toEqual(
+      fragile.interventions.map((item) => item.priority),
+    );
+    for (let index = 1; index < priorities.length; index += 1) {
+      expect(priorities[index - 1]?.urgency).toBeGreaterThanOrEqual(priorities[index]?.urgency ?? 0);
+    }
   });
 });

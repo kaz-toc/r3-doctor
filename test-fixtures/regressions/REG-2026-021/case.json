@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-021",
+  "status": "active",
+  "title": "Report views are independently selectable and all shows calibration status",
+  "invariant": "facts, summary, and actions can be selected individually; all outputs those three sections without overlap and displays score calibration status.",
+  "incident": "report-quality-improvement#non-actionable-report",
+  "productionFiles": [
+    "src/reporting/format.ts",
+    "src/reporting/view-model.ts",
+    "src/schema/report.v1.ts"
+  ],
+  "testFiles": [
+    "tests/reporting.test.ts",
+    "test-fixtures/regressions/REG-2026-021/report-quality.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- test-fixtures/regressions/REG-2026-021/report-quality.test.ts",
+    "npm test -- tests/golden.test.ts tests/reporting.test.ts"
+  ]
+}

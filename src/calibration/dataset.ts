@@ -38,6 +38,7 @@ export type CalibrationDataset = z.infer<typeof calibrationDatasetSchema>;
 export type CalibrationResult = CalibrationDataset & {
   gateEligible: boolean;
   missingRequiredConditions: string[];
+  goldenRegressionPassed: boolean;
 };
 
 const DEFAULT_GATE_CONDITIONS = [
@@ -63,6 +64,7 @@ export async function loadCalibration(
       gateConditions: DEFAULT_GATE_CONDITIONS,
       satisfiedConditions: [],
       missingRequiredConditions: [...requiredConditions],
+      goldenRegressionPassed,
     };
   }
 
@@ -92,7 +94,7 @@ export async function loadCalibration(
       dataset.satisfiedConditions,
     );
 
-    return { ...dataset, gateEligible, missingRequiredConditions };
+    return { ...dataset, gateEligible, missingRequiredConditions, goldenRegressionPassed };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(calibrationPath, reason);

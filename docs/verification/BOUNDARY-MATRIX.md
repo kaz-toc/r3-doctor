@@ -14,3 +14,14 @@
 プルリクエストに正確なコマンドまたは観測を記録する。`N/A` は、変更パスと契約に結びついた具体的理由がある場合のみ許可。
 
 コピー先プロダクトは、スタック選択後に汎用証拠を正確なコマンドへ置き換える。
+
+## report-quality-improvement (REG-2026-021)
+
+| 境界 | 証拠 |
+|---|---|
+| Risk Assessment | `npm test -- tests/assessment.test.ts tests/golden.test.ts` — `fragile-cart > fragile-cart-improved >= stable-cart`、連続 metric の単調性 |
+| Recommendation | `npm test -- tests/reporting.test.ts` — 上位 5 actions、各 action に rationale / first step / verification |
+| Reporting | `npm test -- test-fixtures/regressions/REG-2026-021/report-quality.test.ts` — view 別 line budget、3章 `all`、calibration status |
+| schema compatibility | `npm test -- tests/schema.test.ts tests/comparison.test.ts` — v3 baseline は明示的 incompatibility reason |
+
+Dogfood on r3-doctor (2026-09-07, fixture contract): `facts` 46 lines, `summary` 93 lines, `actions` 57 lines, `all` 146 lines with 3 chapters; summary shows 5 clusters (+2 remaining), actions shows 5 interventions (+1 remaining); golden score distinctness PASS.

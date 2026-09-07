@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
-export const ASSESSMENT_CONTRACT_VERSION = 3;
-export const REPORT_SCHEMA_VERSION = 1;
-export const BASELINE_SCHEMA_VERSION = 3;
-export const DIFF_SCHEMA_VERSION = 2;
+export const ASSESSMENT_CONTRACT_VERSION = 4;
+export const REPORT_SCHEMA_VERSION = 2;
+export const BASELINE_SCHEMA_VERSION = 4;
+export const DIFF_SCHEMA_VERSION = 3;
+
+export const calibrationStatusSchema = z.enum(['uncalibrated', 'provisional', 'validated']);
+export const pathRoleSchema = z.enum(['product', 'test', 'tooling', 'generated', 'fixture']);
+export const impactScopeSchema = z.enum(['local', 'module', 'repository']);
 
 export const riskAxisIdSchema = z.enum([
   'structural-fragility',
@@ -33,18 +37,92 @@ export const clusterIdSchema = z.string().regex(/^cluster:/);
 export const interventionIdSchema = z.string().regex(/^intervention:/);
 export const findingIdSchema = z.string().regex(/^finding:/);
 
+export const axisScoreBreakdownSchema = z
+  .object({
+    peak: z.number().min(0).max(100),
+    breadth: z.number().min(0).max(100),
+    diversity: z.number().min(0).max(100),
+  })
+  .strict();
+
+export const repositoryScoreBreakdownSchema = z
+  .object({
+    axisBase: z.number().min(0).max(100),
+    criticalClusterUplift: z.number().min(0).max(100),
+  })
+  .strict();
+
+export const confidenceBreakdownSchema = z
+  .object({
+    signalCoverage: z.number().min(0).max(1),
+    semanticAnalysis: z.number().min(0).max(1),
+    gitHistory: z.number().min(0).max(1),
+    inputCompleteness: z.number().min(0).max(1),
+  })
+  .strict();
+
+export const calibrationSummarySchema = z
+  .object({
+    status: calibrationStatusSchema,
+    sampleCount: z.number().int().nonnegative().optional(),
+    measured: z.array(z.string()).optional(),
+    missingConditions: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export function severityForStrength(strength: number): 'low' | 'medium' | 'high' {
+  if (strength >= 70) return 'high';
+  if (strength >= 40) return 'medium';
+  return 'low';
+}
+
+export function strengthForSeverity(severity: 'low' | 'medium' | 'high'): number {
+  if (severity === 'high') return 75;
+  if (severity === 'medium') return 50;
+  return 25;
+}
+
+export function provisionalEvidenceDetails(
+  severity: 'low' | 'medium' | 'high',
+  path?: string,
+): {
+  strength: number;
+  rationale: string;
+  pathRole: z.infer<typeof pathRoleSchema>;
+  relatedPaths: string[];
+} {
+  return {
+    strength: strengthForSeverity(severity),
+    rationale: `provisional:severity=${severity}`,
+    pathRole: 'product',
+    relatedPaths: path ? [path] : [],
+  };
+}
+
 export const evidenceSchema = z
   .object({
     evidenceId: evidenceIdSchema,
     signalId: signalIdSchema,
     axisId: riskAxisIdSchema,
     path: z.string().optional(),
+    strength: z.number().min(0).max(100),
+    rationale: z.string().min(1),
+    pathRole: pathRoleSchema,
+    relatedPaths: z.array(z.string()),
     severity: z.enum(['low', 'medium', 'high']),
     message: z.string(),
     metrics: z.record(z.union([z.number(), z.string(), z.boolean()])).optional(),
     source: z.enum(['deterministic', 'semantic']),
   })
-  .strict();
+  .strict()
+  .superRefine((evidence, ctx) => {
+    if (severityForStrength(evidence.strength) !== evidence.severity) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'severity must be derived from strength and cannot be overridden independently',
+      });
+    }
+  });
 
 export const semanticFindingSchema = z
   .object({
@@ -54,6 +132,7 @@ export const semanticFindingSchema = z
     summary: z.string(),
     relatedEvidenceIds: z.array(evidenceIdSchema),
     confidence: z.number().min(0).max(1),
+    impactScope: impactScopeSchema.default('module'),
   })
   .strict()
   .superRefine((finding, ctx) => {
@@ -85,7 +164,8 @@ export const axisAssessmentSchema = z
     axisId: riskAxisIdSchema,
     name: z.string(),
     score: z.number().min(0).max(100),
-    contribution: z.number().min(0).max(1),
+    contributionPoints: z.number().min(0).max(100),
+    scoreBreakdown: axisScoreBreakdownSchema,
     confidence: z.number().min(0).max(1),
     unevaluated: z.boolean().default(false),
   })
@@ -104,6 +184,10 @@ export const interventionSchema = z
     expectedEffect: z.string(),
     verification: z.string(),
     cost: z.enum(['low', 'medium', 'high']),
+    rationale: z.string().min(1),
+    firstStep: z.string().min(1),
+    priorityScore: z.number().min(0).max(100),
+    verificationHorizon: z.string().min(1),
   })
   .strict();
 
@@ -112,6 +196,9 @@ export const repositoryAssessmentSchema = z
     regressionRiskScore: z.number().min(0).max(100),
     confidence: z.number().min(0).max(1),
     disclaimer: z.string(),
+    scoreBreakdown: repositoryScoreBreakdownSchema,
+    confidenceBreakdown: confidenceBreakdownSchema,
+    calibration: calibrationSummarySchema,
   })
   .strict();
 
@@ -448,6 +535,12 @@ export const trendEntrySchema = z
 export type RiskAxisId = z.infer<typeof riskAxisIdSchema>;
 export type SignalId = z.infer<typeof signalIdSchema>;
 export type SourceLanguage = z.infer<typeof sourceLanguageSchema>;
+export type AxisScoreBreakdown = z.infer<typeof axisScoreBreakdownSchema>;
+export type RepositoryScoreBreakdown = z.infer<typeof repositoryScoreBreakdownSchema>;
+export type ConfidenceBreakdown = z.infer<typeof confidenceBreakdownSchema>;
+export type CalibrationSummary = z.infer<typeof calibrationSummarySchema>;
+export type CalibrationStatus = z.infer<typeof calibrationStatusSchema>;
+export type PathRole = z.infer<typeof pathRoleSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type SemanticFinding = z.infer<typeof semanticFindingSchema>;
 export type RiskCluster = z.infer<typeof riskClusterSchema>;

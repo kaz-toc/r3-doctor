@@ -7,15 +7,38 @@ import { compareSignalChanges } from '../src/comparison/compare.js';
 import { computeBlastRadius } from '../src/commands/diff.js';
 import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { formatDiffConsoleReport, formatDiffMarkdownReport } from '../src/reporting/format.js';
-import { diffReportSchema } from '../src/schema/report.v1.js';
+import {
+  ASSESSMENT_CONTRACT_VERSION,
+  DIFF_SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
+  diffReportSchema,
+  provisionalEvidenceDetails,
+} from '../src/schema/report.v1.js';
 import type { DiagnosisReport } from '../src/schema/report.v1.js';
 import { createGitRepository } from './helpers/git-repository.js';
+
+function minimalRepository(overrides: Partial<DiagnosisReport['repository']> = {}): DiagnosisReport['repository'] {
+  return {
+    regressionRiskScore: 10,
+    confidence: 1,
+    disclaimer: 'test',
+    scoreBreakdown: { axisBase: 10, criticalClusterUplift: 0 },
+    confidenceBreakdown: {
+      signalCoverage: 1,
+      semanticAnalysis: 0,
+      gitHistory: 1,
+      inputCompleteness: 1,
+    },
+    calibration: { status: 'uncalibrated' },
+    ...overrides,
+  };
+}
 
 function minimalReport(evidenceIds: Array<{ id: string; severity: 'low' | 'medium' | 'high' }>): DiagnosisReport {
   return {
     metadata: {
-      schemaVersion: 1,
-      assessmentContractVersion: 3,
+      schemaVersion: REPORT_SCHEMA_VERSION,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       generatedAt: '2026-01-01T00:00:00.000Z',
       inputId: 'test',
       repositoryPath: '/tmp',
@@ -23,11 +46,7 @@ function minimalReport(evidenceIds: Array<{ id: string; severity: 'low' | 'mediu
       truncated: false,
       unevaluatedAreas: [],
     },
-    repository: {
-      regressionRiskScore: 10,
-      confidence: 1,
-      disclaimer: 'test',
-    },
+    repository: minimalRepository(),
     axes: [],
     clusters: [],
     evidence: evidenceIds.map((entry) => ({
@@ -37,6 +56,7 @@ function minimalReport(evidenceIds: Array<{ id: string; severity: 'low' | 'mediu
       severity: entry.severity,
       message: entry.id,
       source: 'deterministic',
+      ...provisionalEvidenceDetails(entry.severity, entry.id),
     })),
     semanticFindings: [],
     interventions: [],
@@ -104,7 +124,7 @@ describe('diff diagnostics', () => {
       repository: { ...minimalReport([]).repository, regressionRiskScore: 35 },
     };
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: DIFF_SCHEMA_VERSION,
       current,
       base,
       comparison: {
@@ -144,7 +164,7 @@ describe('diff diagnostics', () => {
 
   it('still reports changed files and blast radius when comparison is incompatible', () => {
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: DIFF_SCHEMA_VERSION,
       current: minimalReport([{ id: 'a', severity: 'low' }]),
       comparison: {
         compatible: false,

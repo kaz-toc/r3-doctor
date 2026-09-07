@@ -25,10 +25,13 @@ describe('golden assessments', () => {
       }
     >;
 
+    const scores = new Map<string, number>();
+
     for (const [name, spec] of Object.entries(golden)) {
       const snapshot = await createRepositorySnapshot(path.join(root, 'fixtures', name));
       const report = await runDiagnosis(snapshot);
       const signals = new Set(report.evidence.map((e) => e.signalId));
+      scores.set(name, report.repository.regressionRiskScore);
 
       if (spec.expected.maxScore !== undefined) {
         expect(report.repository.regressionRiskScore).toBeLessThanOrEqual(spec.expected.maxScore);
@@ -44,5 +47,14 @@ describe('golden assessments', () => {
       }
       expect(report.clusters.length).toBeGreaterThanOrEqual(spec.expected.minClusters);
     }
+
+    const fragile = scores.get('fragile-cart');
+    const improved = scores.get('fragile-cart-improved');
+    const stable = scores.get('stable-cart');
+    expect(fragile).toBeDefined();
+    expect(improved).toBeDefined();
+    expect(stable).toBeDefined();
+    expect(fragile!).toBeGreaterThan(improved!);
+    expect(improved!).toBeGreaterThanOrEqual(stable!);
   });
 });

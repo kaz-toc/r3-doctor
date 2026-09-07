@@ -1,4 +1,20 @@
-import type { AxisAssessment, DiagnosisReport, DiffReport, Evidence } from '../schema/report.v1.js';
+import type { DiagnosisReport, DiffReport, Evidence } from '../schema/report.v1.js';
+import {
+  buildReportViewModel,
+  DEFAULT_REPORT_VIEW_LIMITS,
+  formatAxisScoreLabel,
+  type ActionItemView,
+  type FactEvidenceGroup,
+  type ReportView,
+  type ReportViewModel,
+  type SummaryClusterBlock,
+} from './view-model.js';
+
+export type { ReportView } from './view-model.js';
+
+export type FormatReportOptions = {
+  view?: ReportView;
+};
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 1 } as const;
 
@@ -12,95 +28,363 @@ function sortEvidence(items: Evidence[]): Evidence[] {
   });
 }
 
-function axisHasSignals(report: DiagnosisReport, axisId: AxisAssessment['axisId']): boolean {
-  return report.evidence.some((item) => item.axisId === axisId) ||
-    report.semanticFindings.some((item) => item.axisId === axisId);
+function reportHeaderLines(report: DiagnosisReport): string[] {
+  const unevaluatedCount = report.axes.filter((axis) => axis.unevaluated).length;
+  return [
+    '# r3-doctor Diagnosis Report',
+    '',
+    `- Generated: ${report.metadata.generatedAt}`,
+    `- Input ID: ${report.metadata.inputId}`,
+    `- Contract: v${report.metadata.assessmentContractVersion}`,
+    `- Unevaluated axes: ${unevaluatedCount}`,
+    '',
+  ];
 }
 
-function formatAxisScoreLabel(axis: AxisAssessment, report: DiagnosisReport): string {
-  if (axis.unevaluated) {
-    return 'unevaluated (excluded from aggregate)';
-  }
-  if (!axisHasSignals(report, axis.axisId)) {
-    return '0 (no signals detected)';
-  }
-  return String(axis.score);
+function formatEvidenceBullet(item: Evidence): string {
+  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
 }
 
-function unevaluatedAxisCount(report: DiagnosisReport): number {
-  return report.axes.filter((axis) => axis.unevaluated).length;
+function formatEvidenceConsoleBullet(item: Evidence): string {
+  return `  - [${item.severity}] strength=${item.strength} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
 }
 
-function evidenceLines(report: DiagnosisReport, evidenceIds: string[]): string[] {
-  return evidenceIds
-    .map((id) => report.evidence.find((item) => item.evidenceId === id))
-    .filter(Boolean)
-    .map(
-      (item) =>
-        `    - [${item!.severity}] ${item!.signalId} ${item!.path ?? 'repo'}: ${item!.message}${item!.metrics ? ` (${JSON.stringify(item!.metrics)})` : ''}`,
-    );
-}
-
-function formatEvidenceConsoleLines(report: DiagnosisReport): string[] {
-  const lines: string[] = ['Evidence:'];
-  const sorted = sortEvidence(report.evidence);
-  if (sorted.length === 0) {
-    lines.push('  - (none)');
-    return lines;
+function renderFactGroupMarkdown(group: FactEvidenceGroup): string[] {
+  const lines = [
+    `### ${group.mechanismLabel}`,
+    `- Mechanism ID: ${group.mechanismId}`,
+    `- Trigger: ${group.triggerSummary}`,
+    '- Evidence:',
+  ];
+  for (const item of group.evidence) {
+    lines.push(`  ${formatEvidenceBullet(item).replace(/^- /, '')}`);
   }
-  for (const item of sorted) {
-    lines.push(
-      `  - [${item.severity}] ${item.signalId} ${item.path ?? 'repo'}: ${item.message}${item.metrics ? ` (${JSON.stringify(item.metrics)})` : ''}`,
-    );
-  }
-  return lines;
-}
-
-function formatEvidenceMarkdownLines(report: DiagnosisReport): string[] {
-  const lines: string[] = ['## Evidence', ''];
-  const sorted = sortEvidence(report.evidence);
-  if (sorted.length === 0) {
-    lines.push('- (none)');
-    lines.push('');
-    return lines;
-  }
-  for (const item of sorted) {
-    lines.push(
-      `- \`${item.evidenceId}\` [${item.severity}] \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`,
-    );
+  if (group.remainingEvidenceCount > 0) {
+    lines.push(`  - 他 ${group.remainingEvidenceCount} evidence`);
   }
   lines.push('');
   return lines;
 }
 
-function formatSemanticFindingsConsoleLines(report: DiagnosisReport): string[] {
-  const lines: string[] = ['Semantic findings:'];
-  if (report.semanticFindings.length === 0) {
-    const semanticUnevaluated = report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')?.unevaluated;
-    lines.push(semanticUnevaluated ? '  - none (axis unevaluated)' : '  - (none)');
-    return lines;
+function renderFactGroupConsole(group: FactEvidenceGroup): string[] {
+  const lines = [
+    `  - ${group.mechanismLabel} (${group.mechanismId})`,
+    `    trigger: ${group.triggerSummary}`,
+    '    evidence:',
+  ];
+  for (const item of group.evidence) {
+    lines.push(`    - [${item.severity}] ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`);
   }
-  for (const finding of report.semanticFindings) {
-    lines.push(`  - [${finding.axisId}] ${finding.summary} (confidence ${finding.confidence})`);
+  if (group.remainingEvidenceCount > 0) {
+    lines.push(`    - 他 ${group.remainingEvidenceCount} evidence`);
   }
   return lines;
 }
 
-function formatSemanticFindingsMarkdownLines(report: DiagnosisReport): string[] {
-  const lines: string[] = ['## Semantic Findings', ''];
-  if (report.semanticFindings.length === 0) {
-    const semanticUnevaluated = report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')?.unevaluated;
-    lines.push(semanticUnevaluated ? '- none (axis unevaluated)' : '- (none)');
-    lines.push('');
-    return lines;
+function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state'): string[] {
+  const { facts } = model;
+  const lines = [heading, '', '### Analysis coverage', ''];
+  for (const capability of facts.capabilities) {
+    lines.push(`- ${capability.language} (${capability.completeness}, ${capability.analyzerId})`);
+    lines.push(`  - supported: ${capability.supportedSignals.join(', ') || 'none'}`);
+    lines.push(`  - unevaluated: ${capability.unevaluatedSignals.join(', ') || 'none'}`);
   }
-  for (const finding of report.semanticFindings) {
+  lines.push('');
+  if (facts.limitationSummaries.length > 0) {
+    lines.push('### Limitations', '');
+    for (const limitation of facts.limitationSummaries) {
+      lines.push(`- ${limitation}`);
+    }
+    lines.push('');
+  }
+  lines.push('### Grouped evidence', '');
+  for (const group of facts.factGroups) {
+    lines.push(...renderFactGroupMarkdown(group));
+  }
+  if (facts.totalEvidenceCount > facts.factGroups.reduce((sum, group) => sum + group.evidence.length + group.remainingEvidenceCount, 0)) {
+    lines.push(`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
+    lines.push('');
+  } else if (facts.totalEvidenceCount > 0) {
+    lines.push(`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
+    lines.push('');
+  }
+  return lines;
+}
+
+function renderFactsConsole(model: ReportViewModel, heading = 'Current state'): string[] {
+  const { facts } = model;
+  const lines = [heading, 'Analysis coverage:'];
+  for (const capability of facts.capabilities) {
     lines.push(
-      `- \`${finding.findingId}\` (${finding.axisId}, confidence ${finding.confidence}): ${finding.summary}`,
+      `  - ${capability.language} (${capability.completeness}): supported=${capability.supportedSignals.join(', ') || 'none'}; unevaluated=${capability.unevaluatedSignals.join(', ') || 'none'}`,
+    );
+  }
+  if (facts.limitationSummaries.length > 0) {
+    lines.push('Limitations:');
+    for (const limitation of facts.limitationSummaries) {
+      lines.push(`  - ${limitation}`);
+    }
+  }
+  lines.push('Grouped evidence:');
+  for (const group of facts.factGroups) {
+    lines.push(...renderFactGroupConsole(group));
+  }
+  lines.push(`Full evidence list available via --format json (${facts.totalEvidenceCount} total)`);
+  return lines;
+}
+
+function renderSummaryMarkdown(model: ReportViewModel, heading = '## Assessment summary', options: { includeClusterEvidence?: boolean } = {}): string[] {
+  const { summary } = model;
+  const lines = [
+    heading,
+    '',
+    `- Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand})`,
+    `- Confidence: ${summary.confidence}`,
+    `- Calibration: ${summary.calibrationStatus}`,
+    `- Unevaluated axes: ${summary.unevaluatedAxisCount}`,
+    '',
+    `> ${summary.disclaimer}`,
+    '',
+    '## Why this score',
+    '',
+    `- Axis base: ${summary.scoreBreakdown.axisBase}`,
+    `- Critical cluster uplift: ${summary.scoreBreakdown.criticalClusterUplift}`,
+    '',
+    '| Axis | Score | Contribution | Confidence | Top rationale |',
+    '|---|---:|---:|---:|---|',
+  ];
+  for (const axis of summary.axes) {
+    lines.push(
+      `| ${axis.name} | ${axis.scoreLabel} | ${axis.contributionPoints} | ${axis.confidence} | ${axis.topRationale} |`,
     );
   }
   lines.push('');
+  lines.push('## Top risk clusters', '');
+  for (const block of summary.clusters) {
+    lines.push(...renderClusterMarkdown(block, { includeEvidence: options.includeClusterEvidence }));
+  }
+  if (summary.remainingClusterCount > 0) {
+    lines.push(`- 他 ${summary.remainingClusterCount} clusters`);
+    lines.push('');
+  }
+  if (summary.limitations.length > 0) {
+    lines.push('## Limitations', '');
+    for (const limitation of summary.limitations) {
+      lines.push(`- ${limitation}`);
+    }
+    lines.push('');
+  }
   return lines;
+}
+
+function renderClusterMarkdown(block: SummaryClusterBlock, options: { includeEvidence?: boolean } = {}): string[] {
+  const { cluster, evidence, remainingEvidenceCount } = block;
+  const includeEvidence = options.includeEvidence ?? true;
+  const lines = [
+    `### ${cluster.title} (${cluster.score})`,
+    `- Trigger: ${cluster.triggerChanges.join('; ')}`,
+    `- Mechanism: ${cluster.failureMechanism}`,
+    `- Measurable impact: score ${cluster.score}, confidence ${cluster.confidence}`,
+  ];
+  if (includeEvidence) {
+    lines.push('- Evidence:');
+    for (const item of evidence) {
+      lines.push(`  - \`${item.evidenceId}\` ${item.path ?? 'repo'}: ${item.message}`);
+    }
+    if (remainingEvidenceCount > 0) {
+      lines.push(`  - 他 ${remainingEvidenceCount} evidence`);
+    }
+  } else {
+    const totalEvidence = evidence.length + remainingEvidenceCount;
+    lines.push(`- Evidence: ${totalEvidence} items (see Current state)`);
+  }
+  lines.push('');
+  return lines;
+}
+
+function renderSummaryConsole(model: ReportViewModel, heading = 'Assessment summary', options: { includeClusterEvidence?: boolean } = {}): string[] {
+  const { summary } = model;
+  const lines = [
+    heading,
+    `Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand}, confidence ${summary.confidence}, calibration ${summary.calibrationStatus}, unevaluated axes: ${summary.unevaluatedAxisCount})`,
+    summary.disclaimer,
+    '',
+    'Why this score:',
+    `  - axis base: ${summary.scoreBreakdown.axisBase}`,
+    `  - critical cluster uplift: ${summary.scoreBreakdown.criticalClusterUplift}`,
+    'Axes:',
+  ];
+  for (const axis of summary.axes) {
+    lines.push(`  - ${axis.name}: ${axis.scoreLabel} (contribution ${axis.contributionPoints}, confidence ${axis.confidence})`);
+    lines.push(`    rationale: ${axis.topRationale}`);
+  }
+  lines.push('Top risk clusters:');
+  for (const block of summary.clusters) {
+    const { cluster, evidence, remainingEvidenceCount } = block;
+    lines.push(`  - [${cluster.score}] ${cluster.title} (${cluster.mechanismId})`);
+    lines.push(`    trigger: ${cluster.triggerChanges.join('; ')}`);
+    lines.push(`    mechanism: ${cluster.failureMechanism}`);
+    if (options.includeClusterEvidence ?? true) {
+      lines.push('    evidence:');
+      for (const item of evidence) {
+        lines.push(`      - ${item.evidenceId} ${item.path ?? 'repo'}: ${item.message}`);
+      }
+      if (remainingEvidenceCount > 0) {
+        lines.push(`      - 他 ${remainingEvidenceCount} evidence`);
+      }
+    } else {
+      lines.push(`    evidence: ${evidence.length + remainingEvidenceCount} items (see Current state)`);
+    }
+  }
+  if (summary.remainingClusterCount > 0) {
+    lines.push(`  - 他 ${summary.remainingClusterCount} clusters`);
+  }
+  if (summary.limitations.length > 0) {
+    lines.push('Limitations:');
+    for (const limitation of summary.limitations) {
+      lines.push(`  - ${limitation}`);
+    }
+  }
+  return lines;
+}
+
+function renderActionItemMarkdown(item: ActionItemView, options: { includeLinkedEvidence?: boolean } = {}): string[] {
+  const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
+  const includeLinkedEvidence = options.includeLinkedEvidence ?? true;
+  const lines = [
+    `### ${intervention.priority}. ${intervention.title}`,
+    `- Rationale: ${intervention.rationale}`,
+    `- First step: ${intervention.firstStep}`,
+    `- Targets: ${displayPaths.join(', ') || 'n/a'}${remainingPathCount > 0 ? ` (他 ${remainingPathCount} paths)` : ''}`,
+    `- Verify: ${intervention.verification}`,
+    `- Horizon: ${intervention.verificationHorizon}`,
+  ];
+  if (linkedClusters.length > 0) {
+    lines.push(`- Linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
+  }
+  if (includeLinkedEvidence && linkedEvidence.length > 0) {
+    lines.push(`- Linked evidence: ${linkedEvidence.map((evidence) => evidence.evidenceId).join(', ')}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+function renderActionsMarkdown(
+  model: ReportViewModel,
+  heading = '## Improvement points',
+  options: { includeLinkedEvidence?: boolean } = {},
+): string[] {
+  const lines = [heading, ''];
+  for (const item of model.actions.items) {
+    lines.push(...renderActionItemMarkdown(item, options));
+  }
+  if (model.actions.remainingActionCount > 0) {
+    lines.push(`- 他 ${model.actions.remainingActionCount} interventions`);
+    lines.push('');
+  }
+  return lines;
+}
+
+function renderActionsConsole(
+  model: ReportViewModel,
+  heading = 'Improvement points',
+  options: { includeLinkedEvidence?: boolean } = {},
+): string[] {
+  const lines = [heading];
+  for (const item of model.actions.items) {
+    const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
+    lines.push(`  - (${intervention.priority}) ${intervention.title}`);
+    lines.push(`    rationale: ${intervention.rationale}`);
+    lines.push(`    first step: ${intervention.firstStep}`);
+    lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${remainingPathCount > 0 ? ` (他 ${remainingPathCount} paths)` : ''}`);
+    lines.push(`    verify: ${intervention.verification}`);
+    if (linkedClusters.length > 0) {
+      lines.push(`    linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
+    }
+    if ((options.includeLinkedEvidence ?? true) && linkedEvidence.length > 0) {
+      lines.push(`    linked evidence: ${linkedEvidence.map((evidence) => evidence.evidenceId).join(', ')}`);
+    }
+  }
+  if (model.actions.remainingActionCount > 0) {
+    lines.push(`  - 他 ${model.actions.remainingActionCount} interventions`);
+  }
+  return lines;
+}
+
+function renderAllMarkdown(model: ReportViewModel): string[] {
+  const summaryLines = renderSummaryMarkdown(model, '## Diagnosis summary', { includeClusterEvidence: false });
+  const actionsLines = renderActionsMarkdown(model, '## Improvement points', { includeLinkedEvidence: false });
+  const factsLines = renderFactsMarkdown(model, '## Current state');
+  const limitationsStart = summaryLines.findIndex((line) => line === '## Limitations');
+  const trimmedSummary = limitationsStart >= 0 ? summaryLines.slice(0, limitationsStart) : summaryLines;
+  return [...trimmedSummary, ...actionsLines, ...factsLines];
+}
+
+function renderAllConsole(model: ReportViewModel): string[] {
+  const summaryLines = renderSummaryConsole(model, 'Diagnosis summary', { includeClusterEvidence: false });
+  const actionsLines = renderActionsConsole(model, 'Improvement points', { includeLinkedEvidence: false });
+  const factsLines = renderFactsConsole(model, 'Current state');
+  const limitationsIndex = summaryLines.findIndex((line) => line === 'Limitations:');
+  const trimmedSummary = limitationsIndex >= 0 ? summaryLines.slice(0, limitationsIndex) : summaryLines;
+  return [...trimmedSummary, '', ...actionsLines, '', ...factsLines];
+}
+
+function resolveViewModel(report: DiagnosisReport): ReportViewModel {
+  return buildReportViewModel(report, DEFAULT_REPORT_VIEW_LIMITS);
+}
+
+export function formatJsonReport(report: DiagnosisReport): string {
+  return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+export function formatDiffJsonReport(diff: DiffReport): string {
+  return `${JSON.stringify(diff, null, 2)}\n`;
+}
+
+export function formatConsoleReport(report: DiagnosisReport, options: FormatReportOptions = {}): string {
+  const view = options.view ?? 'all';
+  const model = resolveViewModel(report);
+  const lines: string[] = [];
+
+  switch (view) {
+    case 'facts':
+      lines.push(...renderFactsConsole(model));
+      break;
+    case 'summary':
+      lines.push(...renderSummaryConsole(model));
+      break;
+    case 'actions':
+      lines.push(...renderActionsConsole(model));
+      break;
+    case 'all':
+      lines.push(...renderAllConsole(model));
+      break;
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+export function formatMarkdownReport(report: DiagnosisReport, options: FormatReportOptions = {}): string {
+  const view = options.view ?? 'all';
+  const model = resolveViewModel(report);
+  const lines = [...reportHeaderLines(report)];
+
+  switch (view) {
+    case 'facts':
+      lines.push(...renderFactsMarkdown(model));
+      break;
+    case 'summary':
+      lines.push(...renderSummaryMarkdown(model));
+      break;
+    case 'actions':
+      lines.push(...renderActionsMarkdown(model));
+      break;
+    case 'all':
+      lines.push(...renderAllMarkdown(model));
+      break;
+  }
+
+  return `${lines.join('\n')}\n`;
 }
 
 function formatBlastRadiusConsoleLines(diff: DiffReport): string[] {
@@ -184,67 +468,8 @@ function formatSignalChangeMarkdownLines(diff: DiffReport): string[] {
   return lines;
 }
 
-export function formatJsonReport(report: DiagnosisReport): string {
-  return `${JSON.stringify(report, null, 2)}\n`;
-}
-
-export function formatDiffJsonReport(diff: DiffReport): string {
-  return `${JSON.stringify(diff, null, 2)}\n`;
-}
-
-export function formatConsoleReport(report: DiagnosisReport): string {
-  const lines: string[] = [];
-  const unevaluatedCount = unevaluatedAxisCount(report);
-  lines.push(
-    `Regression Risk Score: ${report.repository.regressionRiskScore} (confidence ${report.repository.confidence}, unevaluated axes: ${unevaluatedCount})`,
-  );
-  lines.push(report.repository.disclaimer);
-  lines.push('');
-  lines.push('Capabilities:');
-  for (const capability of report.capabilities) {
-    lines.push(
-      `  - ${capability.language} (${capability.completeness}): supported=${capability.supportedSignals.join(', ') || 'none'}; unevaluated=${capability.unevaluatedSignals.join(', ') || 'none'}`,
-    );
-  }
-  lines.push('');
-  lines.push('Axes:');
-  for (const axis of report.axes) {
-    lines.push(`  - ${axis.name}: ${formatAxisScoreLabel(axis, report)}`);
-  }
-  lines.push('');
-  lines.push('Top clusters:');
-  for (const cluster of report.clusters.slice(0, 5)) {
-    lines.push(`  - [${cluster.score}] ${cluster.title} (${cluster.mechanismId})`);
-    lines.push(`    mechanism: ${cluster.failureMechanism}`);
-    lines.push(`    triggers: ${cluster.triggerChanges.join('; ')}`);
-    lines.push(`    paths: ${cluster.paths.join(', ') || 'n/a'}`);
-    lines.push('    evidence:');
-    lines.push(...evidenceLines(report, cluster.evidenceIds.slice(0, 3)));
-  }
-  lines.push('');
-  lines.push(...formatEvidenceConsoleLines(report));
-  lines.push('');
-  lines.push(...formatSemanticFindingsConsoleLines(report));
-  lines.push('');
-  if (report.metadata.unevaluatedAreas.length > 0) {
-    lines.push('Unevaluated areas:');
-    for (const area of report.metadata.unevaluatedAreas) {
-      lines.push(`  - ${area}`);
-    }
-    lines.push('');
-  }
-  lines.push('Interventions:');
-  for (const item of report.interventions.slice(0, 5)) {
-    lines.push(`  - (${item.priority}) ${item.title}`);
-  }
-  return `${lines.join('\n')}\n`;
-}
-
-export function formatDiffConsoleReport(diff: DiffReport): string {
-  const lines: string[] = [];
-  lines.push(formatConsoleReport(diff.current).trimEnd());
-  lines.push('');
-  lines.push('Diff summary:');
+function diffSummaryLines(diff: DiffReport): string[] {
+  const lines = ['Diff summary:'];
   lines.push(`  compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
     lines.push(`  reason: ${diff.comparison.reason}`);
@@ -255,91 +480,11 @@ export function formatDiffConsoleReport(diff: DiffReport): string {
     lines.push(`  risk delta: ${diff.comparison.riskDelta ?? 0}`);
   }
   lines.push(`  changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
-  lines.push('');
-  for (const line of formatBlastRadiusConsoleLines(diff)) {
-    lines.push(line === 'Blast radius:' ? `  ${line}` : `  ${line}`);
-  }
-  lines.push('');
-  for (const line of formatSignalChangeConsoleLines(diff)) {
-    lines.push(line === 'Signal changes:' ? `  ${line}` : `  ${line}`);
-  }
-  return `${lines.join('\n')}\n`;
+  return lines;
 }
 
-export function formatMarkdownReport(report: DiagnosisReport): string {
-  const lines: string[] = [];
-  const unevaluatedCount = unevaluatedAxisCount(report);
-  lines.push('# r3-doctor Diagnosis Report');
-  lines.push('');
-  lines.push(`- Generated: ${report.metadata.generatedAt}`);
-  lines.push(`- Input ID: ${report.metadata.inputId}`);
-  lines.push(`- Contract: v${report.metadata.assessmentContractVersion}`);
-  lines.push(`- Unevaluated axes: ${unevaluatedCount}`);
-  lines.push('');
-  lines.push('## Repository Assessment');
-  lines.push('');
-  lines.push(`| Metric | Value |`);
-  lines.push(`|---|---|`);
-  lines.push(`| Regression Risk Score | ${report.repository.regressionRiskScore} |`);
-  lines.push(`| Confidence | ${report.repository.confidence} |`);
-  lines.push(`| Unevaluated axes | ${unevaluatedCount} |`);
-  lines.push('');
-  lines.push(`> ${report.repository.disclaimer}`);
-  lines.push('');
-  lines.push('## Capabilities');
-  lines.push('');
-  for (const capability of report.capabilities) {
-    lines.push(`- ${capability.language} (${capability.completeness}, ${capability.analyzerId})`);
-    lines.push(`  - supported: ${capability.supportedSignals.join(', ') || 'none'}`);
-    lines.push(`  - unevaluated: ${capability.unevaluatedSignals.join(', ') || 'none'}`);
-  }
-  lines.push('');
-  lines.push('## Risk Axes');
-  lines.push('');
-  for (const axis of report.axes) {
-    lines.push(`### ${axis.name}`);
-    lines.push(`- Score: ${formatAxisScoreLabel(axis, report)}`);
-    lines.push(`- Contribution: ${axis.contribution}`);
-    lines.push(`- Confidence: ${axis.confidence}`);
-    lines.push('');
-  }
-  lines.push('## Risk Clusters');
-  lines.push('');
-  for (const cluster of report.clusters) {
-    lines.push(`### ${cluster.title} (${cluster.score})`);
-    lines.push(`- Mechanism: ${cluster.failureMechanism}`);
-    lines.push(`- Mechanism ID: ${cluster.mechanismId}`);
-    lines.push(`- Paths: ${cluster.paths.join(', ') || 'n/a'}`);
-    lines.push(`- Triggers: ${cluster.triggerChanges.join('; ')}`);
-    lines.push('- Evidence:');
-    lines.push(...evidenceLines(report, cluster.evidenceIds).map((line) => line.replace(/^    /, '- ')));
-    lines.push('');
-  }
-  lines.push(...formatEvidenceMarkdownLines(report));
-  lines.push(...formatSemanticFindingsMarkdownLines(report));
-  lines.push('## Interventions');
-  lines.push('');
-  for (const item of report.interventions) {
-    lines.push(`### ${item.priority}. ${item.title}`);
-    lines.push(`- Kind: ${item.kind}`);
-    lines.push(`- Targets: ${item.targetPaths.join(', ') || 'n/a'}`);
-    lines.push(`- Expected: ${item.expectedEffect}`);
-    lines.push(`- Verify: ${item.verification}`);
-    lines.push('');
-  }
-  if (report.metadata.unevaluatedAreas.length > 0) {
-    lines.push('## Unevaluated Areas');
-    lines.push('');
-    for (const area of report.metadata.unevaluatedAreas) {
-      lines.push(`- ${area}`);
-    }
-    lines.push('');
-  }
-  return `${lines.join('\n')}\n`;
-}
-
-export function formatDiffMarkdownReport(diff: DiffReport): string {
-  const lines = [formatMarkdownReport(diff.current).trimEnd(), '', '## Diff Comparison', ''];
+function diffSummaryMarkdown(diff: DiffReport): string[] {
+  const lines = ['## Diff Comparison', ''];
   lines.push(`- Compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
     lines.push(`- Reason: ${diff.comparison.reason}`);
@@ -351,29 +496,185 @@ export function formatDiffMarkdownReport(diff: DiffReport): string {
   }
   lines.push(`- Changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
   lines.push('');
-  lines.push(...formatBlastRadiusMarkdownLines(diff));
-  lines.push(...formatSignalChangeMarkdownLines(diff));
+  return lines;
+}
+
+function renderDiffFactsConsole(diff: DiffReport): string[] {
+  const lines = [...diffSummaryLines(diff), ''];
+  for (const line of formatBlastRadiusConsoleLines(diff)) {
+    lines.push(line === 'Blast radius:' ? `  ${line}` : `  ${line}`);
+  }
+  lines.push('');
+  for (const line of formatSignalChangeConsoleLines(diff)) {
+    lines.push(line === 'Signal changes:' ? `  ${line}` : `  ${line}`);
+  }
+  return lines;
+}
+
+function renderDiffFactsMarkdown(diff: DiffReport): string[] {
+  const lines = [...diffSummaryMarkdown(diff), ...formatBlastRadiusMarkdownLines(diff), ...formatSignalChangeMarkdownLines(diff)];
+  return lines;
+}
+
+function renderDiffSummaryConsole(diff: DiffReport): string[] {
+  const lines = [...diffSummaryLines(diff)];
+  const changedClusters = diff.current.clusters.filter((cluster) =>
+    cluster.evidenceIds.some((id) =>
+      diff.comparison.newSignals.some((change) => change.evidenceId === id) ||
+      diff.comparison.worsenedSignals.some((change) => change.evidenceId === id),
+    ),
+  );
+  lines.push('  changed clusters:');
+  if (changedClusters.length === 0) {
+    lines.push('    - (none)');
+  } else {
+    for (const cluster of changedClusters.slice(0, 5)) {
+      lines.push(`    - [${cluster.score}] ${cluster.title}`);
+    }
+  }
+  return lines;
+}
+
+function renderDiffSummaryMarkdown(diff: DiffReport): string[] {
+  const lines = [...diffSummaryMarkdown(diff), '### Changed clusters', ''];
+  const changedClusters = diff.current.clusters.filter((cluster) =>
+    cluster.evidenceIds.some((id) =>
+      diff.comparison.newSignals.some((change) => change.evidenceId === id) ||
+      diff.comparison.worsenedSignals.some((change) => change.evidenceId === id),
+    ),
+  );
+  if (changedClusters.length === 0) {
+    lines.push('- (none)');
+  } else {
+    for (const cluster of changedClusters.slice(0, 5)) {
+      lines.push(`- [${cluster.score}] ${cluster.title} (${cluster.mechanismId})`);
+    }
+  }
+  lines.push('');
+  return lines;
+}
+
+function renderDiffActionsConsole(diff: DiffReport): string[] {
+  const changedEvidenceIds = new Set([
+    ...diff.comparison.newSignals.map((item) => item.evidenceId),
+    ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
+  ]);
+  const model = resolveViewModel(diff.current);
+  const prioritized = model.actions.items.filter((item) =>
+    item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
+    item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id))),
+  );
+  const lines = ['Improvement points (changed risk):'];
+  if (prioritized.length === 0) {
+    lines.push('  - (none linked to changed risk)');
+  } else {
+    lines.push(...renderActionsConsole({ ...model, actions: { ...model.actions, items: prioritized } }).slice(1));
+  }
+  return lines;
+}
+
+function renderDiffActionsMarkdown(diff: DiffReport): string[] {
+  const changedEvidenceIds = new Set([
+    ...diff.comparison.newSignals.map((item) => item.evidenceId),
+    ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
+  ]);
+  const model = resolveViewModel(diff.current);
+  const prioritized = model.actions.items.filter((item) =>
+    item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
+    item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id))),
+  );
+  return renderActionsMarkdown({ ...model, actions: { ...model.actions, items: prioritized } }, '## Improvement points');
+}
+
+function renderDiffAllConsole(diff: DiffReport): string[] {
+  const model = resolveViewModel(diff.current);
+  return [
+    ...renderSummaryConsole(model, 'Diagnosis summary'),
+    '',
+    ...renderDiffActionsConsole(diff),
+    '',
+    ...renderDiffFactsConsole(diff),
+  ];
+}
+
+function renderDiffAllMarkdown(diff: DiffReport): string[] {
+  const model = resolveViewModel(diff.current);
+  return [
+    ...renderSummaryMarkdown(model, '## Diagnosis summary'),
+    ...renderDiffActionsMarkdown(diff),
+    ...renderDiffFactsMarkdown(diff),
+  ];
+}
+
+export function formatDiffConsoleReport(diff: DiffReport, options: FormatReportOptions = {}): string {
+  const view = options.view ?? 'all';
+  const lines: string[] = [];
+  switch (view) {
+    case 'facts':
+      lines.push(...renderDiffFactsConsole(diff));
+      break;
+    case 'summary':
+      lines.push(...renderDiffSummaryConsole(diff));
+      break;
+    case 'actions':
+      lines.push(...renderDiffActionsConsole(diff));
+      break;
+    case 'all':
+      lines.push(...renderDiffAllConsole(diff));
+      break;
+  }
   return `${lines.join('\n')}\n`;
 }
 
-export function formatReport(report: DiagnosisReport, format: 'json' | 'markdown' | 'console'): string {
+export function formatDiffMarkdownReport(diff: DiffReport, options: FormatReportOptions = {}): string {
+  const view = options.view ?? 'all';
+  const lines = [...reportHeaderLines(diff.current)];
+  switch (view) {
+    case 'facts':
+      lines.push(...renderDiffFactsMarkdown(diff));
+      break;
+    case 'summary':
+      lines.push(...renderDiffSummaryMarkdown(diff));
+      break;
+    case 'actions':
+      lines.push(...renderDiffActionsMarkdown(diff));
+      break;
+    case 'all':
+      lines.push(...renderDiffAllMarkdown(diff));
+      break;
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+export function formatReport(
+  report: DiagnosisReport,
+  format: 'json' | 'markdown' | 'console',
+  options: FormatReportOptions = {},
+): string {
   switch (format) {
     case 'json':
       return formatJsonReport(report);
     case 'markdown':
-      return formatMarkdownReport(report);
+      return formatMarkdownReport(report, options);
     case 'console':
-      return formatConsoleReport(report);
+      return formatConsoleReport(report, options);
   }
 }
 
-export function formatDiffReport(diff: DiffReport, format: 'json' | 'markdown' | 'console'): string {
+export function formatDiffReport(
+  diff: DiffReport,
+  format: 'json' | 'markdown' | 'console',
+  options: FormatReportOptions = {},
+): string {
   switch (format) {
     case 'json':
       return formatDiffJsonReport(diff);
     case 'markdown':
-      return formatDiffMarkdownReport(diff);
+      return formatDiffMarkdownReport(diff, options);
     case 'console':
-      return formatDiffConsoleReport(diff);
+      return formatDiffConsoleReport(diff, options);
   }
 }
+
+// Backward-compatible exports used by assessment output tests.
+export { formatAxisScoreLabel };

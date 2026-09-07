@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import type { DiffReport } from '../schema/report.v1.js';
+import { buildReportViewModel, DEFAULT_REPORT_VIEW_LIMITS } from './view-model.js';
 
 function escapeWorkflowData(value: string): string {
   return value.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
@@ -54,6 +55,19 @@ export async function writeGitHubAnnotationsFile(diff: DiffReport, outputPath: s
 
 export async function writeGitHubSummaryFile(diff: DiffReport, outputPath: string): Promise<void> {
   const markdown = escapeMarkdownText;
+  const model = buildReportViewModel(diff.current, {
+    ...DEFAULT_REPORT_VIEW_LIMITS,
+    actionCount: 3,
+  });
+  const changedEvidenceIds = new Set([
+    ...diff.comparison.newSignals.map((item) => item.evidenceId),
+    ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
+  ]);
+  const changedClusters = diff.current.clusters.filter((cluster) =>
+    cluster.evidenceIds.some((id) => changedEvidenceIds.has(id)),
+  );
+  const prioritizedActions = model.actions.items.slice(0, 3);
+
   const lines = [
     '# r3-doctor PR Advisory',
     '',
@@ -65,6 +79,16 @@ export async function writeGitHubSummaryFile(diff: DiffReport, outputPath: strin
           `Delta vs base: ${diff.comparison.riskDelta ?? 0}`,
         ]
       : [`Contract incompatible — ${markdown(diff.comparison.reason ?? 'delta suppressed')}`]),
+    '',
+    '## Changed risk clusters',
+    ...(changedClusters.length > 0
+      ? changedClusters.map((cluster) => `- [${cluster.score}] ${markdown(cluster.title)} (${markdown(cluster.mechanismId)})`)
+      : ['- (none)']),
+    '',
+    '## Top actions',
+    ...(prioritizedActions.length > 0
+      ? prioritizedActions.map((item) => `- ${markdown(item.intervention.title)}: ${markdown(item.intervention.firstStep)}`)
+      : ['- (none)']),
     '',
     '## Changed files',
     ...(diff.comparison.changedFiles.length > 0 ? diff.comparison.changedFiles.map((f) => `- ${markdown(f)}`) : ['- (none detected)']),
@@ -78,15 +102,6 @@ export async function writeGitHubSummaryFile(diff: DiffReport, outputPath: strin
       `- Transitive dependencies: ${entry.transitiveDependencies.map(markdown).join(', ') || 'none'}`,
       `- Paths: ${entry.paths.map((p) => `${markdown(p.from)}-&gt;${markdown(p.to)}`).join('; ') || 'none'}`,
     ]),
-    '',
-    '## New signals',
-    ...diff.comparison.newSignals.map((s) => `- ${markdown(s.evidenceId)}: ${markdown(s.message)}`),
-    '',
-    '## Worsened',
-    ...diff.comparison.worsenedSignals.map((s) => `- ${markdown(s.evidenceId)}: ${markdown(s.message)}`),
-    '',
-    '## Improved',
-    ...diff.comparison.improvedSignals.map((s) => `- ${markdown(s.evidenceId)}: ${markdown(s.message)}`),
   ];
   await writeFile(outputPath, `${lines.join('\n')}\n`);
 }

@@ -11,7 +11,7 @@
   "fragile-cart": {
     "description": "循環依存・barrel・テスト欠落を含む脆弱構造。高リスクを期待。",
     "expected": {
-      "minScore": 25,
+      "minScore": 30,
       "requiredSignals": ["dep-cycle", "missing-test-pair"],
       "forbiddenSignals": [],
       "minClusters": 1
@@ -20,7 +20,7 @@
   "fragile-cart-improved": {
     "description": "循環依存を解消しテストを追加した改善版。fragile-cart より低リスクを期待。",
     "expected": {
-      "maxScore": 40,
+      "maxScore": 50,
       "requiredSignals": [],
       "forbiddenSignals": ["dep-cycle"],
       "minClusters": 0

@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { computeBlastRadius } from '../src/commands/diff.js';
 import { runDiffDiagnosis } from '../src/commands/diff.js';
 import { blastRadiusEntrySchema, diffReportSchema } from '../src/schema/report.v1.js';
+import { ASSESSMENT_CONTRACT_VERSION, DIFF_SCHEMA_VERSION } from '../src/schema/report.v1.js';
 import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { saveBaseline } from '../src/persistence/baseline-store.js';
 import { runDiagnosis } from '../src/pipeline/diagnose.js';
@@ -19,6 +20,12 @@ import { resolveSafeStorageDir } from '../src/persistence/storage-boundary.js';
 import { analyzeTrend } from '../src/operations/trend.js';
 import type { TrendEntry } from '../src/schema/report.v1.js';
 import { createGitRepository } from './helpers/git-repository.js';
+import {
+  minimalReportMetadata,
+  minimalRepository,
+  minimalV4Report,
+  sampleEvidence,
+} from './helpers/v4-report-fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -43,53 +50,28 @@ describe('review fixes', () => {
 
   it('redacts diff comparison paths and signal identifiers', async () => {
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
-      current: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current: minimalV4Report({
+        metadata: minimalReportMetadata({
           inputId: 'c',
           repositoryPath: '/tmp/secret-repo',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 10, confidence: 1, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [{
+        }),
+        repository: minimalRepository({ regressionRiskScore: 10, disclaimer: 'd' }),
+        evidence: [sampleEvidence({
           evidenceId: 'evidence:dep-cycle:secret-repo/src/a.ts',
           signalId: 'dep-cycle',
-          axisId: 'structural-fragility',
           path: 'secret-repo/src/a.ts',
           severity: 'high',
           message: 'secret-repo cycle',
-          source: 'deterministic',
-        }],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
-      base: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
+        })],
+      }),
+      base: minimalV4Report({
+        metadata: minimalReportMetadata({
           inputId: 'b',
           repositoryPath: '/tmp/secret-repo',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 5, confidence: 1, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
+        }),
+        repository: minimalRepository({ regressionRiskScore: 5, disclaimer: 'd' }),
+      }),
       comparison: {
         compatible: true,
         riskDelta: 5,
@@ -160,11 +142,11 @@ describe('review fixes', () => {
 
   it('finds degradation start across interim improvements', () => {
     const entries: TrendEntry[] = [
-      { schemaVersion: 1, generatedAt: '2026-01-01T00:00:00.000Z', inputId: 'a', score: 10, confidence: 1, contractVersion: 3, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-02T00:00:00.000Z', inputId: 'b', score: 20, confidence: 1, contractVersion: 3, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-03T00:00:00.000Z', inputId: 'c', score: 15, confidence: 1, contractVersion: 3, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-04T00:00:00.000Z', inputId: 'd', score: 25, confidence: 1, contractVersion: 3, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-05T00:00:00.000Z', inputId: 'e', score: 24, confidence: 1, contractVersion: 3, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-01T00:00:00.000Z', inputId: 'a', score: 10, confidence: 1, contractVersion: ASSESSMENT_CONTRACT_VERSION, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-02T00:00:00.000Z', inputId: 'b', score: 20, confidence: 1, contractVersion: ASSESSMENT_CONTRACT_VERSION, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-03T00:00:00.000Z', inputId: 'c', score: 15, confidence: 1, contractVersion: ASSESSMENT_CONTRACT_VERSION, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-04T00:00:00.000Z', inputId: 'd', score: 25, confidence: 1, contractVersion: ASSESSMENT_CONTRACT_VERSION, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-05T00:00:00.000Z', inputId: 'e', score: 24, confidence: 1, contractVersion: ASSESSMENT_CONTRACT_VERSION, topClusters: [] },
     ];
     expect(analyzeTrend(entries).degradationStartAt).toBe('2026-01-01T00:00:00.000Z');
   });

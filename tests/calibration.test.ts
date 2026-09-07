@@ -4,13 +4,97 @@ import os from 'node:os';
 
 import { runGoldenAssessmentRegression } from '../src/calibration/golden-regression.js';
 import { calibrationDatasetSchema, loadCalibration, summarizeCalibration } from '../src/calibration/dataset.js';
+import type { CalibrationResult } from '../src/calibration/dataset.js';
+import { summarizeCalibrationQuality } from '../src/calibration/quality.js';
+import { ConfigError } from '../src/shared/errors.js';
 import { policySchema } from '../src/operations/policy.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
+function calibrationRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1,
+    scoreBand: '0-30',
+    sampleCount: 30,
+    observedRegressions: 1,
+    observedReverts: 0,
+    falsePositiveRate: 0.08,
+    missRate: 0.12,
+    rankingQuality: 0.62,
+    explanationUsefulness: 0.71,
+    ...overrides,
+  };
+}
+
+function calibrationDataset(
+  records: CalibrationResult['records'],
+  overrides: Partial<CalibrationResult> = {},
+): CalibrationResult {
+  return {
+    schemaVersion: 1,
+    records,
+    gateConditions: [],
+    satisfiedConditions: [],
+    gateEligible: false,
+    missingRequiredConditions: [],
+    goldenRegressionPassed: false,
+    ...overrides,
+  };
+}
+
 describe('calibration quality', () => {
+  it('classifies missing calibration data as uncalibrated', () => {
+    const noRecords = calibrationDataset([]);
+    expect(summarizeCalibrationQuality({ ...noRecords, goldenRegressionPassed: false }).status).toBe('uncalibrated');
+  });
+
+  it('classifies incomplete calibration data as provisional with missing conditions', () => {
+    const partialRecords = calibrationDataset([
+      calibrationRecord({ scoreBand: '0-30', sampleCount: 12 }),
+      calibrationRecord({ scoreBand: '31-60', sampleCount: 8 }),
+    ], { missingRequiredConditions: ['security-reviewed'], goldenRegressionPassed: true });
+
+    expect(summarizeCalibrationQuality(partialRecords)).toMatchObject({
+      status: 'provisional',
+      missingConditions: expect.arrayContaining([
+        'calibration dataset with >= 30 samples per score band',
+        'security-reviewed',
+      ]),
+    });
+  });
+
+  it('classifies fully satisfied calibration data as validated', () => {
+    const validatedRecords = calibrationDataset([
+      calibrationRecord({ scoreBand: '0-30', sampleCount: 30 }),
+      calibrationRecord({ scoreBand: '31-60', sampleCount: 30 }),
+      calibrationRecord({ scoreBand: '61-80', sampleCount: 30 }),
+      calibrationRecord({ scoreBand: '81-100', sampleCount: 30 }),
+    ], { gateEligible: true, goldenRegressionPassed: true });
+
+    expect(summarizeCalibrationQuality(validatedRecords)).toMatchObject({
+      status: 'validated',
+      sampleCount: 120,
+      measured: ['falsePositiveRate', 'missRate', 'rankingQuality', 'explanationUsefulness'],
+    });
+  });
+
+  it('rejects invalid calibration schema with ConfigError', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-calibration-invalid-'));
+    try {
+      await mkdir(path.join(repositoryPath, '.r3-doctor'), { recursive: true });
+      await writeFile(
+        path.join(repositoryPath, '.r3-doctor', 'calibration.json'),
+        JSON.stringify({ schemaVersion: 1, records: [{ scoreBand: 'bad' }] }),
+      );
+
+      await expect(loadCalibration(repositoryPath, true, [])).rejects.toBeInstanceOf(ConfigError);
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
   it('publishes score-band metrics with sample counts', async () => {
     const dataset = await loadCalibration(path.join(root, '..'), false, []);
     expect(dataset.records.length).toBeGreaterThan(0);

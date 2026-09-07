@@ -122,6 +122,7 @@ export function redactReport(report: DiagnosisReport, redactPaths: string[]): Di
     clusters: report.clusters.map((cluster) => ({
       ...cluster,
       clusterId: redactEntityId(cluster.clusterId, 'cluster', normalized),
+      title: redactString(cluster.title, normalized),
       paths: cluster.paths.map((p) => redactString(p, normalized)),
       triggerChanges: cluster.triggerChanges.map((t) => redactString(t, normalized)),
       evidenceIds: cluster.evidenceIds.map((id) => redactEntityId(id, 'evidence', normalized)),
@@ -130,6 +131,8 @@ export function redactReport(report: DiagnosisReport, redactPaths: string[]): Di
       ...item,
       evidenceId: redactEntityId(item.evidenceId, 'evidence', normalized),
       path: redactOptionalString(item.path, normalized),
+      rationale: redactString(item.rationale, normalized),
+      relatedPaths: item.relatedPaths.map((p) => redactString(p, normalized)),
       message: redactString(item.message, normalized),
       metrics: redactMetrics(item.metrics, normalized),
     })),
@@ -145,7 +148,10 @@ export function redactReport(report: DiagnosisReport, redactPaths: string[]): Di
       interventionId: redactEntityId(item.interventionId, 'intervention', normalized),
       targetPaths: item.targetPaths.map((p) => redactString(p, normalized)),
       description: redactString(item.description, normalized),
+      rationale: redactString(item.rationale, normalized),
+      firstStep: redactString(item.firstStep, normalized),
       verification: redactString(item.verification, normalized),
+      verificationHorizon: redactString(item.verificationHorizon, normalized),
       linkedClusterIds: item.linkedClusterIds.map((id) => redactEntityId(id, 'cluster', normalized)),
     })),
   };
