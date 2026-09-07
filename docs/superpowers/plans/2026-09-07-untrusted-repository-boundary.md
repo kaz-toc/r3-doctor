@@ -112,5 +112,5 @@
 
 - [x] Run `npm run validate` and inspect the complete output.
 - [x] Run parallel Standards and Spec reviews against `main` and resolve every Critical or Important finding.
-- [ ] Re-run `npm run validate`, confirm the worktree is clean after commit, and push the branch.
-- [ ] Create a pull request against `main` with security impact, RED/GREEN evidence, and validation results.
+- [x] Re-run `npm run validate`, confirm the worktree is clean after commit, and push the branch.
+- [x] Create a pull request against `main` with security impact, RED/GREEN evidence, and validation results.
