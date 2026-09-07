@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { parseLlmExecutionPolicy } from '../../src/semantic/execution-policy.js';
@@ -5,7 +7,7 @@ import { parseLlmExecutionPolicy } from '../../src/semantic/execution-policy.js'
 describe('operator-owned LLM execution policy', () => {
   it.each([
     ['model', { llmModel: 'model-id' }],
-    ['executable', { llmExecutable: './provider' }],
+    ['executable', { llmExecutable: path.resolve('provider') }],
   ])('REG-2026-001 rejects a provider-less %s override during dry-run', (_name, override) => {
     expect(() => parseLlmExecutionPolicy(override, true)).toThrow('requires --llm-provider');
   });
@@ -24,5 +26,12 @@ describe('operator-owned LLM execution policy', () => {
       maxFiles: 2,
       maxPromptBytes: 4096,
     });
+  });
+
+  it('rejects a relative executable even when a provider is selected', () => {
+    expect(() => parseLlmExecutionPolicy({
+      llmProvider: 'codex',
+      llmExecutable: './provider',
+    })).toThrow('absolute path or a bare command name');
   });
 });

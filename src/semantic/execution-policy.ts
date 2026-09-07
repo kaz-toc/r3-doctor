@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { z } from 'zod';
 
 import {
@@ -21,7 +23,14 @@ const cliPolicySchema = z
   .object({
     llmProvider: llmProviderSchema.optional(),
     llmModel: z.string().trim().min(1).optional(),
-    llmExecutable: z.string().trim().min(1).optional(),
+    llmExecutable: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => path.isAbsolute(value) || (!value.includes('/') && !value.includes('\\')), {
+        message: 'executable must be an absolute path or a bare command name',
+      })
+      .optional(),
     llmSendScope: z.enum(['changed', 'cluster-context', 'all']).optional(),
     llmMaxFiles: z.coerce.number().int().positive().max(100).optional(),
     llmMaxPromptBytes: z.coerce.number().int().positive().max(1_000_000).optional(),
