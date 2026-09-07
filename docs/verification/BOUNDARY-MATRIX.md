@@ -20,8 +20,15 @@
 | 境界 | 証拠 |
 |---|---|
 | Risk Assessment | `npm test -- tests/assessment.test.ts tests/golden.test.ts` — `fragile-cart > fragile-cart-improved >= stable-cart`、連続 metric の単調性 |
-| Recommendation | `npm test -- tests/reporting.test.ts` — 上位 5 actions、各 action に rationale / first step / verification |
-| Reporting | `npm test -- test-fixtures/regressions/REG-2026-021/report-quality.test.ts` — view 別 line budget、3章 `all`、calibration status |
+| Recommendation | `npm test -- tests/recommendation.test.ts tests/reporting.test.ts` — 同一 basis Evidence から path / metric / verification ID を導出し、実効 confidence で優先度を算出 |
+| Diff relevance | `npm test -- tests/diff.test.ts tests/integration.test.ts` — new/worsened → direct change → blast radius、baseline 非互換・未保存時の direct/blast action |
+| Reporting | `npm test -- tests/reporting.test.ts test-fixtures/regressions/REG-2026-021/report-quality.test.ts` — summary 上限の維持、actions/facts 上限の拡張、3章 `all`、calibration status |
 | schema compatibility | `npm test -- tests/schema.test.ts tests/comparison.test.ts` — v3 baseline は明示的 incompatibility reason |
 
-Dogfood on r3-doctor (2026-09-07, fixture contract): `facts` 46 lines, `summary` 93 lines, `actions` 57 lines, `all` 146 lines with 3 chapters; summary shows 5 clusters (+2 remaining), actions shows 5 interventions (+1 remaining); golden score distinctness PASS.
+Fixture contract (2026-09-07): `facts` 47 lines, `summary` 91 lines, `actions` 68 lines, `all` 159 lines with 3 chapters. Summary remains 5 clusters (+2 remaining); actions shows all 6 fixture interventions within the 8-item limit.
+
+Dogfood on r3-doctor (2026-09-07):
+
+- `node dist/cli.js scan . --locale en --format markdown --view actions`: 88 Markdown lines, 8 actions (+0 remaining), maximum 5 visible target paths per action. All 8 actions include priority/confidence/cost, linked Evidence ID, and the exact rescan command. No PR relevance is emitted for scan, and no path/metric Evidence mismatch was observed.
+- `node dist/cli.js diff . --base origin/main --locale en --format markdown --view actions`: no stored baseline; 96 Markdown lines plus one warning line, 8 relevant actions (+0 remaining), maximum 5 visible target paths. All 8 include PR relevance (5 `direct-change`, then 3 `blast-radius`), priority/confidence/cost, linked Evidence ID, and the rescan command; no unrelated action was emitted.
+- `npm run validate`: 44 harness tests and 284 Vitest tests passed, followed by successful typecheck and build.

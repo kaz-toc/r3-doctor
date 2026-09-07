@@ -73,7 +73,7 @@ function selectRecommendationBasis(
 interventionのpriority計算には次の effective confidenceを使う。
 
 ```ts
-effectiveConfidence = Math.min(repositoryEvidenceConfidence, cluster.confidence)
+effectiveConfidence = Math.min(repositoryConfidence, cluster.confidence)
 ```
 
 priority scoreの式は維持する。
