@@ -250,9 +250,8 @@ describe('commit-bound baseline comparison', () => {
   });
 
   it('rejects a same-commit baseline when llm configuration changes', async () => {
-    const configPath = 'r3-doctor.config.json';
     const repo = await createGitRepository({
-      [configPath]: JSON.stringify({ schemaVersion: 1, llm: { enabled: false, provider: 'none' } }),
+      'r3-doctor.config.json': JSON.stringify({ schemaVersion: 1 }),
       'src/a.ts': 'export const a = 1;\n',
     });
     try {
@@ -260,13 +259,14 @@ describe('commit-bound baseline comparison', () => {
       const baselineSnapshot = await createRepositorySnapshot(repo.path);
       await saveBaseline(baselineSnapshot, await runDiagnosis(baselineSnapshot));
       await checkout(repo.path, repo.headSha);
-      await repo.write(
-        configPath,
-        JSON.stringify({ schemaVersion: 1, llm: { enabled: true, provider: 'codex', maxFiles: 20, sendScope: 'all', maxPromptBytes: 80_000 } }),
-      );
-      await repo.commit('enable llm');
 
-      const diff = await runDiffDiagnosis(repo.path, repo.baseSha);
+      const diff = await runDiffDiagnosis(repo.path, repo.baseSha, {
+        enabled: true,
+        provider: 'codex',
+        maxFiles: 20,
+        sendScope: 'all',
+        maxPromptBytes: 80_000,
+      });
 
       expect(diff.comparison.compatible).toBe(false);
       expect(diff.comparison.reason).toContain('analysis context mismatch');
@@ -408,14 +408,17 @@ describe('commit-bound baseline comparison', () => {
 
   it('rejects the same semantic provider name when its implementation version changes', async () => {
     const repo = await createGitRepository({
-      'r3-doctor.config.json': JSON.stringify({
-        schemaVersion: 1,
-        llm: { enabled: true, provider: 'codex', maxFiles: 1, sendScope: 'all', maxPromptBytes: 80_000 },
-      }),
+      'r3-doctor.config.json': JSON.stringify({ schemaVersion: 1 }),
       'src/a.ts': 'export const a = 1;\n',
     });
     try {
-      const snapshot = await createRepositorySnapshot(repo.path);
+      const snapshot = await createRepositorySnapshot(repo.path, undefined, {
+        enabled: true,
+        provider: 'codex',
+        maxFiles: 1,
+        sendScope: 'all',
+        maxPromptBytes: 80_000,
+      });
       const baselineReport = await runDiagnosis(snapshot, {
         analyzerPlugins: [versionedAnalyzer('1.0.0', 2, false)],
         semanticProviderFactory: {

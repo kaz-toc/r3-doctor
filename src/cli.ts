@@ -27,6 +27,7 @@ import { createOneShotAcpClient } from './semantic/acp/acp-client.js';
 import { buildLlmLaunchSpec, getLlmProviderDefinition } from './semantic/acp/provider-registry.js';
 import { normalizeProviderId, selectLlmCandidateFiles } from './semantic/provider.js';
 import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
+import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const reporter = new DefaultReporterAdapter();
@@ -50,19 +51,30 @@ function writeRetentionAudits(audits: RetentionAudit[]): void {
   }
 }
 
-program
+function addLlmOptions(command: Command): Command {
+  return command
+    .option('--llm-provider <id>', 'enable provider (copilot|cursor|codex|claude|openai|anthropic)')
+    .option('--llm-model <id>', 'operator-selected provider model')
+    .option('--llm-executable <path>', 'operator-selected provider executable')
+    .option('--llm-send-scope <scope>', 'changed|cluster-context|all')
+    .option('--llm-max-files <count>', 'maximum source files sent to the provider')
+    .option('--llm-max-prompt-bytes <count>', 'maximum prompt size in bytes');
+}
+
+addLlmOptions(program
   .command('scan')
   .argument('<path>', 'repository path')
   .option('--format <format>', 'console|markdown|json', 'console')
   .option('--save-baseline', 'save report as baseline', false)
   .option('--record-trend', 'append score to trend history', false)
   .option('--dry-run-semantic', 'print semantic prompt without calling the LLM', false)
-  .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json')
+  .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json'))
   .action(async (
     repoPath: string,
-    options: { format: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string },
+    options: { format: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string } & LlmCliOptions,
   ) => {
-    const snapshot = await createRepositorySnapshot(repoPath, options.unit);
+    const llmConfig = parseLlmExecutionPolicy(options, options.dryRunSemantic);
+    const snapshot = await createRepositorySnapshot(repoPath, options.unit, llmConfig);
     if (options.dryRunSemantic) {
       const plugins = getDefaultPlugins();
       const { evidence } = await extractEvidenceWithPlugins(snapshot, plugins);
@@ -70,7 +82,7 @@ program
         ...snapshot,
         files: selectLlmCandidateFiles(snapshot, evidence),
       };
-      const prompt = buildBudgetedSemanticPrompt(
+      const { prompt } = buildBudgetedSemanticPrompt(
         scopedSnapshot,
         evidence,
         snapshot.config.llm.maxPromptBytes,
@@ -98,19 +110,20 @@ program
     process.exit(0);
   });
 
-program
+addLlmOptions(program
   .command('diff')
   .argument('<path>', 'repository path')
   .requiredOption('--base <ref>', 'git ref for baseline comparison')
   .option('--format <format>', 'console|markdown|json', 'console')
   .option('--github-summary <file>', 'write GitHub job summary markdown')
   .option('--github-annotations <file>', 'write GitHub workflow annotations')
-  .option('--emit-annotations', 'emit GitHub workflow annotations to stdout')
+  .option('--emit-annotations', 'emit GitHub workflow annotations to stdout'))
   .action(async (
     repoPath: string,
-    options: { base: string; format: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean },
+    options: { base: string; format: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean } & LlmCliOptions,
   ) => {
-    const diff = await runDiffDiagnosis(repoPath, options.base);
+    const llmConfig = parseLlmExecutionPolicy(options);
+    const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig);
     const format = parseFormat(options.format);
     const snapshot = await createRepositorySnapshot(repoPath);
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);

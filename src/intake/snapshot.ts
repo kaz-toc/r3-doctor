@@ -2,13 +2,31 @@ import { createHash } from 'node:crypto';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { R3DoctorConfig } from '../shared/config.js';
-import { configSchema, defaultConfig, normalizeConfig } from '../shared/config.js';
+import type { LlmConfig, R3DoctorConfig } from '../shared/config.js';
+import {
+  configSchema,
+  defaultConfig,
+  defaultLlmConfig,
+  normalizeConfig,
+  repositoryConfigSchema,
+} from '../shared/config.js';
 import { ConfigError, IntakeError } from '../shared/errors.js';
 import { ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import { getRegisteredExtensions } from '../plugins/language-extensions.js';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 import { analysisContextFingerprint } from './analysis-context.js';
+import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+
+const REPOSITORY_CONFIG_MAX_BYTES = 1_048_576;
+const GLOB_EVALUATION_MAX_OPERATIONS = 10_000_000;
+const REPOSITORY_WALK_MAX_ENTRIES = 100_000;
+
+type GlobToken = '*' | '**' | '?' | string;
+type CompiledExcludePattern = Readonly<{
+  segment?: string;
+  tokens?: readonly GlobToken[];
+}>;
+type IntakeWorkBudget = { globOperations: number; visitedEntries: number };
 
 export type SourceFile = {
   relativePath: string;
@@ -48,36 +66,77 @@ function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
-function matchGlob(relativePath: string, pattern: string): boolean {
-  const normalized = relativePath.replace(/\\/g, '/');
+function compileExcludePattern(pattern: string): CompiledExcludePattern {
   const normalizedPattern = pattern.replace(/\\/g, '/');
-  let source = '^';
-  for (let index = 0; index < normalizedPattern.length; index += 1) {
-    const character = normalizedPattern[index]!;
-    if (character === '*' && normalizedPattern[index + 1] === '*') {
-      source += '.*';
-      index += 1;
-    } else if (character === '*') {
-      source += '[^/]*';
-    } else if (character === '?') {
-      source += '[^/]';
-    } else {
-      source += character.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    }
+  if (!normalizedPattern.includes('*') && !normalizedPattern.includes('?')) {
+    return { segment: normalizedPattern };
   }
-  source += '$';
-  const regex = new RegExp(source);
-  return regex.test(normalized);
+  const tokens: GlobToken[] = [];
+
+  for (let index = 0; index < normalizedPattern.length;) {
+    const character = normalizedPattern[index]!;
+    if (character === '*') {
+      let next = index + 1;
+      while (normalizedPattern[next] === '*') next += 1;
+      tokens.push(next - index >= 2 ? '**' : '*');
+      index = next;
+      continue;
+    }
+    tokens.push(character);
+    index += 1;
+  }
+
+  return { tokens };
+}
+
+function matchGlob(relativePath: string, tokens: readonly GlobToken[], budget: IntakeWorkBudget): boolean {
+  const normalized = relativePath.replace(/\\/g, '/');
+  const operationCost = tokens.length * (normalized.length + 1);
+  budget.globOperations += operationCost;
+  if (budget.globOperations > GLOB_EVALUATION_MAX_OPERATIONS) {
+    throw new IntakeError('exclude glob evaluation budget exceeded');
+  }
+
+  let reachable = new Uint8Array(normalized.length + 1);
+  reachable[0] = 1;
+
+  for (const token of tokens) {
+    const next = new Uint8Array(normalized.length + 1);
+    if (token === '*' || token === '**') {
+      for (let index = 0; index <= normalized.length; index += 1) {
+        if (reachable[index]) next[index] = 1;
+        if (index < normalized.length && next[index] && (token === '**' || normalized[index] !== '/')) {
+          next[index + 1] = 1;
+        }
+      }
+    } else {
+      for (let index = 0; index < normalized.length; index += 1) {
+        if (reachable[index] && (token === '?' ? normalized[index] !== '/' : normalized[index] === token)) {
+          next[index + 1] = 1;
+        }
+      }
+    }
+    reachable = next;
+  }
+
+  return reachable[normalized.length] === 1;
+}
+
+function createExclusionMatcher(
+  exclude: string[],
+  budget: IntakeWorkBudget,
+): (relativePath: string) => boolean {
+  const compiled = exclude.map(compileExcludePattern);
+  return (relativePath) => {
+    const segments = relativePath.replace(/\\/g, '/').split('/');
+    return compiled.some((pattern) => pattern.tokens
+      ? matchGlob(relativePath, pattern.tokens, budget)
+      : segments.includes(pattern.segment ?? ''));
+  };
 }
 
 export function isExcluded(relativePath: string, exclude: string[]): boolean {
-  const segments = relativePath.split(path.sep);
-  return exclude.some((pattern) => {
-    if (pattern.includes('*') || pattern.includes('?')) {
-      return matchGlob(relativePath, pattern);
-    }
-    return segments.includes(pattern);
-  });
+  return createExclusionMatcher(exclude, { globOperations: 0, visitedEntries: 0 })(relativePath);
 }
 
 function resolveUnitRoot(repositoryPath: string, root: string): string {
@@ -92,11 +151,12 @@ function resolveUnitRoot(repositoryPath: string, root: string): string {
 async function walkFiles(
   repositoryPath: string,
   current: string,
-  exclude: string[],
+  isPathExcluded: (relativePath: string) => boolean,
   extensions: Set<string>,
   maxFiles: number,
   collected: SourceFile[],
   issues: IntakeIssue[],
+  workBudget: IntakeWorkBudget,
 ): Promise<boolean> {
   if (collected.length >= maxFiles) {
     return true;
@@ -117,10 +177,14 @@ async function walkFiles(
       return true;
     }
 
+    workBudget.visitedEntries += 1;
+    if (workBudget.visitedEntries > REPOSITORY_WALK_MAX_ENTRIES) {
+      throw new IntakeError(`repository walk exceeded ${REPOSITORY_WALK_MAX_ENTRIES} entry limit`);
+    }
     const absolutePath = path.join(current, entry.name);
     const relativePath = path.relative(repositoryPath, absolutePath);
 
-    if (isExcluded(relativePath, exclude)) {
+    if (isPathExcluded(relativePath)) {
       continue;
     }
 
@@ -130,7 +194,16 @@ async function walkFiles(
     }
 
     if (stat.isDirectory()) {
-      const truncated = await walkFiles(repositoryPath, absolutePath, exclude, extensions, maxFiles, collected, issues);
+      const truncated = await walkFiles(
+        repositoryPath,
+        absolutePath,
+        isPathExcluded,
+        extensions,
+        maxFiles,
+        collected,
+        issues,
+        workBudget,
+      );
       if (truncated) {
         return true;
       }
@@ -180,24 +253,32 @@ export function computeInputId(unitId: string | undefined, files: SourceFile[], 
   return hash.digest('hex').slice(0, 16);
 }
 
-export async function loadConfig(repositoryPath: string): Promise<R3DoctorConfig> {
+export async function loadConfig(
+  repositoryPath: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<R3DoctorConfig> {
   const configPath = path.join(repositoryPath, 'r3-doctor.config.json');
   try {
     await access(configPath);
   } catch {
-    return defaultConfig;
+    return normalizeConfig({ ...defaultConfig, llm: llmConfig });
   }
 
   try {
-    const raw = await readFile(configPath, 'utf8');
-    return configSchema.parse(JSON.parse(raw));
+    const raw = await readFileWithinByteLimit(configPath, REPOSITORY_CONFIG_MAX_BYTES, 'repository config');
+    const repositoryConfig = repositoryConfigSchema.parse(JSON.parse(raw));
+    return configSchema.parse({ ...repositoryConfig, llm: llmConfig });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(configPath, reason);
   }
 }
 
-export async function createRepositorySnapshot(repositoryPath: string, unitId?: string): Promise<RepositorySnapshot> {
+export async function createRepositorySnapshot(
+  repositoryPath: string,
+  unitId?: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<RepositorySnapshot> {
   const resolved = path.resolve(repositoryPath);
   try {
     const rootStat = await stat(resolved);
@@ -211,7 +292,7 @@ export async function createRepositorySnapshot(repositoryPath: string, unitId?: 
     throw new IntakeError(`repository path does not exist: ${resolved}`);
   }
 
-  const config = await loadConfig(resolved);
+  const config = await loadConfig(resolved, llmConfig);
   const unit = unitId ? config.units.find((entry) => entry.id === unitId) : undefined;
   if (unitId && !unit) {
     throw new IntakeError(`unknown unit: ${unitId}`);
@@ -223,10 +304,21 @@ export async function createRepositorySnapshot(repositoryPath: string, unitId?: 
   const roots = unit ? unit.roots.map((root) => resolveUnitRoot(resolved, root)) : [resolved];
   const files: SourceFile[] = [];
   const intakeIssues: IntakeIssue[] = [];
+  const workBudget: IntakeWorkBudget = { globOperations: 0, visitedEntries: 0 };
+  const isPathExcluded = createExclusionMatcher(config.exclude, workBudget);
   let truncated = false;
 
   for (const root of roots) {
-    const rootTruncated = await walkFiles(resolved, root, config.exclude, extensions, config.maxFiles, files, intakeIssues);
+    const rootTruncated = await walkFiles(
+      resolved,
+      root,
+      isPathExcluded,
+      extensions,
+      config.maxFiles,
+      files,
+      intakeIssues,
+      workBudget,
+    );
     truncated = truncated || rootTruncated;
   }
 

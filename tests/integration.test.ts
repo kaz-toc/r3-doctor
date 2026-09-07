@@ -59,11 +59,14 @@ describe('integration: semantic provider injection', () => {
     try {
       await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
       await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const a = 1;\n');
-      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({
-        schemaVersion: 1,
-        llm: { enabled: true, provider: 'codex', maxFiles: 1, sendScope: 'all', maxPromptBytes: 80_000 },
-      }));
-      const snapshot = await createRepositorySnapshot(repositoryPath);
+      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({ schemaVersion: 1 }));
+      const snapshot = await createRepositorySnapshot(repositoryPath, undefined, {
+        enabled: true,
+        provider: 'codex',
+        maxFiles: 1,
+        sendScope: 'all',
+        maxPromptBytes: 80_000,
+      });
       let analyzed = false;
 
       const report = await runDiagnosis(snapshot, {
@@ -98,16 +101,62 @@ describe('integration: semantic provider injection', () => {
   });
 });
 
+describe('integration: CLI-owned semantic policy', () => {
+  it('accepts semantic scope limits for a dry run without enabling an external provider', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-semantic-cli-'));
+    try {
+      await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
+      await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const ambiguous = 1;\n');
+      const cliPath = path.join(root, '..', 'src', 'cli.ts');
+      const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+
+      const result = await execFileAsync(process.execPath, [
+        tsxPath,
+        cliPath,
+        'scan',
+        repositoryPath,
+        '--dry-run-semantic',
+        '--llm-send-scope',
+        'all',
+        '--llm-max-files',
+        '1',
+      ]);
+
+      expect(result.stdout).toContain('src/a.ts');
+      expect(result.stdout).not.toContain(repositoryPath);
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects executable overrides unless a provider is explicitly enabled', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-semantic-cli-'));
+    try {
+      const cliPath = path.join(root, '..', 'src', 'cli.ts');
+      const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const error = await execFileAsync(process.execPath, [
+        tsxPath,
+        cliPath,
+        'scan',
+        repositoryPath,
+        '--llm-executable',
+        '/usr/bin/true',
+      ]).catch((caught: unknown) => caught as { stderr: string });
+
+      expect(error.stderr).toContain('--llm-executable requires --llm-provider');
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('integration: ACP semantic provider', () => {
   it('evaluates semantic ambiguity through the default factory with fake ACP spawn', async () => {
     const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-acp-semantic-'));
     try {
       await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
       await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const ambiguous = 1;\n');
-      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({
-        schemaVersion: 1,
-        llm: { enabled: true, provider: 'copilot', maxFiles: 5, sendScope: 'all', maxPromptBytes: 80_000 },
-      }));
+      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({ schemaVersion: 1 }));
 
       const script = fakeAcpAgent({
         initialize: {
@@ -120,7 +169,13 @@ describe('integration: ACP semantic provider', () => {
         ],
       });
 
-      const snapshot = await createRepositorySnapshot(repositoryPath);
+      const snapshot = await createRepositorySnapshot(repositoryPath, undefined, {
+        enabled: true,
+        provider: 'copilot',
+        maxFiles: 5,
+        sendScope: 'all',
+        maxPromptBytes: 80_000,
+      });
       const report = await runDiagnosis(snapshot, {
         semanticProviderFactory: new DefaultSemanticProviderFactory(script.spawn),
       });
@@ -128,6 +183,7 @@ describe('integration: ACP semantic provider', () => {
       expect(report.metadata.semanticProviderStatus).toBe('available');
       expect(report.semanticFindings.some((finding) => finding.summary.includes('ambiguous'))).toBe(true);
       expect(report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')?.unevaluated).toBe(false);
+      expect(JSON.stringify(script.promptRequests)).not.toContain(repositoryPath);
     } finally {
       await rm(repositoryPath, { recursive: true, force: true });
     }
@@ -210,7 +266,7 @@ describe('integration: Git-dependent capability unevaluated', () => {
 
       const diff = await runDiffDiagnosis(fixturePath, repo.baseSha);
 
-      expect(await realpath(diff.current.metadata.repositoryPath)).toBe(await realpath(fixturePath));
+      expect(diff.current.metadata.repositoryPath).toBe('[REPOSITORY]');
       expect(diff.comparison.compatible).toBe(false);
       expect(diff.comparison.reason).toContain('Git unavailable for analyzed root');
       expect(diff.comparison.changedFiles).toEqual([]);
@@ -292,6 +348,8 @@ describe('integration: baseline atomic round-trip', () => {
       const entry = baselineEntrySchema.parse(JSON.parse(raw));
       const loaded = await loadBaseline(snapshot, repo.headSha);
       expect(entry.sourceCommitSha).toBe(repo.headSha);
+      expect(entry.report.metadata.repositoryPath).toBe('[REPOSITORY]');
+      expect(raw).not.toContain(repo.path);
       expect(loaded.entry?.inputId).toBe(entry.inputId);
       expect(loaded.entry?.report.metadata.inputId).toBe(report.metadata.inputId);
     } finally {

@@ -7,11 +7,6 @@
   "fanOutThreshold": 8,
   "fanInThreshold": 8,
   "churnDays": 90,
-  "llm": {
-    "enabled": false,
-    "provider": "none",
-    "maxFiles": 20
-  },
   "baselineDir": ".r3-doctor/baselines",
   "trendDir": ".r3-doctor/trends",
   "policyFile": ".r3-doctor/policy.json",

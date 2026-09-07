@@ -63,7 +63,7 @@ describe('AcpSemanticProvider prompt budget', () => {
     } as RepositorySnapshot;
     const maxPromptBytes = 2_000;
 
-    const prompt = buildBudgetedSemanticPrompt(snapshot, [], maxPromptBytes);
+    const { prompt } = buildBudgetedSemanticPrompt(snapshot, [], maxPromptBytes);
 
     expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(maxPromptBytes);
     expect(prompt).toContain('File: src/a.ts');

@@ -53,7 +53,8 @@ Node.js 22 以降で動作する TypeScript 製 CLI とし、最初は TypeScrip
 r3-doctor scan . --format markdown
 r3-doctor diff . --base origin/main --format json
 r3-doctor llm inspect --provider codex
-r3-doctor scan . --dry-run-semantic
+r3-doctor scan . --llm-provider codex --llm-send-scope cluster-context
+r3-doctor scan . --dry-run-semantic --llm-send-scope changed
 ```
 
 ## LLM integration smoke test（開発者向け、課金あり）
@@ -68,18 +69,9 @@ R3_DOCTOR_LLM_INTEGRATION=1 OPENAI_API_KEY=... npm run smoke:llm-integration
 
 CI では Actions → **LLM integration** を手動実行。repository variable `R3_DOCTOR_LLM_INTEGRATION=1` と secret `OPENAI_API_KEY` が必要。
 
-`r3-doctor.config.json` で LLM を有効化:
+LLM の起動と外部送信は解析対象の `r3-doctor.config.json` では設定できません。実行者が `scan` / `diff` の `--llm-provider` を指定したときだけ有効になります。model、実行ファイル、送信 scope、上限も `--llm-model`、`--llm-executable`、`--llm-send-scope`、`--llm-max-files`、`--llm-max-prompt-bytes` で指定します。対象リポジトリは信頼できない入力として扱われます。
 
-```json
-{
-  "llm": {
-    "enabled": true,
-    "provider": "codex",
-    "maxFiles": 20,
-    "sendScope": "cluster-context"
-  }
-}
-```
+`--llm-executable` は絶対パスまたは bare command name のみを受け付けます。相対パスと解析対象内を指す絶対パスは拒否し、bare command の探索では対象リポジトリ配下および相対 `PATH` entry を除外します。
 
 エイリアス: `openai` → `codex`, `anthropic` → `claude`.
 

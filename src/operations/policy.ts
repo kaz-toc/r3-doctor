@@ -1,12 +1,14 @@
-import { access, readFile } from 'node:fs/promises';
-import path from 'node:path';
-
 import { z } from 'zod';
 
 import { ConfigError } from '../shared/errors.js';
+import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+import { resolveSafeRepositoryFile } from '../shared/repository-file.js';
+
+const POLICY_FILE_MAX_BYTES = 262_144;
 
 const calibrationConditionsSchema = z
-  .array(z.string().trim().min(1))
+  .array(z.string().trim().min(1).max(256))
+  .max(100)
   .refine((values) => new Set(values).size === values.length, 'conditions must be unique');
 
 export const policySchema = z
@@ -16,8 +18,8 @@ export const policySchema = z
     gateEnabled: z.boolean().default(false),
     gateThreshold: z.number().min(0).max(100).default(85),
     requireCalibration: z.boolean().default(true),
-    retentionDays: z.number().int().positive().default(90),
-    redactPaths: z.array(z.string()).default([]),
+    retentionDays: z.number().int().positive().max(36_500).default(90),
+    redactPaths: z.array(z.string().max(1_024)).max(1_000).default([]),
     requiredCalibrationConditions: calibrationConditionsSchema,
   })
   .strict();
@@ -25,15 +27,13 @@ export const policySchema = z
 export type TeamPolicy = z.infer<typeof policySchema>;
 
 export async function loadPolicy(repositoryPath: string, policyFile: string): Promise<TeamPolicy> {
-  const policyPath = path.join(repositoryPath, policyFile);
-  try {
-    await access(policyPath);
-  } catch {
+  const policyPath = await resolveSafeRepositoryFile(repositoryPath, policyFile, 'policyFile');
+  if (!policyPath) {
     return policySchema.parse({ schemaVersion: 1, requiredCalibrationConditions: [] });
   }
 
   try {
-    const raw = await readFile(policyPath, 'utf8');
+    const raw = await readFileWithinByteLimit(policyPath, POLICY_FILE_MAX_BYTES, 'policy file');
     return policySchema.parse(JSON.parse(raw));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

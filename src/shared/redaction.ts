@@ -5,6 +5,7 @@ import type { DiffReport, DiagnosisReport, EvidenceChange, BlastRadiusEntry } fr
 import { R3DoctorError } from './errors.js';
 
 const REDACTION_TOKEN_PATTERN = /\[REDACTED(?:-RAW)?:[a-f0-9]{64}\]/g;
+export const REDACTED_REPOSITORY_PATH = '[REPOSITORY]';
 
 function normalizeRedactionPaths(redactPaths: string[]): string[] {
   return [...new Set(redactPaths)].sort((left, right) => right.length - left.length || left.localeCompare(right));
@@ -102,13 +103,19 @@ export function redactReport(report: DiagnosisReport, redactPaths: string[]): Di
     if (report.metadata.redactionPolicyFingerprint !== fingerprint) {
       throw new R3DoctorError('cannot apply a different redaction policy to an already-redacted report');
     }
-    return diagnosisReportSchema.parse(report);
+    return diagnosisReportSchema.parse({
+      ...report,
+      metadata: {
+        ...report.metadata,
+        repositoryPath: REDACTED_REPOSITORY_PATH,
+      },
+    });
   }
   const redacted = {
     ...report,
     metadata: {
       ...report.metadata,
-      repositoryPath: redactString(report.metadata.repositoryPath, normalized),
+      repositoryPath: REDACTED_REPOSITORY_PATH,
       unevaluatedAreas: report.metadata.unevaluatedAreas.map((area) => redactString(area, normalized)),
       redactionPolicyFingerprint: fingerprint,
     },
@@ -152,7 +159,11 @@ export function redactDiffReport(diff: DiffReport, redactPaths: string[]): DiffR
     if (diff.redactionPolicyFingerprint !== fingerprint) {
       throw new R3DoctorError('cannot apply a different redaction policy to an already-redacted diff report');
     }
-    return diffReportSchema.parse(diff);
+    return diffReportSchema.parse({
+      ...diff,
+      current: redactReport(diff.current, normalized),
+      base: diff.base ? redactReport(diff.base, normalized) : undefined,
+    });
   }
 
   const redacted = {

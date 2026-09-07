@@ -1,4 +1,5 @@
 import type { RepositorySnapshot } from '../intake/snapshot.js';
+
 export type ContextPacket = Readonly<{
   prompt: string;
   includedFilePaths: readonly string[];
@@ -16,7 +17,6 @@ export function buildContextPacket(
   const sections: string[] = [];
   const includedFilePaths: string[] = [];
   let usedBytes = 0;
-  let omittedFileCount = 0;
 
   for (const file of snapshot.files) {
     const header = `\nFile: ${file.relativePath} (${file.nonBlankLines} non-blank lines)\n`;
@@ -24,7 +24,6 @@ export function buildContextPacket(
     const section = `${header}${body}`;
     const sectionBytes = utf8Bytes(section);
     if (usedBytes + sectionBytes > maxPromptBytes) {
-      omittedFileCount += 1;
       continue;
     }
     sections.push(section);
@@ -32,15 +31,26 @@ export function buildContextPacket(
     usedBytes += sectionBytes;
   }
 
-  if (omittedFileCount > 0) {
-    const marker = `\n[omitted ${omittedFileCount} file(s) due to prompt byte budget ${maxPromptBytes}]`;
-    if (usedBytes + utf8Bytes(marker) <= maxPromptBytes) {
-      sections.push(marker);
-    }
+  let omittedFileCount = snapshot.files.length - includedFilePaths.length;
+  const render = (): string => [
+    ...sections,
+    ...(omittedFileCount > 0
+      ? [`\n[omitted ${omittedFileCount} file(s) due to prompt byte budget]`]
+      : []),
+  ].join('');
+  let prompt = render();
+  while (utf8Bytes(prompt) > maxPromptBytes && sections.length > 0) {
+    sections.pop();
+    includedFilePaths.pop();
+    omittedFileCount += 1;
+    prompt = render();
+  }
+  if (utf8Bytes(prompt) > maxPromptBytes) {
+    prompt = '';
   }
 
   return {
-    prompt: sections.join(''),
+    prompt,
     includedFilePaths,
     omittedFileCount,
   };

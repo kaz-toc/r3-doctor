@@ -10,7 +10,7 @@ import type { SemanticProvider } from '../types.js';
 import { buildBudgetedSemanticPrompt } from '../semantic-prompt.js';
 import { parseSemanticResponse } from '../semantic-response.js';
 
-export const SEMANTIC_PROVIDER_IMPL_VERSION = '1.1.0';
+export const SEMANTIC_PROVIDER_IMPL_VERSION = '2.0.0';
 
 export class AcpSemanticProvider implements SemanticProvider {
   readonly name: LlmProviderId;
@@ -26,7 +26,7 @@ export class AcpSemanticProvider implements SemanticProvider {
 
   async analyze(snapshot: RepositorySnapshot, evidence: Evidence[]): Promise<unknown> {
     const maxPromptBytes = this.config.maxPromptBytes ?? 80_000;
-    const prompt = buildBudgetedSemanticPrompt(snapshot, evidence, maxPromptBytes);
+    const { prompt } = buildBudgetedSemanticPrompt(snapshot, evidence, maxPromptBytes);
     const definition = getLlmProviderDefinition(this.name);
     const executablePath = this.config.executablePath ?? definition.defaultExecutablePath;
     const spec = buildLlmLaunchSpec(this.name, {

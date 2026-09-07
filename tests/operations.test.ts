@@ -1,3 +1,5 @@
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,10 +9,36 @@ import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { runDiagnosis } from '../src/pipeline/diagnose.js';
 import { analyzeTrend } from '../src/operations/trend.js';
 import type { TrendEntry } from '../src/schema/report.v1.js';
+import { loadPolicy, policySchema } from '../src/operations/policy.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 describe('phase 5-6 operations', () => {
+  it('REG-2026-019 rejects policy paths that escape or symlink outside the repository', async () => {
+    const parent = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-policy-boundary-'));
+    const repositoryPath = path.join(parent, 'repository');
+    const outsidePath = path.join(parent, 'outside-policy.json');
+    const policy = JSON.stringify({ schemaVersion: 1, requiredCalibrationConditions: [] });
+    await mkdir(repositoryPath);
+    await writeFile(outsidePath, policy);
+    await symlink(outsidePath, path.join(repositoryPath, 'linked-policy.json'));
+    try {
+      await expect(loadPolicy(repositoryPath, '../outside-policy.json')).rejects.toThrow('escapes repository root');
+      await expect(loadPolicy(repositoryPath, 'linked-policy.json')).rejects.toThrow('contains a symbolic link');
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds repository-controlled policy collections and retention', () => {
+    expect(() => policySchema.parse({
+      schemaVersion: 1,
+      retentionDays: 36_501,
+      redactPaths: Array.from({ length: 1_001 }, () => 'path'),
+      requiredCalibrationConditions: [],
+    })).toThrow();
+  });
+
   it('scans monorepo unit subset', async () => {
     const repoRoot = path.join(root, '..');
     const full = await createRepositorySnapshot(repoRoot);

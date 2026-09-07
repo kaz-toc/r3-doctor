@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-015",
+  "status": "active",
+  "title": "Git refs cannot alter rev-parse options",
+  "invariant": "Git ref resolution terminates options and accepts only a full commit object ID.",
+  "incident": "SEC-2026-004",
+  "productionFiles": ["src/adapters/git-provider.ts"],
+  "testFiles": ["tests/git-provider.test.ts"],
+  "verificationCommands": ["npx vitest run tests/git-provider.test.ts -t REG-2026-015"]
+}

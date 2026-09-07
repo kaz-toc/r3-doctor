@@ -43,7 +43,21 @@ if (!inspectOutput.includes('status=available')) {
   fail('codex provider is not available (install @agentclientprotocol/codex-acp and authenticate)');
 }
 
-const scan = spawnSync(process.execPath, [cli, 'scan', fixture, '--format', 'json'], {
+const scan = spawnSync(process.execPath, [
+  cli,
+  'scan',
+  fixture,
+  '--format',
+  'json',
+  '--llm-provider',
+  'codex',
+  '--llm-model',
+  'gpt-5-mini',
+  '--llm-send-scope',
+  'all',
+  '--llm-max-files',
+  '5',
+], {
   cwd: root,
   encoding: 'utf8',
   maxBuffer: 10 * 1024 * 1024,
