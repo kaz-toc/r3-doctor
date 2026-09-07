@@ -47,7 +47,7 @@ function composeSemanticPrompt(
         axisId: item.axisId,
         path: item.path,
         severity: item.severity,
-        message: item.message,
+        metrics: item.metrics,
       })),
     )}`,
     context,
