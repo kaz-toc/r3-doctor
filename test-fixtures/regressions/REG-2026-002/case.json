@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-002",
+  "status": "active",
+  "title": "GitHub advisory output cannot inject workflow commands",
+  "invariant": "Untrusted report text is escaped in dedicated outputs and ordinary CLI output is kept off the Actions command channel.",
+  "incident": "SEC-2026-002",
+  "productionFiles": ["src/reporting/github.ts", ".github/workflows/r3-doctor-advisory.yml"],
+  "testFiles": ["tests/github.test.ts"],
+  "verificationCommands": ["npx vitest run tests/github.test.ts -t REG-2026-002"]
+}

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import * as acp from '@agentclientprotocol/sdk';
 
 import {
@@ -152,6 +155,45 @@ describe('createOneShotAcpClient', () => {
     expect(spec.env.HTTPS_PROXY).toBe('http://proxy.example:8080');
     expect(spec.env.no_proxy).toBe('localhost');
     expect(spec.env.SECRET_TOKEN).toBeUndefined();
+  });
+
+  it('REG-2026-009 removes repository-owned executable search paths', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-provider-path-'));
+    const repositoryBin = path.join(repositoryPath, 'node_modules', '.bin');
+    await mkdir(repositoryBin, { recursive: true });
+    try {
+      const spec = getLlmProviderDefinition('codex').buildLaunch({
+        executablePath: 'codex-acp',
+        modelIdentifier: '',
+        runtimeDirectory: repositoryPath,
+        inheritedEnv: { PATH: `${repositoryBin}${path.delimiter}/usr/bin${path.delimiter}relative-bin` },
+      });
+
+      expect(spec.env.PATH?.split(path.delimiter)).toEqual(['/usr/bin']);
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects relative and repository-owned absolute executable overrides', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-provider-path-'));
+    try {
+      const input = {
+        modelIdentifier: '',
+        runtimeDirectory: repositoryPath,
+        inheritedEnv: { PATH: '/usr/bin' },
+      };
+      expect(() => getLlmProviderDefinition('codex').buildLaunch({
+        ...input,
+        executablePath: './codex-acp',
+      })).toThrow('must be an absolute path or a bare command name');
+      expect(() => getLlmProviderDefinition('codex').buildLaunch({
+        ...input,
+        executablePath: path.join(repositoryPath, 'codex-acp'),
+      })).toThrow('must not resolve inside the analyzed repository');
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
   });
 
   it('fails oneShotPrompt on the first tool_call', async () => {

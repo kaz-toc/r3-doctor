@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-009",
+  "status": "active",
+  "title": "Repository PATH cannot select privileged child processes",
+  "invariant": "Git and provider child lookup excludes repository-owned and relative PATH entries, and Git receives no provider credential.",
+  "incident": "SEC-2026-009",
+  "productionFiles": ["src/shared/executable-path.ts", "src/adapters/git-provider.ts", "src/semantic/acp/provider-registry.ts"],
+  "testFiles": ["tests/git-provider.test.ts", "tests/semantic/acp-client.test.ts"],
+  "verificationCommands": ["npx vitest run tests/git-provider.test.ts tests/semantic/acp-client.test.ts -t REG-2026-009"]
+}

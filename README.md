@@ -71,6 +71,8 @@ CI では Actions → **LLM integration** を手動実行。repository variable 
 
 LLM の起動と外部送信は解析対象の `r3-doctor.config.json` では設定できません。実行者が `scan` / `diff` の `--llm-provider` を指定したときだけ有効になります。model、実行ファイル、送信 scope、上限も `--llm-model`、`--llm-executable`、`--llm-send-scope`、`--llm-max-files`、`--llm-max-prompt-bytes` で指定します。対象リポジトリは信頼できない入力として扱われます。
 
+`--llm-executable` は絶対パスまたは bare command name のみを受け付けます。相対パスと解析対象内を指す絶対パスは拒否し、bare command の探索では対象リポジトリ配下および相対 `PATH` entry を除外します。
+
 エイリアス: `openai` → `codex`, `anthropic` → `claude`.
 
 ## プロジェクト文書

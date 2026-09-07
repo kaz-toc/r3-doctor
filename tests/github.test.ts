@@ -115,7 +115,7 @@ describe('github annotations', () => {
     expect(formatGitHubAnnotations(diff)).toContain('::notice title=r3-doctor::assessment contract mismatch');
   });
 
-  it('escapes untrusted workflow command data and properties onto one line', () => {
+  it('REG-2026-002 escapes untrusted workflow command data and properties onto one line', () => {
     const current = {
       metadata: {
         schemaVersion: 1,
@@ -166,6 +166,23 @@ describe('github annotations', () => {
     expect(formatGitHubAnnotations(diff)).toBe(
       '::error file=src/a%3A%25%0A%3A%3Aadd-mask%3A%3ATOKEN%2C%0D.ts,line=1::r3-doctor: bad %25%0A::error::forged%0D (dep-cycle)\n',
     );
+  });
+
+  it('keeps untrusted CLI output off the Actions command channel', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github', 'workflows', 'r3-doctor-advisory.yml'), 'utf8');
+
+    expect(workflow).toContain('permissions:\n  contents: read');
+    expect(workflow).not.toContain('pull-requests: write');
+    expect(workflow).toContain('timeout-minutes: 10');
+    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(2);
+    expect(workflow).toContain('ref: ${{ github.event.pull_request.base.sha }}');
+    expect(workflow).toContain('path: .r3-doctor-tool');
+    expect(workflow).toContain('path: target');
+    expect(workflow).toContain('npm ci --ignore-scripts');
+    expect(workflow).not.toContain('npm run r3-doctor');
+    expect(workflow).toContain('BASE_REF: ${{ github.event.pull_request.base.sha }}');
+    expect(workflow).toContain('--base "$BASE_REF"');
+    expect(workflow).toMatch(/--github-annotations[^\n]*\n\s*> "\$RUNNER_TEMP\/r3-doctor-report\.md" 2> "\$RUNNER_TEMP\/r3-doctor-diagnostics\.txt"/);
   });
 
   it('renders untrusted summary values as escaped single-line Markdown', async () => {

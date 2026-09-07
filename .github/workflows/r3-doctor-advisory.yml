@@ -14,34 +14,60 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted analyzer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .r3-doctor-tool
+          persist-credentials: false
+
+      - name: Checkout pull request target
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          path: target
           persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: .r3-doctor-tool/.nvmrc
 
-      - run: npm ci
-      - run: npm run build
+      - name: Build trusted analyzer
+        working-directory: .r3-doctor-tool
+        run: |
+          npm ci --ignore-scripts
+          npm run build
 
       - name: r3-doctor diff advisory
         env:
-          BASE_REF: origin/${{ github.base_ref }}
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          TARGET_PATH: ${{ github.workspace }}/target
+          TOOL_PATH: ${{ github.workspace }}/.r3-doctor-tool
         run: |
-          npm run r3-doctor -- diff . --base "$BASE_REF" --format markdown \
+          node "$TOOL_PATH/dist/cli.js" diff "$TARGET_PATH" --base "$BASE_REF" --format markdown \
             --github-summary "$RUNNER_TEMP/r3-doctor-summary.md" \
-            --github-annotations "$RUNNER_TEMP/r3-doctor-annotations.txt"
+            --github-annotations "$RUNNER_TEMP/r3-doctor-annotations.txt" \
+            > "$RUNNER_TEMP/r3-doctor-report.md" 2> "$RUNNER_TEMP/r3-doctor-diagnostics.txt"
 
       - name: policy evaluate (advisory)
-        run: npm run r3-doctor -- policy . --evaluate
+        env:
+          TARGET_PATH: ${{ github.workspace }}/target
+          TOOL_PATH: ${{ github.workspace }}/.r3-doctor-tool
+        run: |
+          node "$TOOL_PATH/dist/cli.js" policy "$TARGET_PATH" --evaluate \
+            > "$RUNNER_TEMP/r3-doctor-policy.json" 2> "$RUNNER_TEMP/r3-doctor-policy-diagnostics.txt"
         continue-on-error: true
 
       - name: Publish job summary
-        if: always() && hashFiles(format('{0}/r3-doctor-summary.md', runner.temp)) != ''
-        run: cat "$RUNNER_TEMP/r3-doctor-summary.md" >> "$GITHUB_STEP_SUMMARY"
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/r3-doctor-summary.md" ]; then
+            cat "$RUNNER_TEMP/r3-doctor-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish PR annotations
-        if: always() && hashFiles(format('{0}/r3-doctor-annotations.txt', runner.temp)) != ''
-        run: cat "$RUNNER_TEMP/r3-doctor-annotations.txt"
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/r3-doctor-annotations.txt" ]; then
+            cat "$RUNNER_TEMP/r3-doctor-annotations.txt"
+          fi

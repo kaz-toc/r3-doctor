@@ -14,6 +14,8 @@
 - `metadata.repositoryPath` は常に `[REPOSITORY]` に匿名化し、`policy.redactPaths` に一致するその他のパスもレポート出力前にマスクする。
 - LLM 送信は実行者が CLI の `--llm-provider` で明示的に有効化し、`--llm-max-files` 以内のファイルに限定する。
 - 外部送信は adapter 経由のみ。デフォルトは local-first（LLM 無効）。
+- semantic prompt の `Repository` は固定トークンとし、最終送信 payload 全体へ byte 上限を適用する。
+- `policyFile` は repository 内の symlink でない regular file だけを読み、raw config / policy 読込にも byte 上限を適用する。
 - `.r3-doctor/baselines/` は既定で Git 管理対象外とする。
 
 ## 監査

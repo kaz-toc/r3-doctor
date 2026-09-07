@@ -40,16 +40,19 @@ export function parseLlmExecutionPolicy(options: LlmCliOptions, dryRun = false):
     });
     const provider = parsed.llmProvider ?? 'none';
     const enabled = provider !== 'none';
-    if (!enabled && !dryRun) {
-      const firstOverride = [
+    if (!enabled) {
+      const providerSpecificOverride = [
         ['--llm-model', parsed.llmModel],
         ['--llm-executable', parsed.llmExecutable],
+      ].find((entry) => entry[1] !== undefined);
+      const runtimeOverride = [
         ['--llm-send-scope', parsed.llmSendScope],
         ['--llm-max-files', parsed.llmMaxFiles],
         ['--llm-max-prompt-bytes', parsed.llmMaxPromptBytes],
       ].find((entry) => entry[1] !== undefined);
-      if (firstOverride) {
-        throw new R3DoctorError(`${firstOverride[0]} requires --llm-provider`);
+      const forbiddenOverride = providerSpecificOverride ?? (dryRun ? undefined : runtimeOverride);
+      if (forbiddenOverride) {
+        throw new R3DoctorError(`${forbiddenOverride[0]} requires --llm-provider`);
       }
     }
     if (parsed.llmProvider === 'none') {

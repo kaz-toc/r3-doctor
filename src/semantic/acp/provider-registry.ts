@@ -1,4 +1,5 @@
 import type { LlmLaunchInput, LlmLaunchSpec, LlmProviderId } from './provider-types.js';
+import { sanitizeExecutableSearchPath, validateExecutableCommand } from '../../shared/executable-path.js';
 
 export const COPILOT_CLI_FIXED_ARGUMENTS = [
   '--available-tools=',
@@ -59,6 +60,7 @@ export type LlmProviderDefinition = {
 function filterEnv(
   providerId: LlmProviderId,
   inheritedEnv: NodeJS.ProcessEnv,
+  runtimeDirectory: string,
   overrides: Record<string, string> = {},
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
@@ -73,6 +75,7 @@ function filterEnv(
   for (const [key, value] of Object.entries(overrides)) {
     env[key] = value;
   }
+  env.PATH = sanitizeExecutableSearchPath(env.PATH, runtimeDirectory);
   return env;
 }
 
@@ -84,10 +87,10 @@ function baseLaunch(
 ): LlmLaunchSpec {
   return {
     providerId,
-    command: input.executablePath,
+    command: validateExecutableCommand(input.executablePath, input.runtimeDirectory),
     args,
     cwd: input.runtimeDirectory,
-    env: filterEnv(providerId, input.inheritedEnv, envOverrides),
+    env: filterEnv(providerId, input.inheritedEnv, input.runtimeDirectory, envOverrides),
   };
 }
 

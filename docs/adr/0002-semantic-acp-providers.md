@@ -14,7 +14,7 @@ r3-doctor needs optional LLM-backed semantic analysis for the Semantic Ambiguity
 - Use a **one-shot spawn model** per scan (spawn → initialize → session → prompt → dispose).
 - Do **not** store API keys in r3-doctor config; inherit provider env vars at spawn time only.
 - Keep `ASSESSMENT_CONTRACT_VERSION` at v2; bump `SemanticProvider.implementationVersion` for semantic output changes.
-- Accept CLI aliases: `openai` → `codex`, `anthropic` → `claude`.
+- Accept config aliases: `openai` → `codex`, `anthropic` → `claude`.
 
 ## Consequences
 

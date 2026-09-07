@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-003",
+  "status": "active",
+  "title": "Exclude glob work remains bounded",
+  "invariant": "Repository-controlled glob evaluation cannot exceed the scan-wide operation budget.",
+  "incident": "SEC-2026-003",
+  "productionFiles": ["src/intake/snapshot.ts", "src/shared/config.ts"],
+  "testFiles": ["tests/intake.test.ts"],
+  "verificationCommands": ["npx vitest run tests/intake.test.ts -t REG-2026-003"]
+}

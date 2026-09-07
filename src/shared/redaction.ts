@@ -159,7 +159,11 @@ export function redactDiffReport(diff: DiffReport, redactPaths: string[]): DiffR
     if (diff.redactionPolicyFingerprint !== fingerprint) {
       throw new R3DoctorError('cannot apply a different redaction policy to an already-redacted diff report');
     }
-    return diffReportSchema.parse(diff);
+    return diffReportSchema.parse({
+      ...diff,
+      current: redactReport(diff.current, normalized),
+      base: diff.base ? redactReport(diff.base, normalized) : undefined,
+    });
   }
 
   const redacted = {

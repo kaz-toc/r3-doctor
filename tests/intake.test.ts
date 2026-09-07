@@ -53,6 +53,24 @@ describe('intake contract', () => {
     expect(stdout.trim()).toBe('done');
   });
 
+  it('REG-2026-003 caps aggregate glob work across repository entries', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-glob-budget-'));
+    const patterns = Array.from(
+      { length: 128 },
+      (_, index) => `${'a?'.repeat(60)}-${index}`,
+    );
+    await writeFile(path.join(dir, 'r3-doctor.config.json'), JSON.stringify({
+      schemaVersion: 1,
+      exclude: patterns,
+    }));
+    for (let index = 0; index < 100; index += 1) {
+      await writeFile(path.join(dir, `source-${index}.ts`), 'export {};\n');
+    }
+
+    await expect(createRepositorySnapshot(dir)).rejects.toThrow('exclude glob evaluation budget exceeded');
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it('throws config error for invalid JSON config', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), '{invalid');
@@ -82,7 +100,7 @@ describe('intake contract', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('rejects LLM execution settings owned by the target repository', async () => {
+  it('REG-2026-001 rejects LLM execution settings owned by the target repository', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-untrusted-llm-config-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), JSON.stringify({
       schemaVersion: 1,
@@ -106,6 +124,14 @@ describe('intake contract', () => {
     }));
 
     await expect(loadConfig(dir)).rejects.toBeInstanceOf(ConfigError);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('REG-2026-006 rejects an oversized repository config before JSON parsing', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-bytes-'));
+    await writeFile(path.join(dir, 'r3-doctor.config.json'), ' '.repeat(1_048_577));
+
+    await expect(loadConfig(dir)).rejects.toThrow('exceeds 1048576 byte limit');
     await rm(dir, { recursive: true, force: true });
   });
 

@@ -123,6 +123,7 @@ describe('integration: CLI-owned semantic policy', () => {
       ]);
 
       expect(result.stdout).toContain('src/a.ts');
+      expect(result.stdout).not.toContain(repositoryPath);
     } finally {
       await rm(repositoryPath, { recursive: true, force: true });
     }
@@ -182,6 +183,7 @@ describe('integration: ACP semantic provider', () => {
       expect(report.metadata.semanticProviderStatus).toBe('available');
       expect(report.semanticFindings.some((finding) => finding.summary.includes('ambiguous'))).toBe(true);
       expect(report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')?.unevaluated).toBe(false);
+      expect(JSON.stringify(script.promptRequests)).not.toContain(repositoryPath);
     } finally {
       await rm(repositoryPath, { recursive: true, force: true });
     }

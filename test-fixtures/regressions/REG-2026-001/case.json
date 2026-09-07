@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-001",
+  "status": "active",
+  "title": "Target repository cannot own LLM execution policy",
+  "invariant": "Repository config cannot enable or select a provider, and provider-specific dry-run overrides require operator provider consent.",
+  "incident": "SEC-2026-001",
+  "productionFiles": ["src/shared/config.ts", "src/semantic/execution-policy.ts", "src/intake/snapshot.ts"],
+  "testFiles": ["tests/intake.test.ts", "tests/semantic/execution-policy.test.ts"],
+  "verificationCommands": ["npx vitest run tests/intake.test.ts tests/semantic/execution-policy.test.ts -t REG-2026-001"]
+}

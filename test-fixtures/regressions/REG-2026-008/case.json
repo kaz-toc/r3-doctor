@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-008",
+  "status": "active",
+  "title": "Policy reads stay inside the repository",
+  "invariant": "Policy paths must resolve to a non-symlink regular file contained by the repository.",
+  "incident": "SEC-2026-008",
+  "productionFiles": ["src/operations/policy.ts", "src/shared/repository-file.ts"],
+  "testFiles": ["tests/operations.test.ts"],
+  "verificationCommands": ["npx vitest run tests/operations.test.ts -t REG-2026-008"]
+}

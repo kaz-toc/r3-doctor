@@ -15,6 +15,18 @@ import { ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import { getRegisteredExtensions } from '../plugins/language-extensions.js';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 import { analysisContextFingerprint } from './analysis-context.js';
+import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+
+const REPOSITORY_CONFIG_MAX_BYTES = 1_048_576;
+const GLOB_EVALUATION_MAX_OPERATIONS = 10_000_000;
+const REPOSITORY_WALK_MAX_ENTRIES = 100_000;
+
+type GlobToken = '*' | '**' | '?' | string;
+type CompiledExcludePattern = Readonly<{
+  segment?: string;
+  tokens?: readonly GlobToken[];
+}>;
+type IntakeWorkBudget = { globOperations: number; visitedEntries: number };
 
 export type SourceFile = {
   relativePath: string;
@@ -54,10 +66,12 @@ function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
-function matchGlob(relativePath: string, pattern: string): boolean {
-  const normalized = relativePath.replace(/\\/g, '/');
+function compileExcludePattern(pattern: string): CompiledExcludePattern {
   const normalizedPattern = pattern.replace(/\\/g, '/');
-  const tokens: Array<'*' | '**' | '?' | string> = [];
+  if (!normalizedPattern.includes('*') && !normalizedPattern.includes('?')) {
+    return { segment: normalizedPattern };
+  }
+  const tokens: GlobToken[] = [];
 
   for (let index = 0; index < normalizedPattern.length;) {
     const character = normalizedPattern[index]!;
@@ -70,6 +84,17 @@ function matchGlob(relativePath: string, pattern: string): boolean {
     }
     tokens.push(character);
     index += 1;
+  }
+
+  return { tokens };
+}
+
+function matchGlob(relativePath: string, tokens: readonly GlobToken[], budget: IntakeWorkBudget): boolean {
+  const normalized = relativePath.replace(/\\/g, '/');
+  const operationCost = tokens.length * (normalized.length + 1);
+  budget.globOperations += operationCost;
+  if (budget.globOperations > GLOB_EVALUATION_MAX_OPERATIONS) {
+    throw new IntakeError('exclude glob evaluation budget exceeded');
   }
 
   let reachable = new Uint8Array(normalized.length + 1);
@@ -97,14 +122,21 @@ function matchGlob(relativePath: string, pattern: string): boolean {
   return reachable[normalized.length] === 1;
 }
 
+function createExclusionMatcher(
+  exclude: string[],
+  budget: IntakeWorkBudget,
+): (relativePath: string) => boolean {
+  const compiled = exclude.map(compileExcludePattern);
+  return (relativePath) => {
+    const segments = relativePath.replace(/\\/g, '/').split('/');
+    return compiled.some((pattern) => pattern.tokens
+      ? matchGlob(relativePath, pattern.tokens, budget)
+      : segments.includes(pattern.segment ?? ''));
+  };
+}
+
 export function isExcluded(relativePath: string, exclude: string[]): boolean {
-  const segments = relativePath.split(path.sep);
-  return exclude.some((pattern) => {
-    if (pattern.includes('*') || pattern.includes('?')) {
-      return matchGlob(relativePath, pattern);
-    }
-    return segments.includes(pattern);
-  });
+  return createExclusionMatcher(exclude, { globOperations: 0, visitedEntries: 0 })(relativePath);
 }
 
 function resolveUnitRoot(repositoryPath: string, root: string): string {
@@ -119,11 +151,12 @@ function resolveUnitRoot(repositoryPath: string, root: string): string {
 async function walkFiles(
   repositoryPath: string,
   current: string,
-  exclude: string[],
+  isPathExcluded: (relativePath: string) => boolean,
   extensions: Set<string>,
   maxFiles: number,
   collected: SourceFile[],
   issues: IntakeIssue[],
+  workBudget: IntakeWorkBudget,
 ): Promise<boolean> {
   if (collected.length >= maxFiles) {
     return true;
@@ -144,10 +177,14 @@ async function walkFiles(
       return true;
     }
 
+    workBudget.visitedEntries += 1;
+    if (workBudget.visitedEntries > REPOSITORY_WALK_MAX_ENTRIES) {
+      throw new IntakeError(`repository walk exceeded ${REPOSITORY_WALK_MAX_ENTRIES} entry limit`);
+    }
     const absolutePath = path.join(current, entry.name);
     const relativePath = path.relative(repositoryPath, absolutePath);
 
-    if (isExcluded(relativePath, exclude)) {
+    if (isPathExcluded(relativePath)) {
       continue;
     }
 
@@ -157,7 +194,16 @@ async function walkFiles(
     }
 
     if (stat.isDirectory()) {
-      const truncated = await walkFiles(repositoryPath, absolutePath, exclude, extensions, maxFiles, collected, issues);
+      const truncated = await walkFiles(
+        repositoryPath,
+        absolutePath,
+        isPathExcluded,
+        extensions,
+        maxFiles,
+        collected,
+        issues,
+        workBudget,
+      );
       if (truncated) {
         return true;
       }
@@ -219,7 +265,7 @@ export async function loadConfig(
   }
 
   try {
-    const raw = await readFile(configPath, 'utf8');
+    const raw = await readFileWithinByteLimit(configPath, REPOSITORY_CONFIG_MAX_BYTES, 'repository config');
     const repositoryConfig = repositoryConfigSchema.parse(JSON.parse(raw));
     return configSchema.parse({ ...repositoryConfig, llm: llmConfig });
   } catch (error) {
@@ -258,10 +304,21 @@ export async function createRepositorySnapshot(
   const roots = unit ? unit.roots.map((root) => resolveUnitRoot(resolved, root)) : [resolved];
   const files: SourceFile[] = [];
   const intakeIssues: IntakeIssue[] = [];
+  const workBudget: IntakeWorkBudget = { globOperations: 0, visitedEntries: 0 };
+  const isPathExcluded = createExclusionMatcher(config.exclude, workBudget);
   let truncated = false;
 
   for (const root of roots) {
-    const rootTruncated = await walkFiles(resolved, root, config.exclude, extensions, config.maxFiles, files, intakeIssues);
+    const rootTruncated = await walkFiles(
+      resolved,
+      root,
+      isPathExcluded,
+      extensions,
+      config.maxFiles,
+      files,
+      intakeIssues,
+      workBudget,
+    );
     truncated = truncated || rootTruncated;
   }
 

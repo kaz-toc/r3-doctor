@@ -10,6 +10,7 @@
 - LLM の有効化、provider、model、実行ファイル、送信 scope、ファイル数、prompt byte 数は実行者所有の execution policy とする。
 - execution policy は CLI の明示フラグからのみ生成し、既定は LLM 無効とする。
 - provider 子プロセスへ渡す環境変数 allowlist は維持するが、非信頼設定から任意コマンドを選べないことを第一防御とする。
+- provider と Git の executable search path から対象リポジトリ配下と相対 entry を除外し、Git 子プロセスには provider credential を渡さない。
 - GitHub Actions では PR checkout 後の全コードを非信頼とみなし、書込権限、永続化した checkout credential、repository secret を持たせない。
 
 ## LLM execution policy
@@ -26,15 +27,19 @@ GitHub annotation の message は `%`、CR、LFを、property はさらに `:`�
 
 永続化・CLI・GitHub 出力の `metadata.repositoryPath` は、policy の `redactPaths` が空でも固定値 `[REPOSITORY]` にする。解析内部の絶対 path は変更しない。baseline directory は Git ignore 対象にする。
 
+semantic prompt でも repository は `[REPOSITORY]` と表現し、instructions、evidence、file context、omission marker を含む最終 payload 全体へ byte 上限を適用する。
+
 ## 入力境界
 
 glob は正規表現へ直接展開せず、`*`、`**`、`?` だけを認識する memoized matcher で評価する。設定値の文字列長・配列数・数値には有限上限を設ける。
+
+glob pattern は scan ごとに一度だけ compile し、walk 全体の評価演算数と訪問 entry 数にも上限を設ける。repository config は raw byte 上限内だけ読み込む。`policyFile` は repository 内の symlink でない regular file に限定し、policy schema と raw byte 数も制限する。
 
 Git ref は `git rev-parse --verify --end-of-options <ref>^{commit}` で解決し、結果が完全な object ID であることを検証する。workflow の `github.base_ref` は inline shell script へ展開せず environment variable 経由で引用する。
 
 ## CI
 
-advisory job は `contents: read` のみ、`persist-credentials: false`、10分 timeout とする。PR コードの build 自体は ephemeral runner 上の通常 CI として許容するが、その後のプロセスが利用できる書込 token と secret を配置しない。
+advisory job は `contents: read` のみ、`persist-credentials: false`、10分 timeout とする。analyzer は base commit を別 directory へ checkout して build し、PR target の lifecycle script や build は実行しない。通常 CLI stdout/stderr は runner temp に隔離し、escape 済み summary と annotation だけを Actions channel へ公開する。
 
 ## 検証
 
@@ -46,4 +51,3 @@ advisory job は `contents: read` のみ、`persist-credentials: false`、10分 
 - Git ref の leading dash 拒否と object ID 検証テスト
 - repository path の既定匿名化と baseline 保存テスト
 - `npm run validate`
-

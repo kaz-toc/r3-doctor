@@ -39,6 +39,8 @@ r3-doctor scan . \
 
 解析対象の `r3-doctor.config.json` は untrusted data であり、LLM の有効化、provider、実行ファイル、送信 scope を所有しない。外部プロセス起動と外部送信は実行者が `--llm-provider` を明示した場合だけ許可する。
 
+実行ファイル override は絶対パスまたは bare command name に限定する。対象リポジトリ内の絶対パス、対象配下の `PATH` entry、相対 `PATH` entry は拒否または探索対象から除外し、provider credential を repository-owned executable に渡さない。
+
 ### CLI utilities
 
 - `r3-doctor llm inspect [--provider codex]` — spawn + initialize のみ。失敗時は install hint を stderr に出力。

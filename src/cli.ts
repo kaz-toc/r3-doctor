@@ -26,9 +26,8 @@ import type { RetentionAudit } from './persistence/retention.js';
 import { resolveSafeStorageDir } from './persistence/storage-boundary.js';
 import { createOneShotAcpClient } from './semantic/acp/acp-client.js';
 import { buildLlmLaunchSpec, getLlmProviderDefinition } from './semantic/acp/provider-registry.js';
-import { buildContextPacket } from './semantic/context-budget.js';
 import { normalizeProviderId, selectLlmCandidateFiles } from './semantic/provider.js';
-import { buildSemanticPrompt } from './semantic/semantic-prompt.js';
+import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
@@ -84,12 +83,12 @@ addLlmOptions(program
         ...snapshot,
         files: selectLlmCandidateFiles(snapshot, evidence),
       };
-      const packet = buildContextPacket(
+      const { prompt } = buildBudgetedSemanticPrompt(
         scopedSnapshot,
         evidence,
         snapshot.config.llm.maxPromptBytes,
       );
-      process.stdout.write(`${buildSemanticPrompt(scopedSnapshot, evidence, packet)}\n`);
+      process.stdout.write(`${prompt}\n`);
       return;
     }
 

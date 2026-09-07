@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-006",
+  "status": "active",
+  "title": "Repository config read has a raw byte limit",
+  "invariant": "Oversized repository config is rejected before JSON parsing.",
+  "incident": "SEC-2026-006",
+  "productionFiles": ["src/intake/snapshot.ts", "src/shared/bounded-file.ts"],
+  "testFiles": ["tests/intake.test.ts"],
+  "verificationCommands": ["npx vitest run tests/intake.test.ts -t REG-2026-006"]
+}

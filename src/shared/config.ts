@@ -31,7 +31,13 @@ export const defaultLlmConfig: LlmConfig = llmConfigSchema.parse({});
 export const repositoryConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
-    exclude: z.array(z.string().max(256)).max(1_000).default(['node_modules', 'dist', 'build', 'coverage']),
+    exclude: z
+      .array(z.string().max(256))
+      .max(128)
+      .refine((patterns) => patterns.reduce((total, pattern) => total + pattern.length, 0) <= 16_384, {
+        message: 'exclude patterns exceed total character limit',
+      })
+      .default(['node_modules', 'dist', 'build', 'coverage']),
     maxFiles: z.number().int().positive().max(50_000).default(5000),
     maxFileLines: z.number().int().positive().max(100_000).default(800),
     fanOutThreshold: z.number().int().positive().max(100_000).default(8),
