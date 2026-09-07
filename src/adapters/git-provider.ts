@@ -28,11 +28,16 @@ function gitEnvironment(repositoryPath: string): NodeJS.ProcessEnv {
 }
 
 export type GitProvider = {
+  collectFileChurn(repositoryPath: string, churnDays: number): Promise<Map<string, number>>;
   listChangedFiles(repositoryPath: string, baseRef: string): Promise<string[]>;
   resolveRef(repositoryPath: string, ref: string): Promise<string>;
   resolveHeadCommit(repositoryPath: string): Promise<string | undefined>;
   inspectRepository(repositoryPath: string, analyzedPaths?: string[]): Promise<GitRepositoryState | undefined>;
 };
+
+function safeGitArgs(args: string[]): string[] {
+  return ['-c', 'core.fsmonitor=false', ...args];
+}
 
 export type GitRepositoryState = {
   rootPath: string;
@@ -46,7 +51,10 @@ function normalizeChangedFiles(lines: string[]): string[] {
 }
 
 async function runGit(repositoryPath: string, args: string[]): Promise<string[]> {
-  const { stdout } = await execFileAsync('git', args, { cwd: repositoryPath, env: gitEnvironment(repositoryPath) });
+  const { stdout } = await execFileAsync('git', safeGitArgs(args), {
+    cwd: repositoryPath,
+    env: gitEnvironment(repositoryPath),
+  });
   return stdout.split('\n');
 }
 
@@ -60,13 +68,32 @@ async function listUntrackedFiles(repositoryPath: string): Promise<string[]> {
 }
 
 export class DefaultGitProvider implements GitProvider {
+  async collectFileChurn(repositoryPath: string, churnDays: number): Promise<Map<string, number>> {
+    try {
+      const lines = await runGit(repositoryPath, [
+        'log',
+        `--since=${churnDays} days ago`,
+        '--name-only',
+        '--pretty=format:',
+      ]);
+      const counts = new Map<string, number>();
+      for (const line of lines) {
+        const file = line.trim();
+        if (file) counts.set(file, (counts.get(file) ?? 0) + 1);
+      }
+      return counts;
+    } catch {
+      return new Map();
+    }
+  }
+
   async inspectRepository(
     repositoryPath: string,
     analyzedPaths: string[] = [],
   ): Promise<GitRepositoryState | undefined> {
     try {
       const repositoryRealPath = await realpath(repositoryPath);
-      const { stdout: rootOutput } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
+      const { stdout: rootOutput } = await execFileAsync('git', safeGitArgs(['rev-parse', '--show-toplevel']), {
         cwd: repositoryRealPath,
         env: gitEnvironment(repositoryRealPath),
       });
@@ -74,16 +101,16 @@ export class DefaultGitProvider implements GitProvider {
       if (path.relative(repositoryRealPath, rootPath) !== '') {
         return undefined;
       }
-      const { stdout: headOutput } = await execFileAsync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
+      const { stdout: headOutput } = await execFileAsync('git', safeGitArgs(['rev-parse', '--verify', 'HEAD^{commit}']), {
         cwd: repositoryRealPath,
         env: gitEnvironment(repositoryRealPath),
       });
       const { stdout: statusOutput } = await execFileAsync(
         'git',
-        ['status', '--porcelain=v1', '--untracked-files=all', '--', '.'],
+        safeGitArgs(['status', '--porcelain=v1', '--untracked-files=all', '--', '.']),
         { cwd: repositoryRealPath, env: gitEnvironment(repositoryRealPath) },
       );
-      const { stdout: trackedOutput } = await execFileAsync('git', ['ls-files', '--cached', '-z'], {
+      const { stdout: trackedOutput } = await execFileAsync('git', safeGitArgs(['ls-files', '--cached', '-z']), {
         cwd: repositoryRealPath,
         maxBuffer: 16 * 1024 * 1024,
         env: gitEnvironment(repositoryRealPath),
@@ -137,10 +164,14 @@ export class DefaultGitProvider implements GitProvider {
     if (ref.startsWith('-')) {
       throw new R3DoctorError('git ref must not start with a dash');
     }
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`], {
+    const { stdout } = await execFileAsync(
+      'git',
+      safeGitArgs(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]),
+      {
       cwd: repositoryPath,
       env: gitEnvironment(repositoryPath),
-    });
+      },
+    );
     const objectId = stdout.trim();
     if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(objectId)) {
       throw new R3DoctorError('git ref did not resolve to a full commit object ID');
@@ -150,7 +181,7 @@ export class DefaultGitProvider implements GitProvider {
 
   async resolveHeadCommit(repositoryPath: string): Promise<string | undefined> {
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+      const { stdout } = await execFileAsync('git', safeGitArgs(['rev-parse', 'HEAD']), {
         cwd: repositoryPath,
         env: gitEnvironment(repositoryPath),
       });

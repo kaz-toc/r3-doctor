@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Evidence, RiskAxisId, SignalId } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
 import { isNonProductPath, isTestFile } from './diagnostic-paths.js';
+import { DefaultGitProvider } from '../adapters/git-provider.js';
 
 export type ImportEdge = {
   from: string;
@@ -354,28 +355,17 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
 }
 
 async function collectGitChurn(snapshot: RepositorySnapshot): Promise<Map<string, number>> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execFileAsync = promisify(execFile);
-  const since = `${snapshot.config.churnDays} days ago`;
   const analyzedPaths = new Set(snapshot.files.map((file) => file.relativePath.replace(/\\/g, '/')));
-
-  try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['log', `--since=${since}`, '--name-only', '--pretty=format:'],
-      { cwd: snapshot.repositoryPath },
-    );
-    const counts = new Map<string, number>();
-    for (const line of stdout.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.includes(' ') || !analyzedPaths.has(trimmed.replace(/\\/g, '/'))) {
-        continue;
-      }
-      counts.set(trimmed, (counts.get(trimmed) ?? 0) + 1);
+  const rawCounts = await new DefaultGitProvider().collectFileChurn(
+    snapshot.repositoryPath,
+    snapshot.config.churnDays,
+  );
+  const counts = new Map<string, number>();
+  for (const [filePath, count] of rawCounts) {
+    const normalized = filePath.replace(/\\/g, '/');
+    if (!filePath.includes(' ') && analyzedPaths.has(normalized)) {
+      counts.set(filePath, count);
     }
-    return counts;
-  } catch {
-    return new Map();
   }
+  return counts;
 }

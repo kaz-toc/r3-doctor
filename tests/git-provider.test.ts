@@ -1,10 +1,15 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DefaultGitProvider } from '../src/adapters/git-provider.js';
+import { createGitRepository } from './helpers/git-repository.js';
+
+const execFileAsync = promisify(execFile);
 
 const originalPath = process.env.PATH;
 const originalArgsLog = process.env.R3_DOCTOR_TEST_GIT_ARGS;
@@ -50,7 +55,14 @@ describe('git provider boundaries', () => {
     try {
       await new DefaultGitProvider().resolveRef(fake.repository, 'main');
       const args = (await readFile(fake.argsLog, 'utf8')).trim().split('\n');
-      expect(args).toEqual(['rev-parse', '--verify', '--end-of-options', 'main^{commit}']);
+      expect(args).toEqual([
+        '-c',
+        'core.fsmonitor=false',
+        'rev-parse',
+        '--verify',
+        '--end-of-options',
+        'main^{commit}',
+      ]);
     } finally {
       await rm(fake.directory, { recursive: true, force: true });
     }
@@ -81,6 +93,34 @@ describe('git provider boundaries', () => {
       expect((await readFile(fake.envLog, 'utf8')).trim()).toBe('');
     } finally {
       await rm(fake.directory, { recursive: true, force: true });
+    }
+  });
+
+  it('routes churn collection through the same sanitized Git boundary', async () => {
+    const fake = await installFakeGit('src/a.ts\nsrc/a.ts\nsrc/b.ts');
+    process.env.OPENAI_API_KEY = 'must-not-reach-git';
+    try {
+      const churn = await new DefaultGitProvider().collectFileChurn(fake.repository, 90);
+      expect(churn).toEqual(new Map([['src/a.ts', 2], ['src/b.ts', 1]]));
+      expect((await readFile(fake.envLog, 'utf8')).trim()).toBe('');
+    } finally {
+      await rm(fake.directory, { recursive: true, force: true });
+    }
+  });
+
+  it('disables a repository-configured fsmonitor command', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export {};\n' });
+    const marker = path.join(repo.path, 'fsmonitor-ran');
+    const hook = path.join(repo.path, 'fsmonitor-hook');
+    await writeFile(hook, `#!/bin/sh\ntouch '${marker}'\n`);
+    await chmod(hook, 0o755);
+    await execFileAsync('git', ['config', 'core.fsmonitor', hook], { cwd: repo.path });
+    try {
+      await new DefaultGitProvider().inspectRepository(repo.path);
+      const markerExists = await access(marker).then(() => true).catch(() => false);
+      expect(markerExists).toBe(false);
+    } finally {
+      await repo.cleanup();
     }
   });
 });
