@@ -264,7 +264,7 @@ describe('integration: Git-dependent capability unevaluated', () => {
 
       const diff = await runDiffDiagnosis(fixturePath, repo.baseSha);
 
-      expect(await realpath(diff.current.metadata.repositoryPath)).toBe(await realpath(fixturePath));
+      expect(diff.current.metadata.repositoryPath).toBe('[REPOSITORY]');
       expect(diff.comparison.compatible).toBe(false);
       expect(diff.comparison.reason).toContain('Git unavailable for analyzed root');
       expect(diff.comparison.changedFiles).toEqual([]);
@@ -346,6 +346,8 @@ describe('integration: baseline atomic round-trip', () => {
       const entry = baselineEntrySchema.parse(JSON.parse(raw));
       const loaded = await loadBaseline(snapshot, repo.headSha);
       expect(entry.sourceCommitSha).toBe(repo.headSha);
+      expect(entry.report.metadata.repositoryPath).toBe('[REPOSITORY]');
+      expect(raw).not.toContain(repo.path);
       expect(loaded.entry?.inputId).toBe(entry.inputId);
       expect(loaded.entry?.report.metadata.inputId).toBe(report.metadata.inputId);
     } finally {

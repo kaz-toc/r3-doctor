@@ -16,7 +16,7 @@ type SemanticProvider = {
 
 ### Supported provider IDs
 
-| ID | CLI | Config alias |
+| ID | CLI | CLI alias |
 |---|---|---|
 | `copilot` | `copilot --acp --stdio …` | — |
 | `cursor` | `agent acp` | — |
@@ -25,26 +25,24 @@ type SemanticProvider = {
 
 `implementationVersion`（現行 `1.0.0`）は同じ provider 名の実装リリースを識別する不変値である。プロンプト契約またはパース契約を変え得る変更時は必ず更新し、ベースライン互換性 fingerprint に含める。
 
-### Config (`r3-doctor.config.json`)
+### Operator-owned execution policy
 
-```json
-{
-  "llm": {
-    "enabled": true,
-    "provider": "codex",
-    "model": "optional-model-id",
-    "executablePath": "optional-override",
-    "maxPromptBytes": 80000,
-    "maxFiles": 20,
-    "sendScope": "cluster-context"
-  }
-}
+```bash
+r3-doctor scan . \
+  --llm-provider codex \
+  --llm-model optional-model-id \
+  --llm-executable codex-acp \
+  --llm-max-prompt-bytes 80000 \
+  --llm-max-files 20 \
+  --llm-send-scope cluster-context
 ```
+
+解析対象の `r3-doctor.config.json` は untrusted data であり、LLM の有効化、provider、実行ファイル、送信 scope を所有しない。外部プロセス起動と外部送信は実行者が `--llm-provider` を明示した場合だけ許可する。
 
 ### CLI utilities
 
 - `r3-doctor llm inspect [--provider codex]` — spawn + initialize のみ。失敗時は install hint を stderr に出力。
-- `r3-doctor scan . --dry-run-semantic` — ACP を呼ばずプロンプトを stdout に出力。
+- `r3-doctor scan . --dry-run-semantic [--llm-send-scope changed]` — ACP を呼ばずプロンプトを stdout に出力。
 
 ## Git Provider (`src/adapters/git-provider.ts`)
 

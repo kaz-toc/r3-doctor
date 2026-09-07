@@ -238,6 +238,7 @@ CLIは次の終了コード契約を持つ。
 
 ## セキュリティ
 
+- 解析対象リポジトリ、その設定、ファイル名、内容はすべて敵対的入力になり得る。対象リポジトリはプロセス起動、provider 選択、外部送信の有効化を決定できず、これらは実行者側 CLI policy のみが所有する。
 - repository root外のunit、symlink、redaction漏れを回帰テストで保護する。
 - LLM送信候補は除外・上限・明示的scope適用後に生成する。
 - schema不正なprovider出力をreportへ混入させない。

@@ -36,11 +36,11 @@
 - Consumes: Commander option values and the target repository config JSON.
 - Produces: `parseLlmExecutionPolicy(options, dryRun): LlmConfig` and `createRepositorySnapshot(path, unitId, llmConfig)`.
 
-- [ ] Add tests proving a target `llm` block is rejected and an operator-injected policy alone can start the fake ACP provider.
-- [ ] Run the focused tests and confirm failures originate from the current repo-controlled `llm` behavior.
-- [ ] Split `repositoryConfigSchema` from `effectiveConfigSchema`, add bounded operator policy parsing, and thread it through scan/diff.
-- [ ] Run focused semantic, intake, integration, comparison, and assessment tests to green.
-- [ ] Commit the completed boundary.
+- [x] Add tests proving a target `llm` block is rejected and an operator-injected policy alone can start the fake ACP provider.
+- [x] Run the focused tests and confirm failures originate from the current repo-controlled `llm` behavior.
+- [x] Split `repositoryConfigSchema` from `effectiveConfigSchema`, add bounded operator policy parsing, and thread it through scan/diff.
+- [x] Run focused semantic, intake, integration, comparison, and assessment tests to green.
+- [x] Commit the completed boundary.
 
 ### Task 2: Safe GitHub reporting and workflow
 
@@ -53,11 +53,11 @@
 - Consumes: schema-validated but untrusted diff strings.
 - Produces: percent-escaped workflow commands and flattened escaped Markdown.
 
-- [ ] Add failing tests with newline, comma, colon, percent, Markdown, and HTML payloads.
-- [ ] Confirm the tests expose separate workflow command lines and injected Markdown.
-- [ ] Implement `escapeWorkflowData`, `escapeWorkflowProperty`, and `escapeMarkdownText`; least-privilege the advisory workflow.
-- [ ] Run GitHub reporting and integration tests to green.
-- [ ] Commit the reporting boundary.
+- [x] Add failing tests with newline, comma, colon, percent, Markdown, and HTML payloads.
+- [x] Confirm the tests expose separate workflow command lines and injected Markdown.
+- [x] Implement `escapeWorkflowData`, `escapeWorkflowProperty`, and `escapeMarkdownText`; least-privilege the advisory workflow.
+- [x] Run GitHub reporting and integration tests to green.
+- [x] Commit the reporting boundary.
 
 ### Task 3: Bounded glob and Git input handling
 
@@ -72,11 +72,11 @@
 - Consumes: untrusted exclude glob strings and CLI Git refs.
 - Produces: memoized glob matching and a validated full commit object ID.
 
-- [ ] Add failing tests for regex metacharacter literals, adversarial wildcard input, leading-dash refs, and malformed object output.
-- [ ] Confirm the matcher test either mis-matches or exceeds its bounded runtime and the Git test reaches option parsing.
-- [ ] Replace regex construction with memoized matching, add config bounds, use `--end-of-options`, and validate object IDs.
-- [ ] Run intake, diff, comparison, and integration tests to green.
-- [ ] Commit the input boundary.
+- [x] Add failing tests for regex metacharacter literals, adversarial wildcard input, leading-dash refs, and malformed object output.
+- [x] Confirm the matcher test either mis-matches or exceeds its bounded runtime and the Git test reaches option parsing.
+- [x] Replace regex construction with memoized matching, add config bounds, use `--end-of-options`, and validate object IDs.
+- [x] Run intake, diff, comparison, and integration tests to green.
+- [x] Commit the input boundary.
 
 ### Task 4: Default repository-path privacy and documentation
 
@@ -95,11 +95,11 @@
 - Consumes: reports containing an internal absolute repository path.
 - Produces: external and persisted reports with `metadata.repositoryPath === '[REPOSITORY]'`.
 
-- [ ] Add failing redaction and baseline persistence tests for default path anonymity.
-- [ ] Confirm the absolute path remains in current output before the fix.
-- [ ] Apply fixed repository-path anonymization and update configuration examples, trust-boundary docs, ignore rules, and LLM smoke invocation.
-- [ ] Run redaction, persistence, package, and documentation-adjacent tests to green.
-- [ ] Commit the privacy and documentation boundary.
+- [x] Add failing redaction and baseline persistence tests for default path anonymity.
+- [x] Confirm the absolute path remains in current output before the fix.
+- [x] Apply fixed repository-path anonymization and update configuration examples, trust-boundary docs, ignore rules, and LLM smoke invocation.
+- [x] Run redaction, persistence, package, and documentation-adjacent tests to green.
+- [x] Commit the privacy and documentation boundary.
 
 ### Task 5: Review and release evidence
 

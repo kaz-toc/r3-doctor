@@ -14,6 +14,16 @@ import type { DiagnosisReport } from '../src/schema/report.v1.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 describe('policy redaction and gate eligibility', () => {
+  it('always removes the absolute repository path from external reports', async () => {
+    const snapshot = await createRepositorySnapshot(path.join(root, 'fixtures', 'stable-cart'));
+    const report = await runDiagnosis(snapshot);
+
+    const redacted = redactReport(report, []);
+
+    expect(redacted.metadata.repositoryPath).toBe('[REPOSITORY]');
+    expect(JSON.stringify(redacted)).not.toContain(snapshot.repositoryPath);
+  });
+
   it('redacts configured path segments consistently', async () => {
     const snapshot = await createRepositorySnapshot(path.join(root, 'fixtures', 'stable-cart'));
     const report = await runDiagnosis(snapshot);
@@ -74,6 +84,37 @@ describe('policy redaction and gate eligibility', () => {
     expect(twice).toEqual(once);
     expect(once.evidence[0]?.evidenceId).toMatch(/^evidence:/);
     expect(once.metadata.redactionPolicyFingerprint).toBe(redactionPolicyFingerprint(['evidence', 'R']));
+  });
+
+  it('removes legacy absolute paths from already-redacted reports', () => {
+    const redacted = redactReport({
+      metadata: {
+        schemaVersion: 1 as const,
+        assessmentContractVersion: 2 as const,
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        inputId: 'input',
+        repositoryPath: '/private/legacy/repository',
+        analyzers: [],
+        truncated: false,
+        unevaluatedAreas: [],
+      },
+      repository: { regressionRiskScore: 1, confidence: 1, disclaimer: 'test' },
+      axes: [],
+      clusters: [],
+      evidence: [],
+      semanticFindings: [],
+      interventions: [],
+      capabilities: [],
+    }, []);
+    const report = {
+      ...redacted,
+      metadata: {
+        ...redacted.metadata,
+        repositoryPath: '/private/legacy/repository',
+      },
+    };
+
+    expect(redactReport(report, []).metadata.repositoryPath).toBe('[REPOSITORY]');
   });
 
   it('keeps raw token-shaped entity IDs distinct from generated pseudonyms', () => {
