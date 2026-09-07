@@ -27,6 +27,7 @@ export function displayTargetPaths(targetPaths: string[], limit = 3): string[] {
 
 type TemplateContext = {
   cluster: RiskCluster;
+  basisEvidenceId: string;
   primaryPath: string;
   strongestMetric: string;
   targetPaths: string[];
@@ -67,6 +68,7 @@ const DEFAULT_TEMPLATE_DEF: MechanismTemplateDef = {
 function templateParams(ctx: TemplateContext): Record<string, string | number> {
   return {
     mechanismId: ctx.cluster.mechanismId,
+    basisEvidenceId: ctx.basisEvidenceId,
     primaryPath: ctx.primaryPath,
     strongestMetric: ctx.strongestMetric,
     score: ctx.cluster.score,
@@ -94,7 +96,10 @@ function buildTemplateFields(locale: ReportLocale, prefix: string, ctx: Template
     expectedEffect: t(locale, interventionKey(prefix, 'expectedEffect')),
     rationale: t(locale, interventionKey(prefix, 'rationale'), params),
     firstStep: t(locale, interventionKey(prefix, 'firstStep'), params),
-    verification: t(locale, interventionKey(prefix, 'verification'), params),
+    verification: [
+      t(locale, interventionKey(prefix, 'verification'), params),
+      t(locale, 'intervention.verification.rescan', params),
+    ].join(' '),
     verificationHorizon: t(locale, interventionKey(prefix, 'verificationHorizon'), params),
   };
 }
@@ -185,6 +190,7 @@ export function buildInterventions(
     const templateDef = templateDefForMechanism(cluster.mechanismId);
     const context: TemplateContext = {
       cluster,
+      basisEvidenceId: basis.evidence.evidenceId,
       primaryPath: basis.primaryPath,
       strongestMetric: basis.strongestMetric,
       targetPaths,

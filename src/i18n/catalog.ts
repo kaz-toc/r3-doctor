@@ -116,6 +116,7 @@ export const MESSAGE_KEYS = [
   'intervention.default.firstStep',
   'intervention.default.verification',
   'intervention.default.verificationHorizon',
+  'intervention.verification.rescan',
   'format.remainingEvidence.one',
   'format.remainingEvidence.other',
   'format.remainingClusters.one',
@@ -196,7 +197,7 @@ const en: Catalog = {
   'intervention.dependency-cycle.verification':
     'Run targeted tests around {primaryPath} and confirm {mechanismId} linked signals decrease on the next r3-doctor scan.',
   'intervention.dependency-cycle.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked dependency-cycle signal remains absent on a later scan.',
   'intervention.high-connectivity.title': 'Reduce shared module surface area',
   'intervention.high-connectivity.description':
     'Narrow the public API and introduce a facade that hides internal implementation.',
@@ -208,7 +209,7 @@ const en: Catalog = {
   'intervention.high-connectivity.verification':
     'Add contract/regression tests for {primaryPath} and re-diagnose fan-in/fan-out metrics.',
   'intervention.high-connectivity.verificationHorizon':
-    'Linked cluster score and connectivity metrics decrease on the next scan.',
+    'The linked connectivity signal remains absent or weaker on a later scan.',
   'intervention.verification-gap.title': 'Add boundary tests before changing code',
   'intervention.verification-gap.description':
     'Add regression-detecting tests for high fan-in modules or shared contracts first.',
@@ -220,7 +221,7 @@ const en: Catalog = {
   'intervention.verification-gap.verification':
     'Add test command for {primaryPath} to CI and confirm missing-test-pair linked signals resolve.',
   'intervention.verification-gap.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked missing-test-pair signal remains absent on a later scan.',
   'intervention.volatility.title': 'Stabilize change process in high-churn areas',
   'intervention.volatility.description':
     'Enforce change checklists and small PR units for frequently breaking areas.',
@@ -244,7 +245,7 @@ const en: Catalog = {
   'intervention.large-file.verification':
     'Run test command after splitting {primaryPath} and confirm large-file linked signals resolve.',
   'intervention.large-file.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked large-file signal remains absent or weaker on a later scan.',
   'intervention.barrel-export.title': 'Replace barrel re-exports with direct imports',
   'intervention.barrel-export.description':
     'Stop barrel re-exports and make dependency boundaries explicit.',
@@ -256,7 +257,7 @@ const en: Catalog = {
   'intervention.barrel-export.verification':
     'Run test command around {primaryPath} and confirm barrel-reexport linked signals resolve.',
   'intervention.barrel-export.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked barrel-reexport signal remains absent on a later scan.',
   'intervention.deep-nesting.title': 'Resolve deep nesting with function extraction',
   'intervention.deep-nesting.description':
     'Split deep nesting into smaller functions and localize change units.',
@@ -268,7 +269,7 @@ const en: Catalog = {
   'intervention.deep-nesting.verification':
     'Run test command after refactoring {primaryPath} and confirm deep-nesting linked signals resolve.',
   'intervention.deep-nesting.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked deep-nesting signal remains absent or weaker on a later scan.',
   'intervention.unresolved-import.title': 'Fix unresolved imports',
   'intervention.unresolved-import.description':
     'Fix unresolved imports and restore a healthy dependency graph.',
@@ -280,7 +281,7 @@ const en: Catalog = {
   'intervention.unresolved-import.verification':
     'Run build/test command around {primaryPath} and confirm unresolved-import linked signals resolve.',
   'intervention.unresolved-import.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked unresolved-import signal remains absent on a later scan.',
   'intervention.semantic-ambiguity.title':
     'Fix implicit contracts with decision records or contract tests',
   'intervention.semantic-ambiguity.description':
@@ -293,7 +294,7 @@ const en: Catalog = {
   'intervention.semantic-ambiguity.verification':
     'Add contract tests or an ADR for {primaryPath} and rerun semantic scan.',
   'intervention.semantic-ambiguity.verificationHorizon':
-    'Linked cluster score decreases on the next semantic scan.',
+    'The linked semantic finding remains absent or weaker on a later semantic scan.',
   'intervention.default.title': 'Address related risk',
   'intervention.default.description': 'Resolve structural weaknesses linked to the cluster.',
   'intervention.default.expectedEffect': 'Lower linked cluster score',
@@ -304,7 +305,9 @@ const en: Catalog = {
   'intervention.default.verification':
     'Run test command for {primaryPath} and confirm linked signals/clusters decrease.',
   'intervention.default.verificationHorizon':
-    'Linked cluster score decreases on the next scan.',
+    'The linked signal remains absent or weaker on a later scan.',
+  'intervention.verification.rescan':
+    'Then run `r3-doctor scan . --format json` and confirm {basisEvidenceId} is absent or weaker.',
   'format.remainingEvidence.one': 'and 1 more evidence item',
   'format.remainingEvidence.other': 'and {count} more evidence items',
   'format.remainingClusters.one': 'and 1 more cluster',
@@ -374,7 +377,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を起点に循環を断ち、共有契約を境界モジュールへ移す。',
   'intervention.dependency-cycle.verification':
     '{primaryPath} 周辺の targeted test を実行し、r3-doctor scan で {mechanismId} linked signal が減ることを確認する。',
-  'intervention.dependency-cycle.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.dependency-cycle.verificationHorizon': '後続の scan でも linked dependency-cycle signal が再発しないこと。',
   'intervention.high-connectivity.title': '共有モジュールの表面積を縮小する',
   'intervention.high-connectivity.description': '公開 API を狭め、内部実装を隠蔽するファサードを導入する。',
   'intervention.high-connectivity.expectedEffect': 'change-blast-radius の低下',
@@ -385,7 +388,7 @@ const ja: Catalog = {
   'intervention.high-connectivity.verification':
     '{primaryPath} の contract/regression test を追加し、fan-in/fan-out metric の再診断を行う。',
   'intervention.high-connectivity.verificationHorizon':
-    '次回 scan で linked cluster score と connectivity metric が低下していること。',
+    '後続の scan でも linked connectivity signal が消失または低下していること。',
   'intervention.verification-gap.title': '変更前に境界テストを追加する',
   'intervention.verification-gap.description':
     '高 fan-in モジュールまたは共有契約に対し、回帰を検出するテストを先に追加する。',
@@ -396,7 +399,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} をカバーする境界テストを先に追加する。',
   'intervention.verification-gap.verification':
     '{primaryPath} 向け test command を CI に追加し、missing-test-pair linked signal の解消を確認する。',
-  'intervention.verification-gap.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.verification-gap.verificationHorizon': '後続の scan でも linked missing-test-pair signal が再発しないこと。',
   'intervention.volatility.title': '高 churn 領域の変更手順を固定する',
   'intervention.volatility.description': '頻繁に壊れる領域に対し、変更チェックリストと小さな PR 単位を強制する。',
   'intervention.volatility.expectedEffect': 'change-volatility の安定化',
@@ -417,7 +420,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を確認し、責務単位でファイルを分割する。',
   'intervention.large-file.verification':
     '{primaryPath} の split 後 test command を実行し、large-file linked signal の解消を確認する。',
-  'intervention.large-file.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.large-file.verificationHorizon': '後続の scan でも linked large-file signal が消失または低下していること。',
   'intervention.barrel-export.title': 'barrel 再エクスポートを具体 import に置き換える',
   'intervention.barrel-export.description': 'barrel 再エクスポートをやめ、依存境界を明示する。',
   'intervention.barrel-export.expectedEffect': 'structural-fragility の低下',
@@ -427,7 +430,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を確認し、export * を具体 import へ置き換える。',
   'intervention.barrel-export.verification':
     '{primaryPath} 周辺 test command を実行し、barrel-reexport linked signal の解消を確認する。',
-  'intervention.barrel-export.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.barrel-export.verificationHorizon': '後続の scan でも linked barrel-reexport signal が再発しないこと。',
   'intervention.deep-nesting.title': '深いネストを関数分割で解消する',
   'intervention.deep-nesting.description': '深いネストを小さな関数へ分割し、変更単位を局所化する。',
   'intervention.deep-nesting.expectedEffect': 'structural-fragility の低下',
@@ -437,7 +440,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を確認し、深い分岐を関数へ抽出する。',
   'intervention.deep-nesting.verification':
     '{primaryPath} の refactor 後 test command を実行し、deep-nesting linked signal の解消を確認する。',
-  'intervention.deep-nesting.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.deep-nesting.verificationHorizon': '後続の scan でも linked deep-nesting signal が消失または低下していること。',
   'intervention.unresolved-import.title': '未解決 import を修正する',
   'intervention.unresolved-import.description': '未解決 import を修正し、依存グラフを健全化する。',
   'intervention.unresolved-import.expectedEffect': 'structural-fragility の低下',
@@ -447,7 +450,7 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を確認し、未解決 import を修正する。',
   'intervention.unresolved-import.verification':
     '{primaryPath} 周辺 build/test command を実行し、unresolved-import linked signal の解消を確認する。',
-  'intervention.unresolved-import.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.unresolved-import.verificationHorizon': '後続の scan でも linked unresolved-import signal が再発しないこと。',
   'intervention.semantic-ambiguity.title': '暗黙契約を decision record または contract test で固定する',
   'intervention.semantic-ambiguity.description':
     '命名や例外分岐の暗黙契約を ADR または contract test で可視化する。',
@@ -459,7 +462,7 @@ const ja: Catalog = {
   'intervention.semantic-ambiguity.verification':
     '{primaryPath} 向け contract test または ADR を追加し、semantic scan を再実行する。',
   'intervention.semantic-ambiguity.verificationHorizon':
-    '次回 semantic scan で linked cluster score が低下していること。',
+    '後続の semantic scan でも linked finding が消失または低下していること。',
   'intervention.default.title': '関連リスクを解消する',
   'intervention.default.description': 'cluster に関連する構造上の弱点を解消する。',
   'intervention.default.expectedEffect': 'linked cluster score の低下',
@@ -469,7 +472,9 @@ const ja: Catalog = {
     '{primaryPath} の {strongestMetric} を確認し、linked cluster の根本原因を解消する。',
   'intervention.default.verification':
     '{primaryPath} 向け test command を実行し、linked signal/cluster の減少を確認する。',
-  'intervention.default.verificationHorizon': '次回 scan で linked cluster score が低下していること。',
+  'intervention.default.verificationHorizon': '後続の scan でも linked signal が消失または低下していること。',
+  'intervention.verification.rescan':
+    '続けて `r3-doctor scan . --format json` を実行し、{basisEvidenceId} が消失または低下したことを確認する。',
   'format.remainingEvidence.one': '残り1件',
   'format.remainingEvidence.other': '残り{count}件',
   'format.remainingClusters.one': '残り1クラスタ',

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { catalogKeys, MESSAGE_KEYS } from '../src/i18n/catalog.js';
-import { getScoreDisclaimer } from '../src/i18n/messages.js';
+import { getScoreDisclaimer, t } from '../src/i18n/messages.js';
 
 describe('i18n catalog', () => {
   it('keeps en and ja key sets identical', () => {
@@ -27,5 +27,11 @@ describe('i18n catalog', () => {
   it('localizes score disclaimer', () => {
     expect(getScoreDisclaimer('en')).toContain('probability');
     expect(getScoreDisclaimer('ja')).toContain('確率');
+  });
+
+  it('identifies the exact Evidence and rescan command in verification copy', () => {
+    const params = { basisEvidenceId: 'evidence:large-file:src/a.ts' };
+    expect(t('en', 'intervention.verification.rescan', params)).toContain(params.basisEvidenceId);
+    expect(t('ja', 'intervention.verification.rescan', params)).toContain('r3-doctor scan . --format json');
   });
 });

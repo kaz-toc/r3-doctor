@@ -308,6 +308,8 @@ describe('cluster-specific intervention ranking', () => {
       expect(action.verification.length).toBeGreaterThan(0);
       expect(action.verificationHorizon.length).toBeGreaterThan(0);
       expect(action.verification).not.toEqual(action.verificationHorizon);
+      expect(action.verification).toContain('r3-doctor scan . --format json');
+      expect(action.verification).toContain(evidence[0]!.evidenceId);
     }
   });
 
