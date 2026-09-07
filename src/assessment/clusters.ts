@@ -23,6 +23,42 @@ const MECHANISM_LABELS: Record<string, string> = {
   'unresolved-import': '未解決 import',
 };
 
+type MechanismDescription = {
+  failureMechanism: string;
+  triggerChanges: string[];
+};
+
+const MECHANISM_DESCRIPTIONS: Record<string, MechanismDescription> = {
+  'dependency-cycle': {
+    failureMechanism: '循環依存により変更が予測不能な連鎖反応を起こす。',
+    triggerChanges: ['共有モジュールの API 変更', '循環内ファイルのリファクタリング'],
+  },
+  'high-connectivity': {
+    failureMechanism: '高い fan-in / fan-out により小さな変更が広範囲へ波及する。',
+    triggerChanges: ['hub モジュールの公開 API 変更', '共通型の変更'],
+  },
+  'verification-gap': {
+    failureMechanism: '変更影響に対する検証が不足し、デグレが検出されにくい。',
+    triggerChanges: ['テスト未整備領域の機能追加', '境界条件の変更'],
+  },
+  volatility: {
+    failureMechanism: '頻繁な変更が不安定な領域へ集中している。',
+    triggerChanges: ['高 churn ファイルの連続変更', 'revert を伴う修正'],
+  },
+  'semantic-ambiguity': {
+    failureMechanism: '暗黙契約や命名の乖離により意図復元が困難。',
+    triggerChanges: ['命名変更', '例外分岐の追加'],
+  },
+  'large-file': {
+    failureMechanism: '単一ファイルへの責務集中により変更リスクが局所化している。',
+    triggerChanges: ['関連ファイルの変更'],
+  },
+  'barrel-export': {
+    failureMechanism: 'barrel 再エクスポートが依存境界を曖昧にしている。',
+    triggerChanges: ['関連ファイルの変更'],
+  },
+};
+
 function mechanismForEvidence(item: Evidence): string {
   return MECHANISM_FOR_SIGNAL[item.signalId as Exclude<SignalId, 'semantic-ambiguity'>] ?? item.signalId;
 }
@@ -140,42 +176,11 @@ function clusterScore(componentEvidence: Evidence[]): number {
   return Math.round(weightedPeak(strengths, CLUSTER_PEAK_WEIGHTS));
 }
 
-function describeMechanism(mechanismId: string): string {
-  switch (mechanismId) {
-    case 'dependency-cycle':
-      return '循環依存により変更が予測不能な連鎖反応を起こす。';
-    case 'high-connectivity':
-      return '高い fan-in / fan-out により小さな変更が広範囲へ波及する。';
-    case 'verification-gap':
-      return '変更影響に対する検証が不足し、デグレが検出されにくい。';
-    case 'volatility':
-      return '頻繁な変更が不安定な領域へ集中している。';
-    case 'semantic-ambiguity':
-      return '暗黙契約や命名の乖離により意図復元が困難。';
-    case 'large-file':
-      return '単一ファイルへの責務集中により変更リスクが局所化している。';
-    case 'barrel-export':
-      return 'barrel 再エクスポートが依存境界を曖昧にしている。';
-    default:
-      return `${mechanismId} に関連する構造上の弱点。`;
-  }
-}
-
-function describeTriggers(mechanismId: string): string[] {
-  switch (mechanismId) {
-    case 'dependency-cycle':
-      return ['共有モジュールの API 変更', '循環内ファイルのリファクタリング'];
-    case 'high-connectivity':
-      return ['hub モジュールの公開 API 変更', '共通型の変更'];
-    case 'verification-gap':
-      return ['テスト未整備領域の機能追加', '境界条件の変更'];
-    case 'volatility':
-      return ['高 churn ファイルの連続変更', 'revert を伴う修正'];
-    case 'semantic-ambiguity':
-      return ['命名変更', '例外分岐の追加'];
-    default:
-      return ['関連ファイルの変更'];
-  }
+function describeMechanism(mechanismId: string): MechanismDescription {
+  return MECHANISM_DESCRIPTIONS[mechanismId] ?? {
+    failureMechanism: `${mechanismId} に関連する構造上の弱点。`,
+    triggerChanges: ['関連ファイルの変更'],
+  };
 }
 
 export function buildMechanismClusters(evidence: Evidence[], semanticFindings: SemanticFinding[] = []): RiskCluster[] {
@@ -208,6 +213,7 @@ export function buildMechanismClusters(evidence: Evidence[], semanticFindings: S
         return;
       }
 
+      const description = describeMechanism(mechanismId);
       clusters.push({
         clusterId: `cluster:${axisId}:${mechanismId}:${index + 1}`,
         title: clusterTitle(mechanismId, componentPaths, componentEvidence),
@@ -216,8 +222,8 @@ export function buildMechanismClusters(evidence: Evidence[], semanticFindings: S
         axisId,
         mechanismId,
         paths: componentPaths,
-        failureMechanism: describeMechanism(mechanismId),
-        triggerChanges: describeTriggers(mechanismId),
+        failureMechanism: description.failureMechanism,
+        triggerChanges: description.triggerChanges,
         evidenceIds: componentEvidence.map((item) => item.evidenceId),
       });
     });
@@ -244,6 +250,7 @@ export function buildMechanismClusters(evidence: Evidence[], semanticFindings: S
         ...findings.map((finding) => finding.path),
         ...evidenceIds.map((evidenceId) => evidenceById.get(evidenceId)?.path),
       ].filter((itemPath): itemPath is string => Boolean(itemPath)))].sort();
+      const description = describeMechanism('semantic-ambiguity');
       clusters.push({
         clusterId: `cluster:semantic-ambiguity:semantic-ambiguity:${index + 1}`,
         title: clusterTitle('semantic-ambiguity', paths, evidence.filter((item) => evidenceIds.includes(item.evidenceId))),
@@ -252,8 +259,8 @@ export function buildMechanismClusters(evidence: Evidence[], semanticFindings: S
         axisId: 'semantic-ambiguity',
         mechanismId: 'semantic-ambiguity',
         paths,
-        failureMechanism: describeMechanism('semantic-ambiguity'),
-        triggerChanges: describeTriggers('semantic-ambiguity'),
+        failureMechanism: description.failureMechanism,
+        triggerChanges: description.triggerChanges,
         evidenceIds,
       });
     });

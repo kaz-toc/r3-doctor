@@ -652,6 +652,39 @@ describe('assessment output labels', () => {
     expect(formatMarkdownReport(report)).toMatch(/\| Semantic Ambiguity \| \d+/);
   });
 
+  it('keeps ungrounded semantic findings out of clusters and repository score', () => {
+    const report = assessRisk({
+      snapshot: {
+        ...baseSnapshot,
+        files: [{ relativePath: 'src/a.ts', absolutePath: '/tmp/repo/src/a.ts', extension: '.ts', content: '', contentHash: 'a', nonBlankLines: 1 }],
+      },
+      evidence: [],
+      semanticFindings: [
+        {
+          findingId: 'finding:semantic:ungrounded',
+          axisId: 'semantic-ambiguity',
+          path: 'src/a.ts',
+          summary: 'Finding has no deterministic evidence anchor',
+          relatedEvidenceIds: [],
+          confidence: 0.8,
+          impactScope: 'repository',
+        },
+      ],
+      capabilities: [],
+      analyzers: [],
+      selectedAnalyzers: 0,
+      successfulAnalyzers: 0,
+      semanticResolution: { status: 'available', provider: { name: 'codex', implementationVersion: '1.0.0', analyze: async () => [] } },
+      llmProvider: 'codex',
+      semanticProviderImplementationVersion: '1.0.0',
+    });
+
+    expect(report.semanticFindings).toHaveLength(1);
+    expect(report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')?.score).toBe(0);
+    expect(report.clusters.some((cluster) => cluster.axisId === 'semantic-ambiguity')).toBe(false);
+    expect(report.repository.regressionRiskScore).toBe(0);
+  });
+
   it('records no findings reason when semantic provider succeeds with empty output', () => {
     const report = assessRisk({
       snapshot: { ...baseSnapshot, config: { ...baseSnapshot.config, llm: { ...baseSnapshot.config.llm, enabled: true, provider: 'codex' } } },

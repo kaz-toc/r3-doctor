@@ -28,6 +28,13 @@ function sortEvidence(items: Evidence[]): Evidence[] {
   });
 }
 
+function formatEvidenceMetrics(item: Evidence): string {
+  const entries = Object.entries(item.metrics ?? {}).sort(([left], [right]) => left.localeCompare(right));
+  return entries.length > 0
+    ? entries.map(([key, value]) => `${key}=${String(value)}`).join(',')
+    : 'none';
+}
+
 function reportHeaderLines(report: DiagnosisReport): string[] {
   const unevaluatedCount = report.axes.filter((axis) => axis.unevaluated).length;
   return [
@@ -42,11 +49,11 @@ function reportHeaderLines(report: DiagnosisReport): string[] {
 }
 
 function formatEvidenceBullet(item: Evidence): string {
-  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
+  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
 }
 
 function formatEvidenceConsoleBullet(item: Evidence): string {
-  return `  - [${item.severity}] strength=${item.strength} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
+  return `  - [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
 }
 
 function renderFactGroupMarkdown(group: FactEvidenceGroup): string[] {
@@ -73,7 +80,7 @@ function renderFactGroupConsole(group: FactEvidenceGroup): string[] {
     '    evidence:',
   ];
   for (const item of group.evidence) {
-    lines.push(`    - [${item.severity}] ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`);
+    lines.push(`  ${formatEvidenceConsoleBullet(item)}`);
   }
   if (group.remainingEvidenceCount > 0) {
     lines.push(`    - 他 ${group.remainingEvidenceCount} evidence`);
@@ -483,8 +490,8 @@ function diffSummaryLines(diff: DiffReport): string[] {
   return lines;
 }
 
-function diffSummaryMarkdown(diff: DiffReport): string[] {
-  const lines = ['## Diff Comparison', ''];
+function diffSummaryMarkdown(diff: DiffReport, heading = '## Diff Comparison'): string[] {
+  const lines = [heading, ''];
   lines.push(`- Compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
     lines.push(`- Reason: ${diff.comparison.reason}`);
@@ -499,8 +506,8 @@ function diffSummaryMarkdown(diff: DiffReport): string[] {
   return lines;
 }
 
-function renderDiffFactsConsole(diff: DiffReport): string[] {
-  const lines = [...diffSummaryLines(diff), ''];
+function renderDiffFactsConsole(diff: DiffReport, heading = 'Current state'): string[] {
+  const lines = [heading, ...diffSummaryLines(diff), ''];
   for (const line of formatBlastRadiusConsoleLines(diff)) {
     lines.push(line === 'Blast radius:' ? `  ${line}` : `  ${line}`);
   }
@@ -511,8 +518,14 @@ function renderDiffFactsConsole(diff: DiffReport): string[] {
   return lines;
 }
 
-function renderDiffFactsMarkdown(diff: DiffReport): string[] {
-  const lines = [...diffSummaryMarkdown(diff), ...formatBlastRadiusMarkdownLines(diff), ...formatSignalChangeMarkdownLines(diff)];
+function renderDiffFactsMarkdown(diff: DiffReport, heading = '## Current state'): string[] {
+  const lines = [
+    heading,
+    '',
+    ...diffSummaryMarkdown(diff, '### Diff comparison'),
+    ...formatBlastRadiusMarkdownLines(diff),
+    ...formatSignalChangeMarkdownLines(diff),
+  ];
   return lines;
 }
 
@@ -554,36 +567,42 @@ function renderDiffSummaryMarkdown(diff: DiffReport): string[] {
   return lines;
 }
 
-function renderDiffActionsConsole(diff: DiffReport): string[] {
+function resolveChangedActionViewModel(diff: DiffReport): ReportViewModel {
   const changedEvidenceIds = new Set([
     ...diff.comparison.newSignals.map((item) => item.evidenceId),
     ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
   ]);
-  const model = resolveViewModel(diff.current);
-  const prioritized = model.actions.items.filter((item) =>
+  const model = buildReportViewModel(diff.current, {
+    ...DEFAULT_REPORT_VIEW_LIMITS,
+    actionCount: diff.current.interventions.length,
+  });
+  const matching = model.actions.items.filter((item) =>
     item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
     item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id))),
   );
-  const lines = ['Improvement points (changed risk):'];
-  if (prioritized.length === 0) {
+  const items = matching.slice(0, DEFAULT_REPORT_VIEW_LIMITS.actionCount);
+  return {
+    ...model,
+    actions: {
+      items,
+      remainingActionCount: Math.max(0, matching.length - items.length),
+    },
+  };
+}
+
+function renderDiffActionsConsole(diff: DiffReport): string[] {
+  const model = resolveChangedActionViewModel(diff);
+  const lines = ['Improvement points'];
+  if (model.actions.items.length === 0) {
     lines.push('  - (none linked to changed risk)');
   } else {
-    lines.push(...renderActionsConsole({ ...model, actions: { ...model.actions, items: prioritized } }).slice(1));
+    lines.push(...renderActionsConsole(model).slice(1));
   }
   return lines;
 }
 
 function renderDiffActionsMarkdown(diff: DiffReport): string[] {
-  const changedEvidenceIds = new Set([
-    ...diff.comparison.newSignals.map((item) => item.evidenceId),
-    ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
-  ]);
-  const model = resolveViewModel(diff.current);
-  const prioritized = model.actions.items.filter((item) =>
-    item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
-    item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id))),
-  );
-  return renderActionsMarkdown({ ...model, actions: { ...model.actions, items: prioritized } }, '## Improvement points');
+  return renderActionsMarkdown(resolveChangedActionViewModel(diff), '## Improvement points');
 }
 
 function renderDiffAllConsole(diff: DiffReport): string[] {

@@ -7,6 +7,7 @@ import {
   DEFAULT_REPORT_VIEW_LIMITS,
 } from '../src/reporting/view-model.js';
 import {
+  formatConsoleReport,
   formatJsonReport,
   formatMarkdownReport,
   formatReport,
@@ -38,6 +39,28 @@ describe('reporting views', () => {
     expect(model.actions.items).toHaveLength(5);
     expect(model.actions.remainingActionCount).toBe(1);
     expect(model.summary.calibrationStatus).toBe('uncalibrated');
+  });
+
+  it('limits action evidence to the linked clusters', () => {
+    const model = buildReportViewModel(report, DEFAULT_REPORT_VIEW_LIMITS);
+
+    for (const action of model.actions.items) {
+      const clusterEvidenceIds = new Set(
+        action.linkedClusters.flatMap((cluster) => cluster.evidenceIds),
+      );
+      expect(action.linkedEvidence.length).toBeGreaterThan(0);
+      expect(action.linkedEvidence.every((item) => clusterEvidenceIds.has(item.evidenceId))).toBe(true);
+    }
+  });
+
+  it('includes raw metrics and strength in facts views', () => {
+    const markdown = formatMarkdownReport(report, { view: 'facts' });
+    const consoleOut = formatConsoleReport(report, { view: 'facts' });
+
+    expect(markdown).toContain('strength=90');
+    expect(markdown).toContain('metrics=cycleLength=2');
+    expect(consoleOut).toContain('strength=90');
+    expect(consoleOut).toContain('metrics=cycleLength=2');
   });
 
   it('REG-2026-021 renders bounded actionable views with calibration status', () => {

@@ -15,6 +15,7 @@ import {
 } from '../schema/report.v1.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { SemanticProviderResolution } from '../semantic/provider.js';
+import { isScoreEligibleSemanticFinding } from '../semantic/semantic-response.js';
 import {
   axisHasSupportedSignals,
   capabilityApprovedEvidence,
@@ -57,6 +58,9 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     input.snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')),
   );
   const evidenceById = new Map(input.evidence.map((item) => [item.evidenceId, item]));
+  const scoreEligibleSemanticFindings = input.semanticFindings.filter((finding) =>
+    isScoreEligibleSemanticFinding(finding, snapshotPaths, evidenceById),
+  );
 
   const axes: AxisAssessment[] = axisIds.map((axisId) => {
     const axisEvidence = evaluatedEvidence.filter((item) => item.axisId === axisId);
@@ -92,7 +96,7 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     };
   });
 
-  const clusters = buildMechanismClusters(evaluatedEvidence, input.semanticFindings);
+  const clusters = buildMechanismClusters(evaluatedEvidence, scoreEligibleSemanticFindings);
   const repositoryResult = scoreRepository(axes, clusters);
   assignContributionPoints(axes, repositoryResult.scoreBreakdown.axisBase);
 

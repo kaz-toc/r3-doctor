@@ -261,7 +261,6 @@ function buildActionItems(report: DiagnosisReport, limits: ReportViewLimits): {
   remainingActionCount: number;
 } {
   const clusters = clusterById(report);
-  const evidence = evidenceById(report);
   const sorted = [...report.interventions].sort(
     (a, b) => a.priority - b.priority || b.priorityScore - a.priorityScore || a.interventionId.localeCompare(b.interventionId),
   );
@@ -271,9 +270,12 @@ function buildActionItems(report: DiagnosisReport, limits: ReportViewLimits): {
       const linkedClusters = intervention.linkedClusterIds
         .map((id) => clusters.get(id))
         .filter((item): item is RiskCluster => Boolean(item));
+      const linkedEvidenceIds = new Set(
+        linkedClusters.flatMap((cluster) => cluster.evidenceIds),
+      );
       const linkedEvidence = sortEvidence(
-        intervention.linkedSignalIds.flatMap((signalId) =>
-          report.evidence.filter((item) => item.signalId === signalId),
+        report.evidence.filter((item) =>
+          linkedEvidenceIds.has(item.evidenceId) && intervention.linkedSignalIds.includes(item.signalId),
         ),
       ).slice(0, limits.evidencePerCluster);
       const displayPaths = intervention.targetPaths.slice(0, limits.pathsPerItem);

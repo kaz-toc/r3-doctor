@@ -80,6 +80,49 @@ describe('calibration quality', () => {
     });
   });
 
+  it('keeps calibration provisional until every score band has enough samples', () => {
+    const oneBand = calibrationDataset([
+      calibrationRecord({ scoreBand: '0-30', sampleCount: 30 }),
+    ], { gateEligible: true, goldenRegressionPassed: true });
+
+    expect(summarizeCalibrationQuality(oneBand)).toMatchObject({
+      status: 'provisional',
+      missingConditions: ['calibration dataset with >= 30 samples per score band'],
+    });
+  });
+
+  it('keeps calibration provisional when score bands omit quality metrics', () => {
+    const incompleteMetrics = calibrationDataset([
+      calibrationRecord({ scoreBand: '0-30' }),
+      calibrationRecord({
+        scoreBand: '31-60',
+        falsePositiveRate: undefined,
+        missRate: undefined,
+        rankingQuality: undefined,
+        explanationUsefulness: undefined,
+      }),
+      calibrationRecord({ scoreBand: '61-80' }),
+      calibrationRecord({ scoreBand: '81-100' }),
+    ], { gateEligible: true, goldenRegressionPassed: true });
+
+    expect(summarizeCalibrationQuality(incompleteMetrics)).toMatchObject({
+      status: 'provisional',
+      missingConditions: expect.arrayContaining([
+        'documented false positive / false negative rates',
+        'ranking quality and explanation usefulness recorded',
+      ]),
+    });
+  });
+
+  it('rejects score bands outside the calibration contract', () => {
+    expect(calibrationDatasetSchema.safeParse({
+      schemaVersion: 1,
+      records: [calibrationRecord({ scoreBand: 'garbage' })],
+      gateConditions: [],
+      satisfiedConditions: [],
+    }).success).toBe(false);
+  });
+
   it('rejects invalid calibration schema with ConfigError', async () => {
     const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-calibration-invalid-'));
     try {
@@ -132,7 +175,7 @@ describe('calibration quality', () => {
         schemaVersion: 1,
         records: [{
           schemaVersion: 1,
-          scoreBand: '0-100',
+          scoreBand: '0-30',
           sampleCount: 30,
           observedRegressions: 1,
           observedReverts: 0,

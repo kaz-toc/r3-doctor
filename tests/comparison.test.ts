@@ -506,7 +506,7 @@ describe('commit-bound baseline comparison', () => {
         maxPromptBytes: 80_000,
       });
       const baselineReport = await runDiagnosis(snapshot, {
-        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, false)],
+        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, true)],
         semanticProviderFactory: {
           create: () => ({
             status: 'available' as const,
@@ -520,7 +520,7 @@ describe('commit-bound baseline comparison', () => {
       });
       await saveBaseline(snapshot, baselineReport);
       const currentReport = await runDiagnosis(snapshot, {
-        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, false)],
+        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, true)],
         semanticProviderFactory: {
           create: () => ({
             status: 'available' as const,
@@ -532,7 +532,7 @@ describe('commit-bound baseline comparison', () => {
                 axisId: 'semantic-ambiguity' as const,
                 path: 'src/a.ts',
                 summary: 'versioned semantic result',
-                relatedEvidenceIds: [],
+                relatedEvidenceIds: ['evidence:large-file:src/a.ts'],
                 confidence: 1,
               }],
             },

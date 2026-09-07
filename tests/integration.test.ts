@@ -729,7 +729,7 @@ describe('integration: CLI calibration conditions', () => {
         schemaVersion: 1,
         records: [{
           schemaVersion: 1,
-          scoreBand: '0-100',
+          scoreBand: '0-30',
           sampleCount: 30,
           observedRegressions: 1,
           observedReverts: 0,

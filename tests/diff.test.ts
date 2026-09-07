@@ -15,6 +15,7 @@ import {
   provisionalEvidenceDetails,
 } from '../src/schema/report.v1.js';
 import type { DiagnosisReport } from '../src/schema/report.v1.js';
+import { buildDecisionReportFixture } from './fixtures/reporting/decision-report.fixture.js';
 import { createGitRepository } from './helpers/git-repository.js';
 
 function minimalRepository(overrides: Partial<DiagnosisReport['repository']> = {}): DiagnosisReport['repository'] {
@@ -160,6 +161,62 @@ describe('diff diagnostics', () => {
     expect(markdownOut).toContain('### Blast radius');
     expect(markdownOut).toContain('Direct dependencies: src/c.ts');
     expect(markdownOut).toContain('[new]');
+  });
+
+  it('renders diff all as diagnosis, improvement, and current-state chapters', () => {
+    const base = minimalReport([]);
+    const current = minimalReport([{ id: 'a', severity: 'high' }]);
+    const diff = diffReportSchema.parse({
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current,
+      base,
+      comparison: {
+        compatible: true,
+        riskDelta: 0,
+        baselineId: base.metadata.inputId,
+        changedFiles: ['src/a.ts'],
+        blastRadius: [],
+        ...compareSignalChanges(current, base),
+      },
+    });
+
+    const markdown = formatDiffMarkdownReport(diff, { view: 'all' });
+    const consoleOut = formatDiffConsoleReport(diff, { view: 'all' });
+
+    expect(markdown.match(/^## (Diagnosis summary|Improvement points|Current state)$/gm))
+      .toEqual(['## Diagnosis summary', '## Improvement points', '## Current state']);
+    expect(consoleOut.match(/^(Diagnosis summary|Improvement points|Current state)$/gm))
+      .toEqual(['Diagnosis summary', 'Improvement points', 'Current state']);
+  });
+
+  it('selects changed-risk actions before applying the action view limit', () => {
+    const current = buildDecisionReportFixture();
+    const base = structuredClone(current);
+    base.metadata.inputId = 'decision-report-baseline';
+    const changedEvidenceId = current.clusters[5]!.evidenceIds[0]!;
+    const baseEvidence = base.evidence.find((item) => item.evidenceId === changedEvidenceId)!;
+    baseEvidence.strength = 25;
+    baseEvidence.severity = 'low';
+    const changes = compareSignalChanges(current, base);
+    const diff = diffReportSchema.parse({
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current,
+      base,
+      comparison: {
+        compatible: true,
+        riskDelta: 0,
+        baselineId: base.metadata.inputId,
+        changedFiles: [current.clusters[5]!.paths[0]!],
+        blastRadius: [],
+        ...changes,
+      },
+    });
+
+    const markdown = formatDiffMarkdownReport(diff, { view: 'actions' });
+
+    expect(changes.worsenedSignals.map((item) => item.evidenceId)).toEqual([changedEvidenceId]);
+    expect(markdown).toContain('### 6. Break cycle 6');
+    expect(markdown).not.toContain('(none linked to changed risk)');
   });
 
   it('still reports changed files and blast radius when comparison is incompatible', () => {
