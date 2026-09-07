@@ -1,6 +1,5 @@
 {
   "schemaVersion": 1,
-  "locale": "en",
   "exclude": ["node_modules", "dist", "build", "coverage", ".git", "tests/fixtures", "test-fixtures"],
   "diagnosticSkipRoots": ["harness", "scripts"],
   "maxFiles": 5000,
