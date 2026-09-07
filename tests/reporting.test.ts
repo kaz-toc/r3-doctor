@@ -32,12 +32,16 @@ describe('reporting views', () => {
 
     expect(model.facts.totalEvidenceCount).toBe(70);
     expect(model.facts.factGroups).toHaveLength(1);
-    expect(model.facts.factGroups[0]?.evidence).toHaveLength(5);
-    expect(model.facts.factGroups[0]?.remainingEvidenceCount).toBe(65);
+    expect(model.facts.factGroups[0]?.evidence).toHaveLength(8);
+    expect(model.facts.factGroups[0]?.remainingEvidenceCount).toBe(62);
     expect(model.summary.clusters).toHaveLength(5);
+    expect(model.summary.clusters[0]?.evidence).toHaveLength(3);
     expect(model.summary.remainingClusterCount).toBe(2);
-    expect(model.actions.items).toHaveLength(5);
-    expect(model.actions.remainingActionCount).toBe(1);
+    expect(model.actions.items).toHaveLength(6);
+    expect(model.actions.remainingActionCount).toBe(0);
+    expect(model.actions.items[1]?.displayPaths).toHaveLength(5);
+    expect(model.actions.items[1]?.linkedEvidence).toHaveLength(5);
+    expect(model.actions.items[0]?.effectiveConfidence).toBe(0.72);
     expect(model.summary.calibrationStatus).toBe('uncalibrated');
   });
 
@@ -72,7 +76,7 @@ describe('reporting views', () => {
     expect(facts).toContain('## Current state');
     expect(facts).not.toContain('## Improvement points');
     expect(facts).not.toContain('Regression Risk Score');
-    expect(facts).toContain('残り65件');
+    expect(facts).toContain('残り62件');
 
     expect(summary).toContain('## Assessment summary');
     expect(summary).not.toContain('## Improvement points');
@@ -85,6 +89,8 @@ describe('reporting views', () => {
     expect(actions).not.toContain('| Axis | Score |');
     expect(actions).toMatch(/Linked clusters: cluster:/);
     expect(actions).toMatch(/Linked evidence: evidence:/);
+    expect(actions).toContain('Priority score: 95; Confidence: 0.72; Cost: medium');
+    expect(summary).not.toContain('Priority score:');
 
     expect(all.match(/^## (Diagnosis summary|Improvement points|Current state)$/gm))
       .toEqual(['## Diagnosis summary', '## Improvement points', '## Current state']);
@@ -104,8 +110,8 @@ describe('reporting views', () => {
 
   it('uses English suffixes when locale override is en', () => {
     const facts = formatMarkdownReport(report, { view: 'facts', locale: 'en' });
-    expect(facts).toContain('and 65 more evidence items');
-    expect(facts).not.toContain('残り65件');
+    expect(facts).toContain('and 62 more evidence items');
+    expect(facts).not.toContain('残り62件');
   });
 
   it('returns full JSON regardless of view selection', () => {

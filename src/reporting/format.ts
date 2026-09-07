@@ -290,13 +290,14 @@ function renderActionItemMarkdown(
   options: { includeLinkedEvidence?: boolean; locale?: ReportLocale } = {},
 ): string[] {
   const locale = options.locale ?? DEFAULT_LOCALE;
-  const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
+  const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount, effectiveConfidence } = item;
   const includeLinkedEvidence = options.includeLinkedEvidence ?? true;
   const pathSuffix = remainingPathCount > 0
     ? ` (${remainingSuffix(locale, 'format.remainingPaths', remainingPathCount)})`
     : '';
   const lines = [
     `### ${intervention.priority}. ${intervention.title}`,
+    `- Priority score: ${intervention.priorityScore}; Confidence: ${effectiveConfidence}; Cost: ${intervention.cost}`,
     `- Rationale: ${intervention.rationale}`,
     `- First step: ${intervention.firstStep}`,
     `- Targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`,
@@ -338,11 +339,12 @@ function renderActionsConsole(
   const locale = options.locale ?? DEFAULT_LOCALE;
   const lines = [heading];
   for (const item of model.actions.items) {
-    const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount } = item;
+    const { intervention, linkedClusters, linkedEvidence, displayPaths, remainingPathCount, effectiveConfidence } = item;
     const pathSuffix = remainingPathCount > 0
       ? ` (${remainingSuffix(locale, 'format.remainingPaths', remainingPathCount)})`
       : '';
     lines.push(`  - (${intervention.priority}) ${intervention.title}`);
+    lines.push(`    priority score: ${intervention.priorityScore}; confidence: ${effectiveConfidence}; cost: ${intervention.cost}`);
     lines.push(`    rationale: ${intervention.rationale}`);
     lines.push(`    first step: ${intervention.firstStep}`);
     lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`);
