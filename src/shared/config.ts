@@ -31,26 +31,27 @@ export const defaultLlmConfig: LlmConfig = llmConfigSchema.parse({});
 export const repositoryConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
-    exclude: z.array(z.string()).default(['node_modules', 'dist', 'build', 'coverage']),
-    maxFiles: z.number().int().positive().default(5000),
-    maxFileLines: z.number().int().positive().default(800),
-    fanOutThreshold: z.number().int().positive().default(8),
-    fanInThreshold: z.number().int().positive().default(8),
-    churnDays: z.number().int().positive().default(90),
-    baselineDir: z.string().default('.r3-doctor/baselines'),
-    trendDir: z.string().default('.r3-doctor/trends'),
-    policyFile: z.string().default('.r3-doctor/policy.json'),
+    exclude: z.array(z.string().max(256)).max(1_000).default(['node_modules', 'dist', 'build', 'coverage']),
+    maxFiles: z.number().int().positive().max(50_000).default(5000),
+    maxFileLines: z.number().int().positive().max(100_000).default(800),
+    fanOutThreshold: z.number().int().positive().max(100_000).default(8),
+    fanInThreshold: z.number().int().positive().max(100_000).default(8),
+    churnDays: z.number().int().positive().max(36_500).default(90),
+    baselineDir: z.string().max(1_024).default('.r3-doctor/baselines'),
+    trendDir: z.string().max(1_024).default('.r3-doctor/trends'),
+    policyFile: z.string().max(1_024).default('.r3-doctor/policy.json'),
     units: z
       .array(
         z
           .object({
-            id: z.string(),
-            roots: z.array(z.string()).min(1),
+            id: z.string().max(256),
+            roots: z.array(z.string().max(1_024)).min(1).max(1_000),
           })
           .strict(),
       )
+      .max(1_000)
       .default([]),
-    diagnosticSkipRoots: z.array(z.string()).default([]),
+    diagnosticSkipRoots: z.array(z.string().max(1_024)).max(1_000).default([]),
   })
   .strict();
 

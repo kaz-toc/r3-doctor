@@ -56,16 +56,45 @@ function hashContent(content: string): string {
 
 function matchGlob(relativePath: string, pattern: string): boolean {
   const normalized = relativePath.replace(/\\/g, '/');
-  const regex = new RegExp(
-    `^${pattern
-      .replace(/\\/g, '/')
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '§§')
-      .replace(/\*/g, '[^/]*')
-      .replace(/§§/g, '.*')
-      .replace(/\?/g, '[^/]')}$`,
-  );
-  return regex.test(normalized);
+  const normalizedPattern = pattern.replace(/\\/g, '/');
+  const tokens: Array<'*' | '**' | '?' | string> = [];
+
+  for (let index = 0; index < normalizedPattern.length;) {
+    const character = normalizedPattern[index]!;
+    if (character === '*') {
+      let next = index + 1;
+      while (normalizedPattern[next] === '*') next += 1;
+      tokens.push(next - index >= 2 ? '**' : '*');
+      index = next;
+      continue;
+    }
+    tokens.push(character);
+    index += 1;
+  }
+
+  let reachable = new Uint8Array(normalized.length + 1);
+  reachable[0] = 1;
+
+  for (const token of tokens) {
+    const next = new Uint8Array(normalized.length + 1);
+    if (token === '*' || token === '**') {
+      for (let index = 0; index <= normalized.length; index += 1) {
+        if (reachable[index]) next[index] = 1;
+        if (index < normalized.length && next[index] && (token === '**' || normalized[index] !== '/')) {
+          next[index + 1] = 1;
+        }
+      }
+    } else {
+      for (let index = 0; index < normalized.length; index += 1) {
+        if (reachable[index] && (token === '?' ? normalized[index] !== '/' : normalized[index] === token)) {
+          next[index + 1] = 1;
+        }
+      }
+    }
+    reachable = next;
+  }
+
+  return reachable[normalized.length] === 1;
 }
 
 export function isExcluded(relativePath: string, exclude: string[]): boolean {

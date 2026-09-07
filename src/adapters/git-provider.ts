@@ -4,6 +4,8 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { R3DoctorError } from '../shared/errors.js';
+
 const execFileAsync = promisify(execFile);
 
 const SOURCE_FILE_PATTERN = /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/;
@@ -87,9 +89,9 @@ export class DefaultGitProvider implements GitProvider {
     const collected = new Set<string>();
 
     const commands: string[][] = [
-      ['diff', '--name-only', baseRef],
-      ['diff', '--cached', '--name-only', baseRef],
-      ['diff', '--name-only', `${baseRef}...HEAD`],
+      ['diff', '--name-only', baseRef, '--'],
+      ['diff', '--cached', '--name-only', baseRef, '--'],
+      ['diff', '--name-only', `${baseRef}...HEAD`, '--'],
     ];
 
     for (const args of commands) {
@@ -112,10 +114,14 @@ export class DefaultGitProvider implements GitProvider {
   }
 
   async resolveRef(repositoryPath: string, ref: string): Promise<string> {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', `${ref}^{commit}`], {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`], {
       cwd: repositoryPath,
     });
-    return stdout.trim();
+    const objectId = stdout.trim();
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(objectId)) {
+      throw new R3DoctorError('git ref did not resolve to a full commit object ID');
+    }
+    return objectId;
   }
 
   async resolveHeadCommit(repositoryPath: string): Promise<string | undefined> {
