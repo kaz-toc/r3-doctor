@@ -25,7 +25,7 @@ npx r3-doctor scan . --format json
 npx r3-doctor@0.1.0 scan . --format markdown
 ```
 
-npm パッケージにはコンパイル済み `dist/` のみが含まれます。ソースコードは private GitHub リポジトリで管理しています。
+npm パッケージにはコンパイル済み `dist/` と、実行時の calibration に必要な golden fixtures が含まれます。TypeScript ソースコードとテストコードは private GitHub リポジトリで管理しています。
 
 ## 目指す診断
 

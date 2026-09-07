@@ -1,4 +1,5 @@
 import path from 'node:path';
+import ts from 'typescript';
 
 import type { Evidence, RiskAxisId, SignalId } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
@@ -10,56 +11,84 @@ export type ImportEdge = {
   kind: 'relative' | 'package';
 };
 
-const IMPORT_RE =
-  /(?:import\s+(?:type\s+)?(?:[^'"]+\s+from\s+)?|export\s+(?:type\s+)?(?:\*|\{[^}]+\})\s+from\s+)['"]([^'"]+)['"]/g;
-
 function extractImports(file: SourceFile): string[] {
   const targets: string[] = [];
-  for (const match of (file.content ?? '').matchAll(IMPORT_RE)) {
-    const target = match[1];
-    if (target) {
-      targets.push(target);
+  const scriptKindByExtension: Record<string, ts.ScriptKind> = {
+    '.ts': ts.ScriptKind.TS,
+    '.tsx': ts.ScriptKind.TSX,
+    '.js': ts.ScriptKind.JS,
+    '.jsx': ts.ScriptKind.JSX,
+    '.mjs': ts.ScriptKind.JS,
+    '.cjs': ts.ScriptKind.JS,
+  };
+  const sourceFile = ts.createSourceFile(
+    file.relativePath,
+    file.content ?? '',
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindByExtension[file.extension] ?? ts.ScriptKind.Unknown,
+  );
+
+  const addStringLiteral = (node: ts.Expression | undefined): void => {
+    if (node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))) {
+      targets.push(node.text);
     }
-  }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      addStringLiteral(node.moduleSpecifier);
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference)
+    ) {
+      addStringLiteral(node.moduleReference.expression);
+    } else if (ts.isCallExpression(node)) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+      if (isDynamicImport || isRequire) {
+        addStringLiteral(node.arguments[0]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
   return targets;
 }
 
-function resolveRelativeImport(fromFile: SourceFile, target: string, filesByPath: Map<string, SourceFile>): string | null {
+function resolveRelativeImport(fromFile: SourceFile, target: string, availablePaths: Set<string>): string | null {
   if (!target.startsWith('.')) {
     return null;
   }
-  const base = path.dirname(fromFile.relativePath);
-  const joined = path.normalize(path.join(base, target));
+  const base = path.posix.dirname(fromFile.relativePath.replaceAll('\\', '/'));
+  const joined = path.posix.normalize(path.posix.join(base, target.replaceAll('\\', '/')));
   const withoutExtension = joined.replace(/\.(mjs|cjs|tsx?|jsx?)$/, '');
+  const extensions = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'];
   const candidates = [
     joined,
     withoutExtension,
-    `${withoutExtension}.ts`,
-    `${withoutExtension}.tsx`,
-    `${withoutExtension}.js`,
-    `${withoutExtension}.jsx`,
-    `${withoutExtension}.mjs`,
-    `${withoutExtension}.cjs`,
-    `${withoutExtension}/index.ts`,
-    `${withoutExtension}/index.js`,
+    ...extensions.map((extension) => `${withoutExtension}.${extension}`),
+    ...extensions.map((extension) => `${withoutExtension}/index.${extension}`),
   ];
 
   for (const candidate of candidates) {
-    if (filesByPath.has(candidate)) {
+    if (availablePaths.has(candidate)) {
       return candidate;
     }
   }
   return null;
 }
 
-export function buildImportGraph(snapshot: RepositorySnapshot): ImportEdge[] {
-  const filesByPath = new Map(snapshot.files.map((file) => [file.relativePath, file]));
+export function buildImportGraph(snapshot: RepositorySnapshot, virtualPaths: readonly string[] = []): ImportEdge[] {
+  const availablePaths = new Set([
+    ...snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')),
+    ...virtualPaths.map((filePath) => filePath.replaceAll('\\', '/')),
+  ]);
   const edges: ImportEdge[] = [];
 
   for (const file of snapshot.files) {
     for (const target of extractImports(file)) {
       if (target.startsWith('.')) {
-        const resolved = resolveRelativeImport(file, target, filesByPath);
+        const resolved = resolveRelativeImport(file, target, availablePaths);
         if (resolved) {
           edges.push({ from: file.relativePath, to: resolved, kind: 'relative' });
         } else {

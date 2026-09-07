@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-001",
+  "status": "active",
+  "title": "Published package cannot run golden calibration",
+  "invariant": "The npm artifact contains every fixture required by calibration and policy commands.",
+  "incident": "codebase-review-2026-09-07#package-runtime-fixtures",
+  "productionFiles": ["package.json", "src/calibration/golden-regression.ts"],
+  "testFiles": ["tests/package.test.ts"],
+  "verificationCommands": ["npm test -- tests/package.test.ts"]
+}

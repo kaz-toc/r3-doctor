@@ -199,7 +199,7 @@ describe('assessment contract', () => {
       capabilities: [
         {
           language: 'typescript-javascript',
-          contractVersion: 2,
+          contractVersion: 3,
           completeness: 'partial',
           supportedSignals: ['large-file'],
           unevaluatedSignals: ['dep-cycle'],
@@ -240,7 +240,7 @@ describe('assessment contract', () => {
       capabilities: [
         {
           language: 'typescript-javascript',
-          contractVersion: 2,
+          contractVersion: 3,
           completeness: 'partial',
           supportedSignals: ['large-file'],
           unevaluatedSignals: ['semantic-ambiguity'],
@@ -292,7 +292,7 @@ describe('assessment contract', () => {
       capabilities: [
         {
           language: 'typescript-javascript',
-          contractVersion: 2,
+          contractVersion: 3,
           completeness: 'full',
           supportedSignals: ['dep-cycle', 'large-file'],
           unevaluatedSignals: [],
@@ -309,6 +309,40 @@ describe('assessment contract', () => {
     expect(report.clusters.some((cluster) => cluster.mechanismId === 'dependency-cycle')).toBe(true);
     expect(report.clusters.some((cluster) => cluster.mechanismId === 'large-file')).toBe(true);
     expect(diagnosisReportSchema.safeParse(report).success).toBe(true);
+  });
+
+  it('REG-2026-006 keeps unrelated non-cycle evidence in separate mechanism clusters', () => {
+    const evidence: Evidence[] = ['src/a.ts', 'src/b.ts'].map((file) => ({
+      evidenceId: `evidence:large-file:${file}`,
+      signalId: 'large-file',
+      axisId: 'structural-fragility',
+      path: file,
+      severity: 'medium',
+      message: 'large',
+      source: 'deterministic',
+    }));
+
+    const report = assessRisk({
+      snapshot: baseSnapshot as never,
+      evidence,
+      semanticFindings: [],
+      capabilities: [{
+        language: 'typescript-javascript',
+        contractVersion: 3,
+        completeness: 'full',
+        supportedSignals: ['large-file'],
+        unevaluatedSignals: [],
+        analyzerId: 'typescript-javascript-v1',
+        analyzerImplementationVersion: '1.0.0',
+      }],
+      analyzers: ['typescript-javascript-v1'],
+      selectedAnalyzers: 1,
+      successfulAnalyzers: 1,
+      semanticResolution: { status: 'unavailable', reason: 'LLM not configured' },
+    });
+
+    expect(report.clusters.filter((cluster) => cluster.mechanismId === 'large-file').map((cluster) => cluster.paths))
+      .toEqual([['src/a.ts'], ['src/b.ts']]);
   });
 });
 
@@ -342,7 +376,7 @@ describe('assessment output labels', () => {
     expect(markdownOut).toContain('Score: 0 (no signals detected)');
   });
 
-  it('evaluates semantic ambiguity when validated findings are available', () => {
+  it('REG-2026-005 evaluates semantic ambiguity when validated findings are available', () => {
     const report = assessRisk({
       snapshot: baseSnapshot,
       evidence: [],
@@ -367,7 +401,16 @@ describe('assessment output labels', () => {
 
     expect(report.axes.find((axis) => axis.axisId === 'semantic-ambiguity')).toMatchObject({
       unevaluated: false,
+      score: 40,
+      confidence: 0.8,
     });
+    expect(report.clusters.find((cluster) => cluster.axisId === 'semantic-ambiguity')).toMatchObject({
+      paths: ['src/a.ts'],
+      score: 40,
+      confidence: 0.8,
+    });
+    expect(formatConsoleReport(report)).toContain('Semantic Ambiguity: 40');
+    expect(formatMarkdownReport(report)).toContain('### Semantic Ambiguity\n- Score: 40');
   });
 
   it('records no findings reason when semantic provider succeeds with empty output', () => {

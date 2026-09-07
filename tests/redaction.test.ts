@@ -42,7 +42,7 @@ describe('policy redaction and gate eligibility', () => {
     const report: DiagnosisReport = {
       metadata: {
         schemaVersion: 1,
-        assessmentContractVersion: 2,
+        assessmentContractVersion: 3,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'input',
         repositoryPath: '/Repo/evidence',
@@ -81,7 +81,7 @@ describe('policy redaction and gate eligibility', () => {
     const report = {
       metadata: {
         schemaVersion: 1 as const,
-        assessmentContractVersion: 2 as const,
+        assessmentContractVersion: 3 as const,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'input',
         repositoryPath: '/repository',

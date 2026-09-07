@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-011",
+  "status": "active",
+  "title": "Glob patterns interpret literal paths as regular expressions",
+  "invariant": "Only glob wildcards are special; regular-expression metacharacters match literal path characters.",
+  "incident": "codebase-review-2026-09-07#glob-escaping",
+  "productionFiles": ["src/intake/snapshot.ts"],
+  "testFiles": ["tests/intake.test.ts"],
+  "verificationCommands": ["npm test -- tests/intake.test.ts"]
+}

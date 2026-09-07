@@ -10,7 +10,7 @@ describe('github annotations', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',
@@ -37,7 +37,7 @@ describe('github annotations', () => {
       base: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'b',
           repositoryPath: '/tmp',
@@ -81,7 +81,7 @@ describe('github annotations', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',

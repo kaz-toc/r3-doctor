@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-005",
+  "status": "active",
+  "title": "Semantic score is displayed as no signals",
+  "invariant": "A semantic-only assessment displays its actual axis score and emits a path-bearing scored cluster.",
+  "incident": "codebase-review-2026-09-07#semantic-reporting",
+  "productionFiles": ["src/assessment/risk.ts", "src/reporting/format.ts"],
+  "testFiles": ["tests/assessment.test.ts"],
+  "verificationCommands": ["npm test -- tests/assessment.test.ts"]
+}

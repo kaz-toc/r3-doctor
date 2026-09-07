@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-006",
+  "status": "active",
+  "title": "Unrelated files merge into one mechanism cluster",
+  "invariant": "Non-cycle evidence with no dependency connection forms separate path-local mechanism clusters.",
+  "incident": "codebase-review-2026-09-07#mechanism-clustering",
+  "productionFiles": ["src/assessment/risk.ts"],
+  "testFiles": ["tests/assessment.test.ts"],
+  "verificationCommands": ["npm test -- tests/assessment.test.ts"]
+}

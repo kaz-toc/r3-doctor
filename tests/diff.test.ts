@@ -1,16 +1,21 @@
+import { rename } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
+import { DefaultGitProvider } from '../src/adapters/git-provider.js';
 import { compareSignalChanges } from '../src/comparison/compare.js';
 import { computeBlastRadius } from '../src/commands/diff.js';
+import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { formatDiffConsoleReport, formatDiffMarkdownReport } from '../src/reporting/format.js';
 import { diffReportSchema } from '../src/schema/report.v1.js';
 import type { DiagnosisReport } from '../src/schema/report.v1.js';
+import { createGitRepository } from './helpers/git-repository.js';
 
 function minimalReport(evidenceIds: Array<{ id: string; severity: 'low' | 'medium' | 'high' }>): DiagnosisReport {
   return {
     metadata: {
       schemaVersion: 1,
-      assessmentContractVersion: 2,
+      assessmentContractVersion: 3,
       generatedAt: '2026-01-01T00:00:00.000Z',
       inputId: 'test',
       repositoryPath: '/tmp',
@@ -58,6 +63,38 @@ describe('diff diagnostics', () => {
     expect(radius[0]?.directDependents).toContain('src/b.ts');
     expect(radius[0]?.transitiveDependents).toContain('src/b.ts');
     expect(radius[0]?.paths.length).toBeGreaterThan(0);
+  });
+
+  it('REG-2026-004 retains incoming blast radius for a deleted TypeScript target imported through a JavaScript specifier', () => {
+    const files = [
+      { relativePath: 'src/b.ts', absolutePath: '', extension: '.ts', content: "import './a.js'", nonBlankLines: 1 },
+    ];
+
+    const radius = computeBlastRadius(['src/a.ts'], '/repo', files);
+
+    expect(radius[0]?.directDependents).toEqual(['src/b.ts']);
+    expect(radius[0]?.transitiveDependents).toEqual(['src/b.ts']);
+  });
+
+  it('REG-2026-004 retains both sides of a rename so dependents of the old path remain visible', async () => {
+    const repo = await createGitRepository({
+      'src/old.ts': 'export const value = 1;\n',
+      'src/consumer.ts': "import { value } from './old.js';\nexport { value };\n",
+    });
+    try {
+      await rename(`${repo.path}/src/old.ts`, `${repo.path}/src/new.ts`);
+      await repo.commit('rename dependency without updating consumer');
+
+      const changedFiles = await new DefaultGitProvider().listChangedFiles(repo.path, repo.headSha);
+      const snapshot = await createRepositorySnapshot(repo.path);
+      const radius = computeBlastRadius(changedFiles, repo.path, snapshot.files);
+
+      expect(changedFiles).toEqual(expect.arrayContaining(['src/old.ts', 'src/new.ts']));
+      expect(radius.find((entry) => entry.changedFile === 'src/old.ts')?.directDependents)
+        .toEqual(['src/consumer.ts']);
+    } finally {
+      await repo.cleanup();
+    }
   });
 
   it('renders blast radius and signal changes in human-readable diff output', () => {

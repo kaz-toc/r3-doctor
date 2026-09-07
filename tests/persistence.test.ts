@@ -19,7 +19,7 @@ function minimalReport(inputId: string, generatedAt: string): DiagnosisReport {
   return {
     metadata: {
       schemaVersion: 1,
-      assessmentContractVersion: 2,
+      assessmentContractVersion: 3,
       generatedAt,
       inputId,
       repositoryPath: '/tmp/repository',
@@ -186,7 +186,7 @@ describe('persistence storage boundary', () => {
       inputId: 'outside',
       score: 1,
       confidence: 1,
-      contractVersion: 2,
+      contractVersion: 3,
       topClusters: [],
     })}\n`;
     await writeFile(outsideHistoryPath, outsideContent);
@@ -223,7 +223,7 @@ describe('persistence retention', () => {
       kind: 'r3-doctor/baseline',
       inputId,
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 2,
+      assessmentContractVersion: 3,
       sourceCommitSha,
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       analysisContextFingerprint: 'a'.repeat(64),
@@ -259,7 +259,7 @@ describe('persistence retention', () => {
       kind: 'r3-doctor/baseline',
       inputId,
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 2,
+      assessmentContractVersion: 3,
       sourceCommitSha,
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       analysisContextFingerprint: 'a'.repeat(64),
@@ -302,7 +302,7 @@ describe('persistence retention', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 2,
+        contractVersion: 3,
         topClusters: [],
       }),
       JSON.stringify({
@@ -311,7 +311,7 @@ describe('persistence retention', () => {
         inputId: 'fresh',
         score: 2,
         confidence: 1,
-        contractVersion: 2,
+        contractVersion: 3,
         topClusters: [],
       }),
     ].join('\n'));
@@ -338,7 +338,7 @@ describe('persistence retention', () => {
       inputId: 'expired',
       score: 1,
       confidence: 1,
-      contractVersion: 2,
+      contractVersion: 3,
       topClusters: [],
     })}\n{broken\n`;
     await writeFile(historyPath, content);

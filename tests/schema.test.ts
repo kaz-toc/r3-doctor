@@ -15,7 +15,7 @@ function minimalReport(inputId = 'report-id', generatedAt = '2026-01-01T00:00:00
   return {
     metadata: {
       schemaVersion: 1,
-      assessmentContractVersion: 2,
+      assessmentContractVersion: 3,
       generatedAt,
       inputId,
       repositoryPath: '/tmp/repository',
@@ -231,7 +231,7 @@ describe('schema reference integrity', () => {
     const result = diagnosisReportSchema.safeParse({
       metadata: {
         schemaVersion: 1,
-        assessmentContractVersion: 2,
+        assessmentContractVersion: 3,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'x',
         repositoryPath: '/tmp',
@@ -285,6 +285,30 @@ describe('schema reference integrity', () => {
     ).toThrow(/dangling evidence reference/);
   });
 
+  it('REG-2026-002 grounds semantic finding paths in exact snapshot files', () => {
+    const snapshot = {
+      repositoryPath: '/tmp/repo',
+      files: [{ relativePath: 'src/a.ts' }],
+      inputId: 'x',
+      gitAvailable: false,
+      truncated: false,
+      intakeIssues: [],
+      config: { schemaVersion: 1 },
+    } as never;
+    const finding = (findingPath: string) => [{
+      axisId: 'semantic-ambiguity',
+      summary: 'x',
+      relatedEvidenceIds: [],
+      confidence: 0.5,
+      path: findingPath,
+    }];
+
+    expect(validateSemanticFindings(finding('src\\a.ts'), snapshot, [])[0]?.path).toBe('src/a.ts');
+    for (const invalidPath of ['/tmp/repo/src/a.ts', '../repo/src/a.ts', '/tmp/repo-sibling/a.ts', 'src/missing.ts']) {
+      expect(() => validateSemanticFindings(finding(invalidPath), snapshot, [])).toThrow(/semantic finding path/);
+    }
+  });
+
   it('normalizes openai and anthropic provider aliases in config', () => {
     expect(
       configSchema.parse({ schemaVersion: 1, llm: { enabled: true, provider: 'openai' } }).llm.provider,
@@ -297,7 +321,7 @@ describe('schema reference integrity', () => {
   it('filters non-semantic-ambiguity findings during validation', () => {
     const snapshot = {
       repositoryPath: '/tmp/repo',
-      files: [],
+      files: [{ relativePath: 'src/a.ts' }],
       inputId: 'x',
       gitAvailable: false,
       truncated: false,

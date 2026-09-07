@@ -54,8 +54,8 @@ function axisScoreForEvidence(items: Evidence[], semantic: SemanticFinding[]): n
   return Math.max(deterministic, semanticScore);
 }
 
-function clusterScore(items: Evidence[]): number {
-  return aggregateSignalStrength(items);
+function clusterScore(items: Evidence[], semantic: SemanticFinding[] = []): number {
+  return axisScoreForEvidence(items, semantic);
 }
 
 function connectedPaths(paths: string[], edges: Array<{ from: string; to: string }>): string[][] {
@@ -114,10 +114,6 @@ function buildMechanismClusters(evidence: Evidence[], semanticFindings: Semantic
     groups.set(key, list);
   }
 
-  if (semanticFindings.length > 0) {
-    groups.set('semantic-ambiguity:semantic-ambiguity', []);
-  }
-
   const clusters: RiskCluster[] = [];
 
   for (const [key, items] of groups.entries()) {
@@ -146,29 +142,16 @@ function buildMechanismClusters(evidence: Evidence[], semanticFindings: Semantic
       mechanismId === 'dependency-cycle'
         ? connectedPaths(paths, edges)
         : paths.length > 0
-          ? [paths]
+          ? paths.map((itemPath) => [itemPath])
           : [[]];
 
     components.forEach((componentPaths, index) => {
-      const componentEvidence = items.filter((item) => !item.path || componentPaths.includes(item.path));
-      if (componentEvidence.length === 0 && mechanismId !== 'semantic-ambiguity') {
+      const componentEvidence = items.filter((item) =>
+        componentPaths.length === 0 ? !item.path : Boolean(item.path && componentPaths.includes(item.path)),
+      );
+      if (componentEvidence.length === 0) {
         return;
       }
-
-      const relatedFindings =
-        mechanismId === 'semantic-ambiguity'
-          ? semanticFindings
-          : semanticFindings.filter(
-              (finding) =>
-                (finding.path && componentPaths.includes(finding.path)) ||
-                finding.relatedEvidenceIds.some((id) => componentEvidence.some((item) => item.evidenceId === id)),
-            );
-
-      const evidenceIds = [
-        ...componentEvidence.map((item) => item.evidenceId),
-        ...relatedFindings.flatMap((finding) => finding.relatedEvidenceIds),
-      ];
-      const uniqueEvidenceIds = [...new Set(evidenceIds)];
 
       clusters.push({
         clusterId: `cluster:${axisId}:${mechanismId}:${index + 1}`,
@@ -180,10 +163,45 @@ function buildMechanismClusters(evidence: Evidence[], semanticFindings: Semantic
         paths: componentPaths,
         failureMechanism: describeMechanism(mechanismId),
         triggerChanges: describeTriggers(mechanismId),
-        evidenceIds: uniqueEvidenceIds,
+        evidenceIds: componentEvidence.map((item) => item.evidenceId),
       });
     });
   }
+
+  const evidenceById = new Map(evidence.map((item) => [item.evidenceId, item]));
+  const semanticGroups = new Map<string, SemanticFinding[]>();
+  for (const finding of semanticFindings) {
+    const relatedPaths = finding.relatedEvidenceIds
+      .map((evidenceId) => evidenceById.get(evidenceId)?.path)
+      .filter((itemPath): itemPath is string => Boolean(itemPath));
+    const paths = [...new Set([finding.path, ...relatedPaths].filter((itemPath): itemPath is string => Boolean(itemPath)))].sort();
+    const anchor = paths.join('|') || [...finding.relatedEvidenceIds].sort().join('|');
+    const current = semanticGroups.get(anchor) ?? [];
+    current.push(finding);
+    semanticGroups.set(anchor, current);
+  }
+
+  [...semanticGroups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([, findings], index) => {
+      const evidenceIds = [...new Set(findings.flatMap((finding) => finding.relatedEvidenceIds))].sort();
+      const paths = [...new Set([
+        ...findings.map((finding) => finding.path),
+        ...evidenceIds.map((evidenceId) => evidenceById.get(evidenceId)?.path),
+      ].filter((itemPath): itemPath is string => Boolean(itemPath)))].sort();
+      clusters.push({
+        clusterId: `cluster:semantic-ambiguity:semantic-ambiguity:${index + 1}`,
+        title: `${AXIS_NAMES['semantic-ambiguity']} / semantic-ambiguity`,
+        score: clusterScore([], findings),
+        confidence: Math.max(...findings.map((finding) => finding.confidence)),
+        axisId: 'semantic-ambiguity',
+        mechanismId: 'semantic-ambiguity',
+        paths,
+        failureMechanism: describeMechanism('semantic-ambiguity'),
+        triggerChanges: describeTriggers('semantic-ambiguity'),
+        evidenceIds,
+      });
+    });
 
   return clusters.sort((a, b) => b.score - a.score);
 }
@@ -297,7 +315,9 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     );
     const axisConfidence = unevaluated
       ? 0
-      : Math.min(1, Number(((axisEvidence.length > 0 ? 0.6 : 0) + (languageCapability ? 0.4 : 0.2)).toFixed(2)));
+      : axisId === 'semantic-ambiguity' && semantic.length > 0
+        ? Math.max(...semantic.map((finding) => finding.confidence))
+        : Math.min(1, Number(((axisEvidence.length > 0 ? 0.6 : 0) + (languageCapability ? 0.4 : 0.2)).toFixed(2)));
     return {
       axisId,
       name: AXIS_NAMES[axisId],

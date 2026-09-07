@@ -11,6 +11,7 @@ import { R3DoctorError } from '../shared/errors.js';
 import { redactReport, redactStringList } from '../shared/redaction.js';
 import type { PersistenceResult } from './retention.js';
 import { retainTrendEntries } from './retention.js';
+import { assertSnapshotPersistenceIntegrity } from './snapshot-integrity.js';
 import { assertSafeStorageDir, resolveSafeStorageDir } from './storage-boundary.js';
 
 function isMissing(error: unknown): boolean {
@@ -50,13 +51,13 @@ export async function loadTrendHistory(trendPath: string): Promise<TrendEntry[]>
 }
 
 export async function appendTrend(snapshot: RepositorySnapshot, report: DiagnosisReport): Promise<PersistenceResult> {
+  const commitSha = await assertSnapshotPersistenceIntegrity(snapshot, report, { requireClean: false });
   const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
   const cutoff = new Date(Date.now() - policy.retentionDays * 24 * 60 * 60 * 1000);
   const trendDir = await resolveSafeStorageDir(snapshot.repositoryPath, snapshot.config.trendDir, 'trendDir', true);
   const trendPath = path.join(trendDir.path, 'history.jsonl');
   const retention = [await retainTrendEntries(trendDir, cutoff)];
   const git = new DefaultGitProvider();
-  const commitSha = snapshot.gitAvailable ? await git.resolveHeadCommit(snapshot.repositoryPath) : undefined;
   const previousEntry = (await loadTrendHistory(trendPath)).at(-1);
   const changedFiles =
     snapshot.gitAvailable && previousEntry?.commitSha

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-008",
+  "status": "active",
+  "title": "Completed semantic prompt exceeds configured byte budget",
+  "invariant": "No semantic provider is spawned unless the complete UTF-8 prompt is within maxPromptBytes.",
+  "incident": "codebase-review-2026-09-07#semantic-prompt-budget",
+  "productionFiles": ["src/semantic/context-budget.ts", "src/semantic/semantic-prompt.ts", "src/semantic/providers/acp-semantic-provider.ts"],
+  "testFiles": ["tests/semantic/acp-semantic-provider.test.ts"],
+  "verificationCommands": ["npm test -- tests/semantic/acp-semantic-provider.test.ts"]
+}
