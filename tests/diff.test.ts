@@ -219,6 +219,88 @@ describe('diff diagnostics', () => {
     expect(markdown).not.toContain('(none linked to changed risk)');
   });
 
+  it('keeps directly changed actions when the baseline is incompatible', () => {
+    const current = buildDecisionReportFixture();
+    const directTarget = current.interventions[0]!.targetPaths[0]!;
+    const diff = diffReportSchema.parse({
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current,
+      comparison: {
+        compatible: false,
+        reason: 'assessment contract mismatch',
+        changedFiles: [directTarget],
+        blastRadius: [],
+        newSignals: [],
+        worsenedSignals: [],
+        improvedSignals: [],
+      },
+    });
+
+    const markdown = formatDiffMarkdownReport(diff, { view: 'actions' });
+
+    expect(markdown).toContain('### 1. Break cycle 1');
+    expect(markdown).toContain('PR relevance: direct-change');
+  });
+
+  it('keeps actions reached only through the changed-file blast radius', () => {
+    const current = buildDecisionReportFixture();
+    const blastTarget = current.interventions[1]!.targetPaths[0]!;
+    const diff = diffReportSchema.parse({
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current,
+      comparison: {
+        compatible: false,
+        reason: 'stored baseline not found',
+        changedFiles: ['src/changed.ts'],
+        blastRadius: [{
+          changedFile: 'src/changed.ts',
+          directDependents: [blastTarget],
+          directDependencies: [],
+          transitiveDependents: [blastTarget],
+          transitiveDependencies: [],
+          paths: [{ from: blastTarget, to: 'src/changed.ts' }],
+        }],
+        newSignals: [],
+        worsenedSignals: [],
+        improvedSignals: [],
+      },
+    });
+
+    const markdown = formatDiffMarkdownReport(diff, { view: 'actions' });
+
+    expect(markdown).toContain('### 2. Break cycle 2');
+    expect(markdown).toContain('PR relevance: blast-radius');
+  });
+
+  it('orders new or worsened actions before directly changed actions', () => {
+    const current = buildDecisionReportFixture();
+    const base = structuredClone(current);
+    base.metadata.inputId = 'decision-report-baseline';
+    const worsenedEvidenceId = current.clusters[5]!.evidenceIds[0]!;
+    const baseEvidence = base.evidence.find((item) => item.evidenceId === worsenedEvidenceId)!;
+    baseEvidence.strength = 25;
+    baseEvidence.severity = 'low';
+    const diff = diffReportSchema.parse({
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current,
+      base,
+      comparison: {
+        compatible: true,
+        riskDelta: 0,
+        baselineId: base.metadata.inputId,
+        changedFiles: [current.interventions[0]!.targetPaths[0]!],
+        blastRadius: [],
+        ...compareSignalChanges(current, base),
+      },
+    });
+
+    const markdown = formatDiffMarkdownReport(diff, { view: 'actions' });
+
+    expect(markdown.indexOf('### 6. Break cycle 6')).toBeLessThan(markdown.indexOf('### 1. Break cycle 1'));
+    expect(markdown).toContain('PR relevance: new-or-worsened');
+    expect(markdown).toContain('PR relevance: direct-change');
+  });
+
   it('still reports changed files and blast radius when comparison is incompatible', () => {
     const diff = diffReportSchema.parse({
       schemaVersion: DIFF_SCHEMA_VERSION,

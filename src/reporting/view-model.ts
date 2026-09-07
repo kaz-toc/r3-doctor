@@ -75,6 +75,8 @@ export type SummaryView = {
   limitations: string[];
 };
 
+export type ActionChangeRelevance = 'new-or-worsened' | 'direct-change' | 'blast-radius';
+
 export type ActionItemView = {
   intervention: Intervention;
   linkedClusters: RiskCluster[];
@@ -82,6 +84,7 @@ export type ActionItemView = {
   displayPaths: string[];
   remainingPathCount: number;
   effectiveConfidence: number;
+  changeRelevance?: ActionChangeRelevance;
 };
 
 export type ActionsView = {

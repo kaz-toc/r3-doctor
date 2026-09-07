@@ -7,6 +7,7 @@ import {
   DEFAULT_REPORT_VIEW_LIMITS,
   formatAxisScoreLabel,
   type ActionItemView,
+  type ActionChangeRelevance,
   type FactEvidenceGroup,
   type ReportView,
   type ReportViewModel,
@@ -304,6 +305,9 @@ function renderActionItemMarkdown(
     `- Verify: ${intervention.verification}`,
     `- Horizon: ${intervention.verificationHorizon}`,
   ];
+  if (item.changeRelevance) {
+    lines.push(`- PR relevance: ${item.changeRelevance}`);
+  }
   if (linkedClusters.length > 0) {
     lines.push(`- Linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
   }
@@ -349,6 +353,9 @@ function renderActionsConsole(
     lines.push(`    first step: ${intervention.firstStep}`);
     lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`);
     lines.push(`    verify: ${intervention.verification}`);
+    if (item.changeRelevance) {
+      lines.push(`    PR relevance: ${item.changeRelevance}`);
+    }
     if (linkedClusters.length > 0) {
       lines.push(`    linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
     }
@@ -624,19 +631,64 @@ function renderDiffSummaryMarkdown(diff: DiffReport, locale: ReportLocale = DEFA
   return lines;
 }
 
+const ACTION_RELEVANCE_RANK: Record<ActionChangeRelevance, number> = {
+  'new-or-worsened': 3,
+  'direct-change': 2,
+  'blast-radius': 1,
+};
+
+function actionChangeRelevance(
+  item: ActionItemView,
+  changedEvidenceIds: ReadonlySet<string>,
+  changedFiles: ReadonlySet<string>,
+  blastRadiusPaths: ReadonlySet<string>,
+): ActionChangeRelevance | undefined {
+  if (
+    item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
+    item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id)))
+  ) {
+    return 'new-or-worsened';
+  }
+  if (item.intervention.targetPaths.some((path) => changedFiles.has(path))) {
+    return 'direct-change';
+  }
+  if (item.intervention.targetPaths.some((path) => blastRadiusPaths.has(path))) {
+    return 'blast-radius';
+  }
+  return undefined;
+}
+
 function resolveChangedActionViewModel(diff: DiffReport): ReportViewModel {
   const changedEvidenceIds = new Set([
     ...diff.comparison.newSignals.map((item) => item.evidenceId),
     ...diff.comparison.worsenedSignals.map((item) => item.evidenceId),
   ]);
+  const changedFiles = new Set(diff.comparison.changedFiles);
+  const blastRadiusPaths = new Set(
+    diff.comparison.blastRadius.flatMap((entry) => [
+      ...entry.directDependents,
+      ...entry.directDependencies,
+      ...entry.transitiveDependents,
+      ...entry.transitiveDependencies,
+    ]),
+  );
   const model = buildReportViewModel(diff.current, {
     ...DEFAULT_REPORT_VIEW_LIMITS,
     actionCount: diff.current.interventions.length,
   });
-  const matching = model.actions.items.filter((item) =>
-    item.linkedEvidence.some((evidence) => changedEvidenceIds.has(evidence.evidenceId)) ||
-    item.linkedClusters.some((cluster) => cluster.evidenceIds.some((id) => changedEvidenceIds.has(id))),
-  );
+  const matching = model.actions.items
+    .map((item) => ({
+      ...item,
+      changeRelevance: actionChangeRelevance(item, changedEvidenceIds, changedFiles, blastRadiusPaths),
+    }))
+    .filter((item): item is ActionItemView & { changeRelevance: ActionChangeRelevance } =>
+      item.changeRelevance !== undefined,
+    )
+    .sort((left, right) =>
+      ACTION_RELEVANCE_RANK[right.changeRelevance] - ACTION_RELEVANCE_RANK[left.changeRelevance] ||
+      right.intervention.priorityScore - left.intervention.priorityScore ||
+      left.intervention.interventionId.localeCompare(right.intervention.interventionId),
+    );
   const items = matching.slice(0, DEFAULT_REPORT_VIEW_LIMITS.actionCount);
   return {
     ...model,
