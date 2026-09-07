@@ -5,6 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "kaz-toc",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaz-toc/r3-doctor.git"
+  },
+  "homepage": "https://github.com/kaz-toc/r3-doctor#readme",
+  "bugs": {
+    "url": "https://github.com/kaz-toc/r3-doctor/issues"
+  },
   "keywords": [
     "regression",
     "risk",

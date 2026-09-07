@@ -114,5 +114,7 @@ npm run validate
 
 - **npm**: `npx r3-doctor` — public npm にコンパイル済み CLI を公開（ソースは非公開）
 - **GitHub**: [kaz-toc/r3-doctor](https://github.com/kaz-toc/r3-doctor) — private ソースリポジトリ
+- **リリース手順**: [docs/operations/RELEASE.md](docs/operations/RELEASE.md)
+- **変更履歴**: [CHANGELOG.md](CHANGELOG.md)
 
 初回 publish 後の CI 再公開は Actions → **npm publish**（`NPM_TOKEN` secret 必須）を手動実行します。
