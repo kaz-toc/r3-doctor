@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-07
+
+### Added
+
+- Cursor release skill (`.cursor/skills/r3-doctor-release/`) for version bump, validate, tag, and npm publish workflow
+- Untrusted repository boundary documentation and hardened release diagnostics
+
+### Changed
+
+- PROJECT.md branding aligned with Recovery Doctor positioning
+- Release runbook updated for ongoing semver releases
+- LLM execution separated from repository-controlled config; operator policy preserved without repo config
+- Repository paths anonymized by default in reports
+
+### Fixed
+
+- GitHub advisory output escaping
+- Bounded handling of repository-controlled inputs (config, glob, provider overrides)
+- Centralized hardened Git execution
+- Versioned semantic prompt contract
+- Release hardening gaps from security review (PR #8, #9)
+
 ## [0.1.0] - 2026-09-07
 
 ### Added
@@ -29,4 +51,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regression Risk Score is a relative indicator, not a failure probability guarantee
 - Persistence defaults to `.r3-doctor/` in the target repository
 
+[0.1.1]: https://github.com/kaz-toc/r3-doctor/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kaz-toc/r3-doctor/releases/tag/v0.1.0

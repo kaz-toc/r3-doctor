@@ -1,6 +1,6 @@
 {
   "name": "r3-doctor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Regression Risk Recovery Doctor — diagnostic CLI for regression risk",
   "type": "module",
   "license": "MIT",

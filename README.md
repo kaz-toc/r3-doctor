@@ -22,7 +22,7 @@ Node.js 22 以降が必要です。リポジトリ clone なしで CLI を実行
 
 ```bash
 npx r3-doctor scan . --format json
-npx r3-doctor@0.1.0 scan . --format markdown
+npx r3-doctor@0.1.1 scan . --format markdown
 ```
 
 npm パッケージにはコンパイル済み `dist/` と、実行時の calibration に必要な golden fixtures が含まれます。TypeScript ソースコードとテストコードは private GitHub リポジトリで管理しています。
