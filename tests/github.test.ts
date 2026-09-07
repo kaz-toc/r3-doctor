@@ -14,7 +14,7 @@ describe('github annotations', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',
@@ -41,7 +41,7 @@ describe('github annotations', () => {
       base: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'b',
           repositoryPath: '/tmp',
@@ -85,7 +85,7 @@ describe('github annotations', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',
@@ -115,11 +115,11 @@ describe('github annotations', () => {
     expect(formatGitHubAnnotations(diff)).toContain('::notice title=r3-doctor::assessment contract mismatch');
   });
 
-  it('REG-2026-002 escapes untrusted workflow command data and properties onto one line', () => {
+  it('REG-2026-013 escapes untrusted workflow command data and properties onto one line', () => {
     const current = {
       metadata: {
         schemaVersion: 1,
-        assessmentContractVersion: 2,
+        assessmentContractVersion: 3,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'c',
         repositoryPath: '/tmp',
@@ -194,7 +194,7 @@ describe('github annotations', () => {
         current: {
           metadata: {
             schemaVersion: 1,
-            assessmentContractVersion: 2,
+            assessmentContractVersion: 3,
             generatedAt: '2026-01-01T00:00:00.000Z',
             inputId: 'c',
             repositoryPath: '/tmp',

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-018",
+  "status": "active",
+  "title": "Semantic prompt byte limit covers the final payload",
+  "invariant": "The final provider prompt fits its byte limit, contains no absolute repository path, and carries a distinct provider implementation identity.",
+  "incident": "SEC-2026-007",
+  "productionFiles": ["src/semantic/context-budget.ts", "src/semantic/semantic-prompt.ts", "src/semantic/providers/acp-semantic-provider.ts"],
+  "testFiles": ["tests/semantic/semantic-prompt.test.ts"],
+  "verificationCommands": ["npx vitest run tests/semantic/semantic-prompt.test.ts -t REG-2026-018"]
+}

@@ -15,7 +15,7 @@ import { redactDiffReport } from '../src/shared/redaction.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 describe('policy redaction and gate eligibility', () => {
-  it('REG-2026-005 always removes the absolute repository path from external reports', async () => {
+  it('REG-2026-016 always removes the absolute repository path from external reports', async () => {
     const snapshot = await createRepositorySnapshot(path.join(root, 'fixtures', 'stable-cart'));
     const report = await runDiagnosis(snapshot);
 
@@ -53,7 +53,7 @@ describe('policy redaction and gate eligibility', () => {
     const report: DiagnosisReport = {
       metadata: {
         schemaVersion: 1,
-        assessmentContractVersion: 2,
+        assessmentContractVersion: 3,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'input',
         repositoryPath: '/Repo/evidence',
@@ -91,7 +91,7 @@ describe('policy redaction and gate eligibility', () => {
     const redacted = redactReport({
       metadata: {
         schemaVersion: 1 as const,
-        assessmentContractVersion: 2 as const,
+        assessmentContractVersion: 3 as const,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'input',
         repositoryPath: '/private/legacy/repository',
@@ -122,7 +122,7 @@ describe('policy redaction and gate eligibility', () => {
     const current = redactReport({
       metadata: {
         schemaVersion: 1,
-        assessmentContractVersion: 2,
+        assessmentContractVersion: 3,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'current',
         repositoryPath: '/private/legacy/repository',
@@ -156,7 +156,7 @@ describe('policy redaction and gate eligibility', () => {
     const report = {
       metadata: {
         schemaVersion: 1 as const,
-        assessmentContractVersion: 2 as const,
+        assessmentContractVersion: 3 as const,
         generatedAt: '2026-01-01T00:00:00.000Z',
         inputId: 'input',
         repositoryPath: '/repository',

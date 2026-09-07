@@ -1,7 +1,6 @@
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { DefaultGitProvider } from '../adapters/git-provider.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import { diagnosisContextFingerprint } from '../intake/analysis-context.js';
 import { loadPolicy } from '../operations/policy.js';
@@ -16,6 +15,7 @@ import { ConfigError } from '../shared/errors.js';
 import { redactReport, redactionPolicyFingerprint } from '../shared/redaction.js';
 import type { PersistenceResult } from './retention.js';
 import { baselineEntryFileName, retainBaselineEntries } from './retention.js';
+import { assertSnapshotPersistenceIntegrity } from './snapshot-integrity.js';
 import { assertSafeStorageDir, resolveSafeStorageDir } from './storage-boundary.js';
 
 export type BaselineSelection = {
@@ -42,39 +42,9 @@ function versionLabel(value: unknown): string {
   return typeof value === 'number' || typeof value === 'string' ? `v${value}` : 'missing';
 }
 
-function assertReportMatchesSnapshot(snapshot: RepositorySnapshot, report: DiagnosisReport): void {
-  if (
-    report.metadata.inputId !== snapshot.inputId ||
-    report.metadata.repositoryPath !== snapshot.repositoryPath ||
-    report.metadata.unitId !== snapshot.unitId
-  ) {
-    throw new ConfigError(snapshot.repositoryPath, 'diagnosis report does not match the repository snapshot');
-  }
-}
-
 export async function saveBaseline(snapshot: RepositorySnapshot, report: DiagnosisReport): Promise<PersistenceResult> {
-  assertReportMatchesSnapshot(snapshot, report);
+  const sourceCommitSha = await assertSnapshotPersistenceIntegrity(snapshot, report, { requireClean: true });
   const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
-  let sourceCommitSha: string | undefined;
-  if (snapshot.gitAvailable) {
-    if (!snapshot.sourceCommitSha) {
-      throw new ConfigError(snapshot.repositoryPath, 'Git commit identity was not captured during intake');
-    }
-    if (snapshot.gitDirty) {
-      throw new ConfigError(snapshot.repositoryPath, 'refusing to save a commit-bound baseline from a dirty worktree');
-    }
-    const currentGit = await new DefaultGitProvider().inspectRepository(snapshot.repositoryPath);
-    if (!currentGit || currentGit.headSha !== snapshot.sourceCommitSha) {
-      throw new ConfigError(snapshot.repositoryPath, 'Git HEAD changed after repository intake');
-    }
-    if (currentGit.statusFingerprint !== snapshot.gitStatusFingerprint) {
-      throw new ConfigError(snapshot.repositoryPath, 'Git worktree state changed after repository intake');
-    }
-    if (currentGit.dirty) {
-      throw new ConfigError(snapshot.repositoryPath, 'worktree became dirty after repository intake');
-    }
-    sourceCommitSha = snapshot.sourceCommitSha;
-  }
   const redacted = redactReport(report, policy.redactPaths);
   const entry = baselineEntrySchema.parse({
     schemaVersion: BASELINE_SCHEMA_VERSION,

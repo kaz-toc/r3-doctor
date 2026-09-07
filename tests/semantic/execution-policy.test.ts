@@ -8,7 +8,7 @@ describe('operator-owned LLM execution policy', () => {
   it.each([
     ['model', { llmModel: 'model-id' }],
     ['executable', { llmExecutable: path.resolve('provider') }],
-  ])('REG-2026-001 rejects a provider-less %s override during dry-run', (_name, override) => {
+  ])('REG-2026-012 rejects a provider-less %s override during dry-run', (_name, override) => {
     expect(() => parseLlmExecutionPolicy(override, true)).toThrow('requires --llm-provider');
   });
 

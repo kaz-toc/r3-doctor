@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "REG-2026-007",
   "status": "active",
-  "title": "Semantic prompt byte limit covers the final payload",
-  "invariant": "The final provider prompt fits its byte limit, contains no absolute repository path, and carries a distinct provider implementation identity.",
-  "incident": "SEC-2026-007",
-  "productionFiles": ["src/semantic/context-budget.ts", "src/semantic/semantic-prompt.ts", "src/semantic/providers/acp-semantic-provider.ts"],
-  "testFiles": ["tests/semantic/semantic-prompt.test.ts"],
-  "verificationCommands": ["npx vitest run tests/semantic/semantic-prompt.test.ts -t REG-2026-007"]
+  "title": "Trend entry binds an old diagnosis to the current HEAD",
+  "invariant": "Trend persistence accepts only a report and Git state matching the snapshot and stores the snapshot commit.",
+  "incident": "codebase-review-2026-09-07#trend-snapshot-identity",
+  "productionFiles": ["src/persistence/snapshot-integrity.ts", "src/persistence/trend-store.ts"],
+  "testFiles": ["tests/integration.test.ts"],
+  "verificationCommands": ["npm test -- tests/integration.test.ts -t \"trend persistence boundary\""]
 }

@@ -50,7 +50,7 @@ async function installFakeGit(output: string): Promise<{
 }
 
 describe('git provider boundaries', () => {
-  it('REG-2026-004 terminates rev-parse options before a caller-controlled ref', async () => {
+  it('REG-2026-015 terminates rev-parse options before a caller-controlled ref', async () => {
     const fake = await installFakeGit('a'.repeat(40));
     try {
       await new DefaultGitProvider().resolveRef(fake.repository, 'main');
@@ -85,7 +85,7 @@ describe('git provider boundaries', () => {
     }
   });
 
-  it('REG-2026-009 does not pass provider credentials to Git subprocesses', async () => {
+  it('REG-2026-020 does not pass provider credentials to Git subprocesses', async () => {
     const fake = await installFakeGit('a'.repeat(40));
     process.env.OPENAI_API_KEY = 'must-not-reach-git';
     try {

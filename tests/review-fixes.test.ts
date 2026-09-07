@@ -47,7 +47,7 @@ describe('review fixes', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp/secret-repo',
@@ -74,7 +74,7 @@ describe('review fixes', () => {
       base: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'b',
           repositoryPath: '/tmp/secret-repo',
@@ -160,11 +160,11 @@ describe('review fixes', () => {
 
   it('finds degradation start across interim improvements', () => {
     const entries: TrendEntry[] = [
-      { schemaVersion: 1, generatedAt: '2026-01-01T00:00:00.000Z', inputId: 'a', score: 10, confidence: 1, contractVersion: 2, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-02T00:00:00.000Z', inputId: 'b', score: 20, confidence: 1, contractVersion: 2, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-03T00:00:00.000Z', inputId: 'c', score: 15, confidence: 1, contractVersion: 2, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-04T00:00:00.000Z', inputId: 'd', score: 25, confidence: 1, contractVersion: 2, topClusters: [] },
-      { schemaVersion: 1, generatedAt: '2026-01-05T00:00:00.000Z', inputId: 'e', score: 24, confidence: 1, contractVersion: 2, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-01T00:00:00.000Z', inputId: 'a', score: 10, confidence: 1, contractVersion: 3, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-02T00:00:00.000Z', inputId: 'b', score: 20, confidence: 1, contractVersion: 3, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-03T00:00:00.000Z', inputId: 'c', score: 15, confidence: 1, contractVersion: 3, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-04T00:00:00.000Z', inputId: 'd', score: 25, confidence: 1, contractVersion: 3, topClusters: [] },
+      { schemaVersion: 1, generatedAt: '2026-01-05T00:00:00.000Z', inputId: 'e', score: 24, confidence: 1, contractVersion: 3, topClusters: [] },
     ];
     expect(analyzeTrend(entries).degradationStartAt).toBe('2026-01-01T00:00:00.000Z');
   });

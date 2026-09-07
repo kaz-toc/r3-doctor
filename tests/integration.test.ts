@@ -288,7 +288,7 @@ describe('integration: Git-dependent capability unevaluated', () => {
         extensions: ['.ts'],
         capabilities: [{
           language: 'typescript-javascript',
-          contractVersion: 2,
+          contractVersion: 3,
           signals: ['git-churn'],
           completeness: 'partial',
         }],
@@ -372,7 +372,7 @@ describe('integration: trend corrupt line errors', () => {
         inputId: 'a',
         score: 1,
         confidence: 1,
-        contractVersion: 2,
+        contractVersion: 3,
         topClusters: [],
       })}\n{broken\n`,
     );
@@ -395,7 +395,7 @@ describe('integration: trend persistence boundary', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 2,
+        contractVersion: 3,
         topClusters: [],
       })}\n`);
 
@@ -408,6 +408,49 @@ describe('integration: trend persistence boundary', () => {
       expect((await loadTrendHistory(result.path)).map((entry) => entry.inputId)).toEqual([
         report.metadata.inputId,
       ]);
+      expect((await loadTrendHistory(result.path))[0]?.commitSha).toBe(snapshot.sourceCommitSha);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('REG-2026-007 rejects a trend write after HEAD advances beyond the diagnosed snapshot', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const snapshot = await createRepositorySnapshot(repo.path);
+      const report = await runDiagnosis(snapshot);
+      await repo.write('src/a.ts', 'export const a = 2;\n');
+      await repo.commit('advance head after diagnosis');
+
+      await expect(appendTrend(snapshot, report)).rejects.toThrow(/Git HEAD changed after repository intake/);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('rejects a trend write after the worktree changes beyond the diagnosed snapshot', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const snapshot = await createRepositorySnapshot(repo.path);
+      const report = await runDiagnosis(snapshot);
+      await repo.write('src/a.ts', 'export const a = 2;\n');
+
+      await expect(appendTrend(snapshot, report)).rejects.toThrow(/Git worktree state changed after repository intake/);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('rejects a diagnosis report from another snapshot', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const snapshot = await createRepositorySnapshot(repo.path);
+      const report = await runDiagnosis(snapshot);
+
+      await expect(appendTrend(snapshot, {
+        ...report,
+        metadata: { ...report.metadata, inputId: 'different-input' },
+      })).rejects.toThrow(/diagnosis report does not match the repository snapshot/);
     } finally {
       await repo.cleanup();
     }
@@ -430,7 +473,7 @@ describe('integration: CLI retention audits', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 2,
+        contractVersion: 3,
         topClusters: [],
       })}\n`);
 
@@ -523,6 +566,25 @@ describe('integration: CLI calibration conditions', () => {
   });
 });
 
+describe('integration: plugin catalog', () => {
+  it('REG-2026-010 lists declared capabilities for every registered plugin', async () => {
+    const cliPath = path.join(root, '..', 'src', 'cli.ts');
+    const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+
+    const { stdout } = await execFileAsync(process.execPath, [tsxPath, cliPath, 'plugins']);
+    const catalog = JSON.parse(stdout) as {
+      plugins: Array<{ id: string; extensions: string[]; capabilities: unknown[] }>;
+    };
+
+    expect(catalog.plugins).toHaveLength(3);
+    for (const plugin of catalog.plugins) {
+      expect(plugin.id).toBeTruthy();
+      expect(plugin.extensions.length).toBeGreaterThan(0);
+      expect(plugin.capabilities.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('integration: diff report contract', () => {
   it('returns versioned DiffReport shape from compareSignalChanges path', () => {
     const diff = diffReportSchema.parse({
@@ -530,7 +592,7 @@ describe('integration: diff report contract', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',
@@ -572,7 +634,7 @@ describe('integration: github outputs', () => {
       current: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'c',
           repositoryPath: '/tmp',
@@ -599,7 +661,7 @@ describe('integration: github outputs', () => {
       base: {
         metadata: {
           schemaVersion: 1,
-          assessmentContractVersion: 2,
+          assessmentContractVersion: 3,
           generatedAt: '2026-01-01T00:00:00.000Z',
           inputId: 'b',
           repositoryPath: '/tmp',

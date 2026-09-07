@@ -36,7 +36,7 @@ const evidence: Evidence[] = [{
 }];
 
 describe('semantic prompt boundary', () => {
-  it('REG-2026-007 caps the fully serialized prompt and omits absolute paths', () => {
+  it('REG-2026-018 caps the fully serialized prompt and omits absolute paths', () => {
     const result = buildBudgetedSemanticPrompt(snapshot, evidence, 2_048);
 
     expect(Buffer.byteLength(result.prompt, 'utf8')).toBeLessThanOrEqual(2_048);

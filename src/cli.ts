@@ -16,7 +16,6 @@ import {
   GoStubAnalyzerPlugin,
   PythonStubAnalyzerPlugin,
   TypeScriptAnalyzerPlugin,
-  negotiateCapabilities,
 } from './plugins/analyzer.js';
 import { extractEvidenceWithPlugins, getDefaultPlugins } from './plugins/analyzer.js';
 import { R3DoctorError } from './shared/errors.js';
@@ -258,21 +257,14 @@ program
   .description('list analyzer plugin capabilities')
   .action(async () => {
     const plugins = [new TypeScriptAnalyzerPlugin(), new PythonStubAnalyzerPlugin(), new GoStubAnalyzerPlugin()];
-    const negotiation = negotiateCapabilities(
-      {
-        repositoryPath: process.cwd(),
-        files: [],
-        inputId: 'plugins',
-        gitAvailable: false,
-        gitDirty: false,
-        analysisContextFingerprint: '0'.repeat(64),
-        truncated: false,
-        intakeIssues: [],
-        config: { schemaVersion: 1 } as never,
-      },
-      plugins,
-    );
-    process.stdout.write(`${JSON.stringify({ plugins: plugins.map((p) => p.id), ...negotiation }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      plugins: plugins.map((plugin) => ({
+        id: plugin.id,
+        implementationVersion: plugin.implementationVersion,
+        extensions: plugin.extensions,
+        capabilities: plugin.capabilities,
+      })),
+    }, null, 2)}\n`);
   });
 
 const llm = program.command('llm').description('LLM provider utilities');

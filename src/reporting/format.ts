@@ -12,15 +12,16 @@ function sortEvidence(items: Evidence[]): Evidence[] {
   });
 }
 
-function axisHasEvidence(report: DiagnosisReport, axisId: AxisAssessment['axisId']): boolean {
-  return report.evidence.some((item) => item.axisId === axisId);
+function axisHasSignals(report: DiagnosisReport, axisId: AxisAssessment['axisId']): boolean {
+  return report.evidence.some((item) => item.axisId === axisId) ||
+    report.semanticFindings.some((item) => item.axisId === axisId);
 }
 
 function formatAxisScoreLabel(axis: AxisAssessment, report: DiagnosisReport): string {
   if (axis.unevaluated) {
     return 'unevaluated (excluded from aggregate)';
   }
-  if (!axisHasEvidence(report, axis.axisId)) {
+  if (!axisHasSignals(report, axis.axisId)) {
     return '0 (no signals detected)';
   }
   return String(axis.score);

@@ -53,7 +53,7 @@ describe('intake contract', () => {
     expect(stdout.trim()).toBe('done');
   });
 
-  it('REG-2026-003 caps aggregate glob work across repository entries', async () => {
+  it('REG-2026-014 caps aggregate glob work across repository entries', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-glob-budget-'));
     const patterns = Array.from(
       { length: 128 },
@@ -69,6 +69,13 @@ describe('intake contract', () => {
 
     await expect(createRepositorySnapshot(dir)).rejects.toThrow('exclude glob evaluation budget exceeded');
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it('REG-2026-011 treats regular-expression metacharacters in globs as literal path characters', () => {
+    expect(isExcluded('src/foo+bar/generated/a.ts', ['src/foo+bar/**'])).toBe(true);
+    expect(isExcluded('src/foooobar/generated/a.ts', ['src/foo+bar/**'])).toBe(false);
+    expect(isExcluded('src/[draft]/a.ts', ['src/[draft]/**'])).toBe(true);
+    expect(isExcluded('src/d/a.ts', ['src/[draft]/**'])).toBe(false);
   });
 
   it('throws config error for invalid JSON config', async () => {
@@ -100,7 +107,7 @@ describe('intake contract', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('REG-2026-001 rejects LLM execution settings owned by the target repository', async () => {
+  it('REG-2026-012 rejects LLM execution settings owned by the target repository', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-untrusted-llm-config-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), JSON.stringify({
       schemaVersion: 1,
@@ -127,7 +134,7 @@ describe('intake contract', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it('REG-2026-006 rejects an oversized repository config before JSON parsing', async () => {
+  it('REG-2026-017 rejects an oversized repository config before JSON parsing', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-config-bytes-'));
     await writeFile(path.join(dir, 'r3-doctor.config.json'), ' '.repeat(1_048_577));
 

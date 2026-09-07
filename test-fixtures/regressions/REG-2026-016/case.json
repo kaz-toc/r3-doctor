@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-016",
+  "status": "active",
+  "title": "External reports hide absolute repository paths",
+  "invariant": "Every redacted report uses the fixed repository token even when no custom redaction path exists.",
+  "incident": "SEC-2026-005",
+  "productionFiles": ["src/shared/redaction.ts"],
+  "testFiles": ["tests/redaction.test.ts"],
+  "verificationCommands": ["npx vitest run tests/redaction.test.ts -t REG-2026-016"]
+}

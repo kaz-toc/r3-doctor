@@ -14,7 +14,7 @@ import { loadPolicy, policySchema } from '../src/operations/policy.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 describe('phase 5-6 operations', () => {
-  it('REG-2026-008 rejects policy paths that escape or symlink outside the repository', async () => {
+  it('REG-2026-019 rejects policy paths that escape or symlink outside the repository', async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-policy-boundary-'));
     const repositoryPath = path.join(parent, 'repository');
     const outsidePath = path.join(parent, 'outside-policy.json');
@@ -55,7 +55,7 @@ describe('phase 5-6 operations', () => {
         inputId: 'a',
         score: 30,
         confidence: 0.8,
-        contractVersion: 2,
+        contractVersion: 3,
         commitSha: 'aaa',
         changedFiles: ['src/a.ts'],
         topClusters: [{ clusterId: 'cluster:structural-fragility:dependency-cycle:1', score: 40 }],
@@ -66,7 +66,7 @@ describe('phase 5-6 operations', () => {
         inputId: 'b',
         score: 55,
         confidence: 0.8,
-        contractVersion: 2,
+        contractVersion: 3,
         commitSha: 'bbb',
         changedFiles: ['src/b.ts'],
         topClusters: [{ clusterId: 'cluster:structural-fragility:dependency-cycle:1', score: 70 }],

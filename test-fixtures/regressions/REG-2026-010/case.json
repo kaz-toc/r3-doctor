@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-010",
+  "status": "active",
+  "title": "Plugin catalog reports no capabilities",
+  "invariant": "The plugins command lists the declared extensions and capabilities of every registered analyzer.",
+  "incident": "codebase-review-2026-09-07#plugin-catalog",
+  "productionFiles": ["src/cli.ts", "src/plugins/analyzer.ts"],
+  "testFiles": ["tests/integration.test.ts"],
+  "verificationCommands": ["npm test -- tests/integration.test.ts -t \"plugin catalog\""]
+}

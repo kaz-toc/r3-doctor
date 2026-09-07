@@ -41,5 +41,5 @@ Repository paths and filenames also cross persistence and GitHub reporting bound
 - Execution ownership and executable search: `tests/intake.test.ts`, `tests/semantic/execution-policy.test.ts`, and `tests/semantic/acp-client.test.ts`.
 - Output and workflow isolation: `tests/github.test.ts`.
 - Bounded input, Git, policy, prompt, and path privacy: `tests/intake.test.ts`, `tests/git-provider.test.ts`, `tests/operations.test.ts`, `tests/semantic/semantic-prompt.test.ts`, and `tests/redaction.test.ts`.
-- Incident mapping: `docs/incidents/LEDGER.md` and active cases `REG-2026-001` through `REG-2026-009`.
+- Incident mapping: `docs/incidents/LEDGER.md` and active cases `REG-2026-012` through `REG-2026-020`.
 - Repository-wide validation: `npm run validate`.

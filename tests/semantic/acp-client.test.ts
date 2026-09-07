@@ -48,6 +48,44 @@ function missingExecutableSpawn(): LlmSpawn {
 }
 
 describe('createOneShotAcpClient', () => {
+  it('REG-2026-009 times out and kills an agent that never answers initialize', async () => {
+    const script = fakeAcpAgent({
+      initialize: {
+        protocolVersion: acp.PROTOCOL_VERSION,
+        agentCapabilities: {},
+        authMethods: [],
+      },
+      hangInitialize: true,
+    });
+    const client = createOneShotAcpClient({ spawn: script.spawn, setupTimeoutMs: 20 });
+
+    const result = await client.inspect({ spec: launchSpec('copilot') });
+
+    expect(result).toEqual({ ok: false, reason: 'timeout' });
+    expect(script.killCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('times out and kills an agent that never creates a session', async () => {
+    const script = fakeAcpAgent({
+      initialize: {
+        protocolVersion: acp.PROTOCOL_VERSION,
+        agentCapabilities: {},
+        authMethods: [],
+      },
+      hangSessionSetup: true,
+    });
+    const client = createOneShotAcpClient({ spawn: script.spawn, setupTimeoutMs: 20 });
+
+    const result = await client.oneShotPrompt({
+      spec: launchSpec('copilot'),
+      prompt: 'analyze semantic ambiguity',
+      outputMaxBytes: LLM_PROMPT_OUTPUT_MAX_BYTES,
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'timeout' });
+    expect(script.killCount).toBeGreaterThanOrEqual(1);
+  });
+
   it('initializes with capability-minimal clientCapabilities', async () => {
     const script = fakeAcpAgent({
       initialize: {
@@ -157,7 +195,7 @@ describe('createOneShotAcpClient', () => {
     expect(spec.env.SECRET_TOKEN).toBeUndefined();
   });
 
-  it('REG-2026-009 removes repository-owned executable search paths', async () => {
+  it('REG-2026-020 removes repository-owned executable search paths', async () => {
     const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-provider-path-'));
     const repositoryBin = path.join(repositoryPath, 'node_modules', '.bin');
     await mkdir(repositoryBin, { recursive: true });

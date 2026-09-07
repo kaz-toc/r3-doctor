@@ -68,12 +68,16 @@ export function buildBudgetedSemanticPrompt(
   const fixedPrompt = composeSemanticPrompt(snapshot, evidence, '', fence);
   const fixedBytes = Buffer.byteLength(fixedPrompt, 'utf8');
   if (fixedBytes > maxPromptBytes) {
-    throw new R3DoctorError(`semantic prompt fixed content exceeds ${maxPromptBytes} byte limit`);
+    throw new R3DoctorError(
+      `semantic prompt fixed content exceeds ${maxPromptBytes} byte limit (maxPromptBytes ${maxPromptBytes})`,
+    );
   }
   const packet = buildContextPacket(snapshot, maxPromptBytes - fixedBytes);
   const prompt = composeSemanticPrompt(snapshot, evidence, packet.prompt, fence);
   if (Buffer.byteLength(prompt, 'utf8') > maxPromptBytes) {
-    throw new R3DoctorError(`semantic prompt exceeds ${maxPromptBytes} byte limit`);
+    throw new R3DoctorError(
+      `semantic prompt exceeds ${maxPromptBytes} byte limit (maxPromptBytes ${maxPromptBytes})`,
+    );
   }
   return { ...packet, prompt };
 }

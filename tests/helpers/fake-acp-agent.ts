@@ -12,6 +12,8 @@ import type { LlmProcess, LlmSpawn } from '../../src/semantic/acp/process-port.j
 
 export type FakeAcpAgentScript = {
   initialize: InitializeResponse;
+  hangInitialize?: boolean;
+  hangSessionSetup?: boolean;
   protocolVersionMismatch?: boolean;
   promptChunks?: readonly string[];
   promptToolCall?: boolean;
@@ -55,12 +57,20 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
       .agent({ name: 'fake-acp-agent' })
       .onRequest(acp.methods.agent.initialize, async ({ params }) => {
         handle.initializeRequests.push({ clientCapabilities: params.clientCapabilities ?? {} });
+        if (script.hangInitialize) {
+          return new Promise<InitializeResponse>(() => undefined);
+        }
         if (script.protocolVersionMismatch) {
           return { ...script.initialize, protocolVersion: script.initialize.protocolVersion + 999 };
         }
         return script.initialize;
       })
-      .onRequest(acp.methods.agent.session.new, () => ({ sessionId: 'session-default' }))
+      .onRequest(acp.methods.agent.session.new, () => {
+        if (script.hangSessionSetup) {
+          return new Promise<{ sessionId: string }>(() => undefined);
+        }
+        return { sessionId: 'session-default' };
+      })
       .onRequest(acp.methods.agent.session.prompt, async ({ params, client }) => {
         handle.promptRequests.push(params);
         if (script.promptToolCall) {
