@@ -237,9 +237,11 @@ describe('diff diagnostics', () => {
     });
 
     const markdown = formatDiffMarkdownReport(diff, { view: 'actions' });
+    const consoleOut = formatDiffConsoleReport(diff, { view: 'actions' });
 
     expect(markdown).toContain('### 1. Break cycle 1');
     expect(markdown).toContain('PR relevance: direct-change');
+    expect(consoleOut).toContain('PR relevance: direct-change');
   });
 
   it('keeps actions reached only through the changed-file blast radius', () => {

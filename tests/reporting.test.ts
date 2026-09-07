@@ -90,6 +90,7 @@ describe('reporting views', () => {
     expect(actions).toMatch(/Linked clusters: cluster:/);
     expect(actions).toMatch(/Linked evidence: evidence:/);
     expect(actions).toContain('Priority score: 95; Confidence: 0.72; Cost: medium');
+    expect(actions).not.toContain('PR relevance:');
     expect(summary).not.toContain('Priority score:');
 
     expect(all.match(/^## (Diagnosis summary|Improvement points|Current state)$/gm))
