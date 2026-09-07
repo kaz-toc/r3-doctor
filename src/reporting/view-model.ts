@@ -12,17 +12,19 @@ export type ReportView = 'facts' | 'summary' | 'actions' | 'all';
 export type ReportViewLimits = {
   actionCount: number;
   clusterCount: number;
-  pathsPerItem: number;
+  actionPathsPerItem: number;
   evidencePerCluster: number;
+  actionEvidencePerItem: number;
   evidencePerFactGroup: number;
 };
 
 export const DEFAULT_REPORT_VIEW_LIMITS = {
-  actionCount: 5,
+  actionCount: 8,
   clusterCount: 5,
-  pathsPerItem: 3,
+  actionPathsPerItem: 5,
   evidencePerCluster: 3,
-  evidencePerFactGroup: 5,
+  actionEvidencePerItem: 5,
+  evidencePerFactGroup: 8,
 } as const satisfies ReportViewLimits;
 
 const SEVERITY_RANK = { high: 3, medium: 2, low: 1 } as const;
@@ -73,12 +75,16 @@ export type SummaryView = {
   limitations: string[];
 };
 
+export type ActionChangeRelevance = 'new-or-worsened' | 'direct-change' | 'blast-radius';
+
 export type ActionItemView = {
   intervention: Intervention;
   linkedClusters: RiskCluster[];
   linkedEvidence: Evidence[];
   displayPaths: string[];
   remainingPathCount: number;
+  effectiveConfidence: number;
+  changeRelevance?: ActionChangeRelevance;
 };
 
 export type ActionsView = {
@@ -277,14 +283,18 @@ function buildActionItems(report: DiagnosisReport, limits: ReportViewLimits): {
         report.evidence.filter((item) =>
           linkedEvidenceIds.has(item.evidenceId) && intervention.linkedSignalIds.includes(item.signalId),
         ),
-      ).slice(0, limits.evidencePerCluster);
-      const displayPaths = intervention.targetPaths.slice(0, limits.pathsPerItem);
+      ).slice(0, limits.actionEvidencePerItem);
+      const displayPaths = intervention.targetPaths.slice(0, limits.actionPathsPerItem);
+      const clusterConfidence = linkedClusters.length > 0
+        ? Math.min(...linkedClusters.map((cluster) => cluster.confidence))
+        : report.repository.confidence;
       return {
         intervention,
         linkedClusters,
         linkedEvidence,
         displayPaths,
         remainingPathCount: Math.max(0, intervention.targetPaths.length - displayPaths.length),
+        effectiveConfidence: Math.min(report.repository.confidence, clusterConfidence),
       };
     }),
     remainingActionCount: Math.max(0, sorted.length - visible.length),

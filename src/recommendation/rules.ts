@@ -27,11 +27,18 @@ export function displayTargetPaths(targetPaths: string[], limit = 3): string[] {
 
 type TemplateContext = {
   cluster: RiskCluster;
+  basisEvidenceId: string;
   primaryPath: string;
   strongestMetric: string;
   targetPaths: string[];
   linkedSignalIds: SignalId[];
   churnDays: number;
+};
+
+type RecommendationBasis = {
+  evidence: Evidence;
+  primaryPath: string;
+  strongestMetric: string;
 };
 
 type MechanismTemplateDef = {
@@ -61,6 +68,7 @@ const DEFAULT_TEMPLATE_DEF: MechanismTemplateDef = {
 function templateParams(ctx: TemplateContext): Record<string, string | number> {
   return {
     mechanismId: ctx.cluster.mechanismId,
+    basisEvidenceId: ctx.basisEvidenceId,
     primaryPath: ctx.primaryPath,
     strongestMetric: ctx.strongestMetric,
     score: ctx.cluster.score,
@@ -88,28 +96,12 @@ function buildTemplateFields(locale: ReportLocale, prefix: string, ctx: Template
     expectedEffect: t(locale, interventionKey(prefix, 'expectedEffect')),
     rationale: t(locale, interventionKey(prefix, 'rationale'), params),
     firstStep: t(locale, interventionKey(prefix, 'firstStep'), params),
-    verification: t(locale, interventionKey(prefix, 'verification'), params),
+    verification: [
+      t(locale, interventionKey(prefix, 'verification'), params),
+      t(locale, 'intervention.verification.rescan', params),
+    ].join(' '),
     verificationHorizon: t(locale, interventionKey(prefix, 'verificationHorizon'), params),
   };
-}
-
-function primaryPath(cluster: RiskCluster, linkedEvidence: Evidence[]): string {
-  const strengthByPath = new Map<string, number>();
-  for (const item of linkedEvidence) {
-    if (!item.path) {
-      continue;
-    }
-    strengthByPath.set(item.path, Math.max(strengthByPath.get(item.path) ?? 0, item.strength));
-  }
-  const paths = cluster.paths.length > 0 ? cluster.paths : [...strengthByPath.keys()];
-  return [...paths].sort((left, right) => {
-    const leftStrength = strengthByPath.get(left) ?? 0;
-    const rightStrength = strengthByPath.get(right) ?? 0;
-    if (rightStrength !== leftStrength) {
-      return rightStrength - leftStrength;
-    }
-    return left.localeCompare(right);
-  })[0] ?? 'repository';
 }
 
 function formatMetric(key: string, value: string | number | boolean): string {
@@ -135,23 +127,33 @@ function formatMetric(key: string, value: string | number | boolean): string {
   }
 }
 
-function strongestMetric(linkedEvidence: Evidence[]): string {
-  const ranked = [...linkedEvidence].sort((left, right) => {
-    if (right.strength !== left.strength) {
-      return right.strength - left.strength;
-    }
-    return left.evidenceId.localeCompare(right.evidenceId);
-  });
-  const strongest = ranked[0];
-  if (!strongest) {
-    return 'strength=unknown';
-  }
-  const metricEntries = Object.entries(strongest.metrics ?? {});
+function metricForEvidence(evidence: Evidence): string {
+  const metricEntries = Object.entries(evidence.metrics ?? {});
   if (metricEntries.length === 0) {
-    return strongest.message;
+    return evidence.message;
   }
   const [key, value] = metricEntries[0] ?? ['metric', 'unknown'];
   return formatMetric(key, value);
+}
+
+function selectRecommendationBasis(
+  linkedEvidence: Evidence[],
+  targetPaths: string[],
+): RecommendationBasis | undefined {
+  const productPaths = new Set(targetPaths);
+  const evidence = [...linkedEvidence]
+    .filter((item): item is Evidence & { path: string } =>
+      typeof item.path === 'string' && productPaths.has(item.path))
+    .sort((left, right) =>
+      right.strength - left.strength || left.evidenceId.localeCompare(right.evidenceId))[0];
+  if (!evidence) {
+    return undefined;
+  }
+  return {
+    evidence,
+    primaryPath: evidence.path,
+    strongestMetric: metricForEvidence(evidence),
+  };
 }
 
 function templateDefForMechanism(mechanismId: string): MechanismTemplateDef {
@@ -180,14 +182,17 @@ export function buildInterventions(
       continue;
     }
 
+    const basis = selectRecommendationBasis(linkedEvidence, targetPaths);
+    if (!basis) {
+      continue;
+    }
     const linkedSignalIds = [...new Set(linkedEvidence.map((item) => item.signalId))].sort() as SignalId[];
-    const anchorPath = primaryPath(cluster, linkedEvidence);
-    const metricLabel = strongestMetric(linkedEvidence);
     const templateDef = templateDefForMechanism(cluster.mechanismId);
     const context: TemplateContext = {
       cluster,
-      primaryPath: anchorPath,
-      strongestMetric: metricLabel,
+      basisEvidenceId: basis.evidence.evidenceId,
+      primaryPath: basis.primaryPath,
+      strongestMetric: basis.strongestMetric,
       targetPaths,
       linkedSignalIds,
       churnDays,
@@ -210,7 +215,7 @@ export function buildInterventions(
       firstStep: fields.firstStep,
       priorityScore: computePriorityScore(
         cluster.score,
-        evidenceConfidence,
+        Math.min(evidenceConfidence, cluster.confidence),
         targetPaths.length,
         templateDef.cost,
       ),

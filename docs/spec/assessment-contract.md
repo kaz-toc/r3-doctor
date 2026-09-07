@@ -54,6 +54,12 @@ repositoryScore = round(axisBase + 0.30 * max(0, maxClusterScore - axisBase))
 
 各 intervention は `rationale`、`firstStep`、`priorityScore`、`verificationHorizon` を必須とする。
 
+- primary path、metric、verification の Evidence ID は、同一の basis Evidence から導出する。
+- priority に使う confidence は repository confidence と linked cluster confidence の小さい方とする。
+- verification には `r3-doctor scan . --format json` と basis Evidence ID を含め、対象 signal の消失または弱化を再検証可能にする。
+- human-readable な diff action は `new-or-worsened` → `direct-change` → `blast-radius` の順で PR 関連度を持ち、無関連の action は表示しない。比較可能な baseline がなくても、changed files と blast radius による関連度は評価する。
+- summary は最大 5 clusters・各 3 Evidence を維持する。facts は各 group 8 Evidence、actions/all は最大 8 actions・各 5 target paths、actions 単体は各 5 linked Evidence まで表示する。
+
 ## 比較規則
 
 - `assessmentContractVersion` と report schema version が一致するベースラインのみ差分可能。

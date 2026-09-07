@@ -91,6 +91,69 @@ describe('intervention target path filtering', () => {
 });
 
 describe('cluster-specific intervention ranking', () => {
+  it('uses one Evidence for both primary path and strongest metric', () => {
+    const evidence = [
+      makeEvidence({
+        evidenceId: 'evidence:high-fan-out:src/a.ts',
+        signalId: 'high-fan-out',
+        axisId: 'change-blast-radius',
+        path: 'src/a.ts',
+        severity: 'high',
+        strength: 100,
+        message: 'fan-out',
+        metrics: { fanOut: 25 },
+      }),
+      makeEvidence({
+        evidenceId: 'evidence:high-fan-in:src/b.ts',
+        signalId: 'high-fan-in',
+        axisId: 'change-blast-radius',
+        path: 'src/b.ts',
+        severity: 'high',
+        strength: 100,
+        message: 'fan-in',
+        metrics: { fanIn: 33 },
+      }),
+    ];
+    const cluster = makeCluster({
+      clusterId: 'cluster:change-blast-radius:high-connectivity:1',
+      mechanismId: 'high-connectivity',
+      axisId: 'change-blast-radius',
+      score: 90,
+      paths: ['src/a.ts', 'src/b.ts'],
+      evidenceIds: evidence.map((item) => item.evidenceId),
+    });
+
+    const [action] = buildInterventions(evidence, [cluster], [], 1);
+
+    expect(action?.rationale).toContain('src/b.ts');
+    expect(action?.rationale).toContain('fan-in=33');
+    expect(action?.rationale).not.toContain('src/a.ts');
+  });
+
+  it('uses the lower repository and cluster confidence for priority', () => {
+    const evidence = [makeEvidence({
+      evidenceId: 'evidence:large-file:src/a.ts',
+      signalId: 'large-file',
+      axisId: 'structural-fragility',
+      path: 'src/a.ts',
+      severity: 'high',
+      message: 'large',
+      metrics: { lines: 900 },
+    })];
+    const cluster = makeCluster({
+      clusterId: 'cluster:structural-fragility:large-file:1',
+      mechanismId: 'large-file',
+      score: 80,
+      confidence: 0.4,
+      paths: ['src/a.ts'],
+      evidenceIds: [evidence[0]!.evidenceId],
+    });
+
+    const [action] = buildInterventions(evidence, [cluster], [], 0.9);
+
+    expect(action?.priorityScore).toBe(computePriorityScore(80, 0.4, 1, 'medium'));
+  });
+
   it('assigns sequential priorities from priorityScore', () => {
     const evidence: Evidence[] = [
       makeEvidence({
@@ -245,6 +308,8 @@ describe('cluster-specific intervention ranking', () => {
       expect(action.verification.length).toBeGreaterThan(0);
       expect(action.verificationHorizon.length).toBeGreaterThan(0);
       expect(action.verification).not.toEqual(action.verificationHorizon);
+      expect(action.verification).toContain('r3-doctor scan . --format json');
+      expect(action.verification).toContain(evidence[0]!.evidenceId);
     }
   });
 
