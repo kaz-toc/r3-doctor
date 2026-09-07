@@ -1,6 +1,6 @@
 # r3-doctor レポート実用性・スコア信頼性改善 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 冗長で行動につながらず、50/75 に量子化された現在の診断を、根拠・限界・次の一手を短時間で判断できる診断へ置き換える。
 
@@ -152,7 +152,7 @@ repositoryScore = round(axisBase + 0.30 * max(0, maxClusterScore - axisBase));
 - Consumes: 現行 `DiagnosisReport`、baseline/diff/trend の version compatibility 規則。
 - Produces: `Evidence.strength`、`Evidence.rationale`、`Evidence.pathRole`、`Evidence.relatedPaths`、`AxisScoreBreakdown`、`ConfidenceBreakdown`、`CalibrationSummary`、actionable `Intervention` の schema。
 
-- [ ] **Step 1: 旧レポートを拒否し、新しい意味を必須にする schema test を書く**
+- [x] **Step 1: 旧レポートを拒否し、新しい意味を必須にする schema test を書く**
 
 ```ts
 expect(diagnosisReportSchema.safeParse(v3Report).success).toBe(false);
@@ -169,13 +169,13 @@ expect(v4Report.evidence[0]).toMatchObject({
 });
 ```
 
-- [ ] **Step 2: schema test が現行 contract で失敗することを確認する**
+- [x] **Step 2: schema test が現行 contract で失敗することを確認する**
 
 Run: `npm test -- tests/schema.test.ts tests/comparison.test.ts`
 
 Expected: `strength`、`contributionPoints`、`calibration` が存在せず FAIL。
 
-- [ ] **Step 3: schema と version 定数を更新する**
+- [x] **Step 3: schema と version 定数を更新する**
 
 ```ts
 export const ASSESSMENT_CONTRACT_VERSION = 4;
@@ -189,25 +189,25 @@ export const pathRoleSchema = z.enum(['product', 'test', 'tooling', 'generated',
 
 `Evidence.severity` は `strength` から導出する表示 band と定義し、独立に書き換えられない refinement を追加する。`AxisAssessment.contribution` は削除し、`contributionPoints` と `scoreBreakdown` へ置換する。`RepositoryAssessment` には `scoreBreakdown`、`confidenceBreakdown`、`calibration` を必須化する。`Intervention` には `rationale`、`firstStep`、`priorityScore`、`verificationHorizon` を必須化する。
 
-- [ ] **Step 4: 旧 baseline/diff/trend を非互換として扱う test と実装を追加する**
+- [x] **Step 4: 旧 baseline/diff/trend を非互換として扱う test と実装を追加する**
 
 旧 assessment contract は parse error ではなく「比較不能」として reason を返し、risk delta と signal changes を出さない。保存済みデータを暗黙 migration しない。
 
-- [ ] **Step 5: glossary、assessment contract、signal rubric、feedback fields を更新する**
+- [x] **Step 5: glossary、assessment contract、signal rubric、feedback fields を更新する**
 
 ADR には formatter-only、LLM scoring、contract-first の比較、provisional formula、calibration 後だけ重みを変更する規則を記録する。`CONTEXT.md` には上記 7 用語だけを実装詳細なしで追加する。feedback に `actionTaken`、`verificationOutcome`、`scoreBefore`、`scoreAfter`、`assessmentContractVersion` を追加する。
 
-- [ ] **Step 6: incident と回帰契約を登録する**
+- [x] **Step 6: incident と回帰契約を登録する**
 
 `REG-2026-021` の invariant は「`facts`、`summary`、`actions` を個別選択でき、`all` がその3種類を重複なしの3章として出力し、score の calibration status を表示する」とする。
 
-- [ ] **Step 7: schema と compatibility test を通す**
+- [x] **Step 7: schema と compatibility test を通す**
 
 Run: `npm test -- tests/schema.test.ts tests/comparison.test.ts`
 
 Expected: PASS。v3 baseline は明示的な incompatibility reason を返す。
 
-- [ ] **Step 8: Task 1 を commit する**
+- [x] **Step 8: Task 1 を commit する**
 
 ```bash
 git add CONTEXT.md docs/adr/0004-decision-report-and-provisional-score.md docs/spec/assessment-contract.md docs/spec/deterministic-signals.md docs/spec/feedback-collection.md docs/incidents/LEDGER.md test-fixtures/regressions/REG-2026-021/case.json src/schema/report.v1.ts tests/schema.test.ts tests/comparison.test.ts
@@ -231,7 +231,7 @@ git commit -m "docs: define actionable report and score contract v4"
 - Consumes: Task 1 の `Evidence` schema と `RepositorySnapshot`。
 - Produces: `normalizeAboveThreshold(value, onset): number`、`severityForStrength(strength)`、全 Evidence の `strength/rationale/pathRole/relatedPaths`。
 
-- [ ] **Step 1: 数値の単調性と path role 除外を表す failing tests を書く**
+- [x] **Step 1: 数値の単調性と path role 除外を表す failing tests を書く**
 
 ```ts
 expect([5, 6, 8, 10, 15].map((value) => normalizeAboveThreshold(value, 5)))
@@ -243,13 +243,13 @@ expect(classifyPathRole('dist/cli.js')).toBe('generated');
 
 fan-in/fan-out/churn の値が増えたとき strength が減らない property test と、閾値以上の 5 段階で少なくとも 4 種類の値が得られる test も追加する。
 
-- [ ] **Step 2: Evidence test が helper 不在で失敗することを確認する**
+- [x] **Step 2: Evidence test が helper 不在で失敗することを確認する**
 
 Run: `npm test -- tests/evidence.test.ts`
 
 Expected: module/function not found で FAIL。
 
-- [ ] **Step 3: strength と severity の唯一の変換関数を実装する**
+- [x] **Step 3: strength と severity の唯一の変換関数を実装する**
 
 ```ts
 export function severityForStrength(strength: number): Evidence['severity'] {
@@ -261,25 +261,25 @@ export function severityForStrength(strength: number): Evidence['severity'] {
 
 binary strength は `BINARY_SIGNAL_STRENGTH` に集約し、extractor 内へ数値 literal を散らさない。rationale は `value=10, onset=5, formula=v4-log2` のように再計算できる文字列にする。
 
-- [ ] **Step 4: import graph から Evidence の related paths を生成する**
+- [x] **Step 4: import graph から Evidence の related paths を生成する**
 
 各 product path について direct imports と direct dependents を `relatedPaths` に重複なく昇順で保存する。test path 自身の churn/fan-out は audit Evidence には残せるが、`pathRole: test` とし score 対象から外す。
 
-- [ ] **Step 5: test coverage を direct / transitive / missing の 3 状態へ変更する**
+- [x] **Step 5: test coverage を direct / transitive / missing の 3 状態へ変更する**
 
 test file から product file への到達可能性を import graph で探索し、`coverageKind` metric を保存する。`missing-test-pair` は direct/transitive のどちらも存在しない product path にだけ生成する。transitive coverage は見つかった test path を `relatedPaths` に残し、境界テストか単なる到達かを監査できるようにする。
 
-- [ ] **Step 6: semantic confidence と risk magnitude を分離する**
+- [x] **Step 6: semantic confidence と risk magnitude を分離する**
 
 semantic response に `impactScope: 'local' | 'module' | 'repository'` を追加する。score 参加には snapshot 上の path と最低 1 件の related deterministic Evidence を要求し、scope を contract rubric の 35/60/85 へ写像する。`confidence` は Evidence confidence にだけ使う。根拠のない finding はレポートへ残すが score には加えない。
 
-- [ ] **Step 7: Evidence と semantic tests を通す**
+- [x] **Step 7: Evidence と semantic tests を通す**
 
 Run: `npm test -- tests/evidence.test.ts tests/semantic/semantic-response.test.ts tests/semantic/semantic-prompt.test.ts`
 
 Expected: PASS。churn 5/6/8/10/15 が同じ 50/75 の二値へ潰れない。
 
-- [ ] **Step 8: Task 2 を commit する**
+- [x] **Step 8: Task 2 を commit する**
 
 ```bash
 git add src/evidence/strength.ts src/evidence/path-role.ts src/evidence/deterministic.ts src/plugins/analyzer.ts src/semantic/semantic-response.ts src/semantic/semantic-prompt.ts tests/evidence.test.ts tests/semantic/semantic-response.test.ts tests/semantic/semantic-prompt.test.ts
@@ -303,7 +303,7 @@ git commit -m "feat: preserve evidence strength and path relationships"
 - Consumes: Task 2 の capability-approved product Evidence と semantic findings。
 - Produces: `scoreAxis(input): AxisScoreResult`、`scoreRepository(axes, clusters): RepositoryScoreResult`、`computeEvidenceConfidence(input): ConfidenceResult`、`buildMechanismClusters(evidence): RiskCluster[]`。
 
-- [ ] **Step 1: score の識別力、単調性、内訳整合性を failing tests で固定する**
+- [x] **Step 1: score の識別力、単調性、内訳整合性を failing tests で固定する**
 
 ```ts
 expect(scoreAxis(caseWithChurn(6)).score).toBeLessThan(scoreAxis(caseWithChurn(10)).score);
@@ -316,21 +316,21 @@ expect(sum(report.axes.map((axis) => axis.contributionPoints)))
 
 弱い duplicate Evidence を追加しても score が変わらない現行 invariant は維持する。test/tooling Evidence を追加しても product score が変わらない test を追加する。
 
-- [ ] **Step 2: relation-aware cluster の failing tests を書く**
+- [x] **Step 2: relation-aware cluster の failing tests を書く**
 
 相互に related な同一 mechanism の 3 path は 1 cluster、無関係な同一 mechanism の 2 path は 2 clusters、異なる mechanism は同じ path でも別 clusters になることを固定する。`REG-2026-006` の「無関係な signal を混ぜない」は維持する。
 
-- [ ] **Step 3: score test が現行 max-severity 集約で失敗することを確認する**
+- [x] **Step 3: score test が現行 max-severity 集約で失敗することを確認する**
 
 Run: `npm test -- tests/assessment.test.ts`
 
 Expected: churn 6 と 10 の axis score が十分に区別されず FAIL。
 
-- [ ] **Step 4: score と repository contribution を実装する**
+- [x] **Step 4: score と repository contribution を実装する**
 
 `score.ts` に設計節の peak/breadth/diversity と repository uplift の式をそのまま実装する。丸めは公開 object を組み立てる最後の一回だけにし、中間値を丸めない。
 
-- [ ] **Step 5: Evidence confidence を availability の内訳として実装する**
+- [x] **Step 5: Evidence confidence を availability の内訳として実装する**
 
 ```ts
 confidence = 0.50 * capabilityCoverage
@@ -340,21 +340,21 @@ confidence = 0.50 * capabilityCoverage
 
 `capabilityCoverage` は axis ごとの supported/expected signals、`inputCompleteness` は truncation・intake issue・Git 必須性、`measurementReliability` は analyzer success と semantic provider resolution から求める。Evidence が 0 件でも analyzer が完全走査した軸は「低 confidence」にはしない。表示名は常に Evidence confidence とし、Calibration status と並記する。
 
-- [ ] **Step 6: relatedPaths の connected component で cluster を作る**
+- [x] **Step 6: relatedPaths の connected component で cluster を作る**
 
 同一 `axisId + mechanismId` 内だけで無向 component を構成する。cluster title は同一英語 label ではなく、`src/schema/report.v1.ts を中心とする高接続領域（8 paths）` のように primary path、mechanism、path count を含める。cluster score は上位 3 strength の 0.7/0.2/0.1 加重平均とし、Evidence confidence は別 field に保持する。
 
-- [ ] **Step 7: golden fixture を絶対 band と相対順位の両方で強化する**
+- [x] **Step 7: golden fixture を絶対 band と相対順位の両方で強化する**
 
 `fragile-cart > fragile-cart-improved >= stable-cart` を必須にし、数値 metric の段階差を持つ fixture を追加する。期待値は 50/75 の出現数や均等分布ではなく、危険構造の順位、単調性、必要 signal、禁止 signal で固定する。
 
-- [ ] **Step 8: assessment と golden tests を通す**
+- [x] **Step 8: assessment と golden tests を通す**
 
 Run: `npm test -- tests/assessment.test.ts tests/golden.test.ts`
 
 Expected: PASS。連続 metric case は少なくとも 4 種類の score を持ち、無関係な path は別 cluster のままになる。
 
-- [ ] **Step 9: Task 3 を commit する**
+- [x] **Step 9: Task 3 を commit する**
 
 ```bash
 git add src/assessment/score.ts src/assessment/confidence.ts src/assessment/clusters.ts src/assessment/risk.ts src/assessment/capability.ts src/calibration/golden-regression.ts tests/fixtures/golden/assessments.json tests/assessment.test.ts tests/golden.test.ts
@@ -375,7 +375,7 @@ git commit -m "feat: score continuous evidence and related clusters"
 - Consumes: Task 3 の ranked `RiskCluster[]` と linked Evidence。
 - Produces: cluster ごとの `Intervention`。priority は 1 から連番で、`priorityScore = clusterScore * evidenceConfidence * scopeFactor / costWeight`。
 
-- [ ] **Step 1: 具体性と priority の failing tests を書く**
+- [x] **Step 1: 具体性と priority の failing tests を書く**
 
 ```ts
 expect(actions.map((action) => action.priority)).toEqual([1, 2, 3]);
@@ -389,33 +389,33 @@ expect(actions[0]).toMatchObject({
 
 全 action の `verification` が今すぐ実行できる command または観測と、後日再評価する horizon を分けることも検証する。
 
-- [ ] **Step 2: 現行固定 priority が test を失敗させることを確認する**
+- [x] **Step 2: 現行固定 priority が test を失敗させることを確認する**
 
 Run: `npm test -- tests/recommendation.test.ts tests/intervention.test.ts tests/operations.test.ts`
 
 Expected: priority が 2/3/5 のままで、cluster ごとの first step がないため FAIL。
 
-- [ ] **Step 3: signal-global rule を cluster-scoped template へ変更する**
+- [x] **Step 3: signal-global rule を cluster-scoped template へ変更する**
 
 1 cluster につき 1 intervention を生成する。同じ修正で同一 component の複数 signals を弱められる場合だけ linked signal をまとめる。`targetPaths` はデータ上は全件保持し、`firstStep` は primary path と最も強い Evidence metric を必ず含める。
 
-- [ ] **Step 4: priority を risk、confidence、scope、cost から算出する**
+- [x] **Step 4: priority を risk、confidence、scope、cost から算出する**
 
 `scopeFactor = 1 + min(0.5, log2(pathCount + 1) / 10)`、`costWeight = low:1, medium:2, high:3` とする。同点は cluster ID で安定 sort し、最終配列 index から 1 始まり priority を付ける。magic number は assessment contract に記載する。
 
-- [ ] **Step 5: verification を signal ごとに現実的にする**
+- [x] **Step 5: verification を signal ごとに現実的にする**
 
 - dependency/test/structure: 対象 test command と再 scan で linked signal/cluster の減少を確認する。
 - churn: immediate verification は hotspot の regression test・ownership/checklist の存在、lagging verification は `churnDays` 経過後の trend とする。
 - semantic ambiguity: contract test または decision record と再 semantic scan を指定する。
 
-- [ ] **Step 6: recommendation tests を通す**
+- [x] **Step 6: recommendation tests を通す**
 
 Run: `npm test -- tests/recommendation.test.ts tests/intervention.test.ts tests/operations.test.ts`
 
 Expected: PASS。上位 action は cluster score と confidence に対応し、固定 rule number を表示しない。
 
-- [ ] **Step 7: Task 4 を commit する**
+- [x] **Step 7: Task 4 を commit する**
 
 ```bash
 git add src/recommendation/rules.ts src/operations/trend.ts src/pipeline/diagnose.ts tests/recommendation.test.ts tests/intervention.test.ts tests/operations.test.ts
@@ -439,11 +439,11 @@ git commit -m "feat: generate ranked cluster-specific interventions"
 - Consumes: v4 `DiagnosisReport`。`buildReportViewModel(report, limits)` は選択・grouping だけを行う。
 - Produces: `ReportView = 'facts' | 'summary' | 'actions' | 'all'`、`formatReport(report, format, { view })`。JSON は view にかかわらず常に full schema を返す。
 
-- [ ] **Step 1: 添付レポートの failure を縮約した reporting fixture を作る**
+- [x] **Step 1: 添付レポートの failure を縮約した reporting fixture を作る**
 
 fixture は 70 Evidence、同じ mechanism の反復 cluster、6 interventions、未評価 semantic/Python/Go capability を含める。期待 Markdown を view ごとに固定し、`all` は `Diagnosis summary`、`Improvement points`、`Current state` の順で3章を持つ。
 
-- [ ] **Step 2: 4 views の選択と責務分離を failing tests で固定する**
+- [x] **Step 2: 4 views の選択と責務分離を failing tests で固定する**
 
 ```ts
 const facts = formatMarkdownReport(report, { view: 'facts' });
@@ -464,13 +464,13 @@ expect(countOccurrences(all, report.evidence[0]!.evidenceId)).toBeLessThanOrEqua
 
 `facts` は score/priority を含まず、`summary` は action detail/raw Evidence table を含まず、`actions` の各項目は linked cluster/evidence を含むことも assertion する。
 
-- [ ] **Step 3: current formatter が view を選択できず test に失敗することを確認する**
+- [x] **Step 3: current formatter が view を選択できず test に失敗することを確認する**
 
 Run: `npm test -- tests/reporting.test.ts tests/scan.test.ts`
 
 Expected: `ReportView` と view 別 section が存在せず FAIL。
 
-- [ ] **Step 4: pure view model で3種類の projection を一度だけ作る**
+- [x] **Step 4: pure view model で3種類の projection を一度だけ作る**
 
 ```ts
 export type ReportView = 'facts' | 'summary' | 'actions' | 'all';
@@ -492,25 +492,25 @@ const DEFAULT_LIMITS = {
 
 `buildReportViewModel()` は report を変更せず、Facts/summary/actions の projection を同時に作る。残りは `他 11 paths`、`他 65 evidence` と件数で示す。JSON は view model を使わず `DiagnosisReport` 全体を返す。
 
-- [ ] **Step 5: Markdown と console を同じ view model から生成する**
+- [x] **Step 5: Markdown と console を同じ view model から生成する**
 
 `facts` は grouped Evidence と analysis coverage、`summary` は axis table と上位 clusters、`actions` は優先 intervention を描画する。`all` は同じ `ReportViewModel` を `Diagnosis summary` → `Improvement points` → `Current state` の3章へ描画する。Axis は heading の反復ではなく table にし、同じ limitation や Evidence excerpt を複数章へ出さない。
 
-- [ ] **Step 6: CLI に view option を追加する**
+- [x] **Step 6: CLI に view option を追加する**
 
 `scan` と `diff` に `--view <facts|summary|actions|all>` を追加し、既定を `all` にする。不明値は parse 時に `facts, summary, actions, all のいずれかを指定してください` として exit 1 にする。`--format json --view facts` でも JSON の完全性を損なわないよう full JSON を返し、help text に `--view` は console/Markdown の projection を選び、JSON は常に full と明記する。
 
-- [ ] **Step 7: GitHub summary を changed risk と action 中心へ揃える**
+- [x] **Step 7: GitHub summary を changed risk と action 中心へ揃える**
 
 PR summary は score delta、new/worsened cluster、上位 3 actions、changed-file blast radius の順にする。annotation は新規・悪化 Evidence だけという現行境界を維持する。
 
-- [ ] **Step 8: reporting と integration tests を通す**
+- [x] **Step 8: reporting と integration tests を通す**
 
 Run: `npm test -- tests/reporting.test.ts tests/integration.test.ts tests/scan.test.ts tests/github.test.ts`
 
 Expected: PASS。4 views を個別選択でき、`all` は3章を正しい順で各1回だけ含み、JSON は全 Evidence ID を含む。
 
-- [ ] **Step 9: Task 5 を commit する**
+- [x] **Step 9: Task 5 を commit する**
 
 ```bash
 git add src/reporting/view-model.ts src/reporting/format.ts src/reporting/github.ts src/adapters/reporter.ts src/cli.ts tests/reporting.test.ts tests/fixtures/reporting/decision-report.md tests/integration.test.ts tests/scan.test.ts tests/github.test.ts
@@ -532,7 +532,7 @@ git commit -m "feat: make diagnosis reports decision oriented"
 - Consumes: `.r3-doctor/calibration.json` と v4 feedback records。
 - Produces: `summarizeCalibrationQuality(dataset): CalibrationSummary` と通常 report の `repository.calibration`。
 
-- [ ] **Step 1: 3 状態と欠損理由の failing tests を書く**
+- [x] **Step 1: 3 状態と欠損理由の failing tests を書く**
 
 ```ts
 expect(summarizeCalibrationQuality(noRecords).status).toBe('uncalibrated');
@@ -544,31 +544,31 @@ expect(summarizeCalibrationQuality(validatedRecords)).toMatchObject({
 });
 ```
 
-- [ ] **Step 2: calibration status が通常 report にないため test が失敗することを確認する**
+- [x] **Step 2: calibration status が通常 report にないため test が失敗することを確認する**
 
 Run: `npm test -- tests/calibration.test.ts tests/integration.test.ts`
 
 Expected: `repository.calibration` 不在で FAIL。
 
-- [ ] **Step 3: calibration quality summary を実装する**
+- [x] **Step 3: calibration quality summary を実装する**
 
 `validated` の条件は各 score band 30 samples 以上、false positive/miss rate、ranking quality、explanation usefulness、golden regression pass、要求された team conditions の全充足とする。どれか一つ欠けた場合は `provisional` とし、`missingConditions` を report に保存する。
 
-- [ ] **Step 4: pipeline へ optional calibration read を接続する**
+- [x] **Step 4: pipeline へ optional calibration read を接続する**
 
 calibration file 不在は `uncalibrated` として scan を継続する。schema 不正は既存 `ConfigError` で失敗させ、壊れた calibration を無視しない。calibration は score 値を実行時に書き換えず、interpretation status だけを与える。
 
-- [ ] **Step 5: README に score の読み方と release rule を記載する**
+- [x] **Step 5: README に score の読み方と release rule を記載する**
 
 `uncalibrated` は同一 contract 内の相対順位専用、`provisional` は outcome sample 不足、`validated` は記録された dataset 条件内だけで利用可能と説明する。CI gate は既存どおり calibration eligibility を満たすまで抑止する。
 
-- [ ] **Step 6: calibration と integration tests を通す**
+- [x] **Step 6: calibration と integration tests を通す**
 
 Run: `npm test -- tests/calibration.test.ts tests/integration.test.ts`
 
 Expected: PASS。calibration file がない標準 fixture は `uncalibrated` と表示される。
 
-- [ ] **Step 7: Task 6 を commit する**
+- [x] **Step 7: Task 6 を commit する**
 
 ```bash
 git add src/calibration/quality.ts src/calibration/dataset.ts src/pipeline/diagnose.ts src/cli.ts tests/calibration.test.ts tests/integration.test.ts README.md
@@ -588,7 +588,7 @@ git commit -m "feat: expose score calibration quality"
 - Consumes: Tasks 1–6 の v4 report pipeline。
 - Produces: 冗長性、actionability、score honesty を保護する executable regression contract と release evidence。
 
-- [ ] **Step 1: old-format mutant が REG-2026-021 で失敗することを確認する**
+- [x] **Step 1: old-format mutant が REG-2026-021 で失敗することを確認する**
 
 mutant は `--view` を無視し、全 clusters と全 Evidence を一つの未分割レポートとして表示する旧 formatter とする。
 
@@ -596,19 +596,19 @@ Run: `npm test -- test-fixtures/regressions/REG-2026-021/report-quality.test.ts`
 
 Expected: 180 行上限、上位 action、calibration status のいずれかで FAIL。
 
-- [ ] **Step 2: current implementation で回帰契約を通す**
+- [x] **Step 2: current implementation で回帰契約を通す**
 
 Run: `npm test -- test-fixtures/regressions/REG-2026-021/report-quality.test.ts`
 
 Expected: PASS。
 
-- [ ] **Step 3: fixture 全体の score 順位と report snapshot を検証する**
+- [x] **Step 3: fixture 全体の score 順位と report snapshot を検証する**
 
 Run: `npm test -- tests/golden.test.ts tests/reporting.test.ts`
 
 Expected: `fragile-cart > fragile-cart-improved >= stable-cart`、連続 metric の単調性、decision report 180 行以内が PASS。
 
-- [ ] **Step 4: r3-doctor を自身へ適用して人間向け出力を確認する**
+- [x] **Step 4: r3-doctor を自身へ適用して人間向け出力を確認する**
 
 ```bash
 npm run build
@@ -630,17 +630,17 @@ node dist/cli.js scan . --format json
 - JSON では各 human-readable view で省略した Evidence を ID から追跡できる。
 - Semantic/Python/Go の制約が provider/language ごとに集約される。
 
-- [ ] **Step 5: 完全検証を実行する**
+- [x] **Step 5: 完全検証を実行する**
 
 Run: `npm run validate`
 
 Expected: harness tests、policy validation、typecheck、全 Vitest、build がすべて exit 0。
 
-- [ ] **Step 6: ledger、boundary evidence、changelog を確定する**
+- [x] **Step 6: ledger、boundary evidence、changelog を確定する**
 
 `REG-2026-021` を `protected` にし、Risk Assessment / Recommendation / Reporting / schema compatibility の検証 command を記録する。変更前後の dogfood 数値として各 view の Markdown 行数、`all` の章数、表示 cluster 数、表示 action 数、score distinctness test の結果を残す。
 
-- [ ] **Step 7: Task 7 を commit する**
+- [x] **Step 7: Task 7 を commit する**
 
 ```bash
 git add tests/fixtures/reporting/decision-report.md test-fixtures/regressions/REG-2026-021/report-quality.test.ts docs/incidents/LEDGER.md docs/verification/BOUNDARY-MATRIX.md CHANGELOG.md
