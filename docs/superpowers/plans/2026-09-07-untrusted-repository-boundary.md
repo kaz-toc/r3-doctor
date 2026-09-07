@@ -110,7 +110,7 @@
 - Consumes: `git diff main...HEAD`, repository standards, and the design spec.
 - Produces: a reviewed, validated branch and pull request.
 
-- [ ] Run `npm run validate` and inspect the complete output.
-- [ ] Run parallel Standards and Spec reviews against `main` and resolve every Critical or Important finding.
+- [x] Run `npm run validate` and inspect the complete output.
+- [x] Run parallel Standards and Spec reviews against `main` and resolve every Critical or Important finding.
 - [ ] Re-run `npm run validate`, confirm the worktree is clean after commit, and push the branch.
 - [ ] Create a pull request against `main` with security impact, RED/GREEN evidence, and validation results.

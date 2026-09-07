@@ -168,8 +168,8 @@ export class DefaultGitProvider implements GitProvider {
       'git',
       safeGitArgs(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]),
       {
-      cwd: repositoryPath,
-      env: gitEnvironment(repositoryPath),
+        cwd: repositoryPath,
+        env: gitEnvironment(repositoryPath),
       },
     );
     const objectId = stdout.trim();
