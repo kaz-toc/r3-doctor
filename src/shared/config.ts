@@ -28,9 +28,14 @@ export type LlmConfig = z.infer<typeof llmConfigSchema>;
 
 export const defaultLlmConfig: LlmConfig = llmConfigSchema.parse({});
 
+export const reportLocaleSchema = z.enum(['en', 'ja']);
+
+export type ReportLocale = z.infer<typeof reportLocaleSchema>;
+
 export const repositoryConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
+    locale: reportLocaleSchema.default('en'),
     exclude: z
       .array(z.string().max(256))
       .max(128)

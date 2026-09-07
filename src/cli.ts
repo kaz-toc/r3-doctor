@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import path from 'node:path';
 
-import { createRepositorySnapshot } from './intake/snapshot.js';
+import { createRepositorySnapshot, type RepositorySnapshot } from './intake/snapshot.js';
 import { runDiagnosis } from './pipeline/diagnose.js';
 import { saveBaseline } from './persistence/baseline-store.js';
 import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
@@ -20,6 +20,8 @@ import {
 } from './plugins/analyzer.js';
 import { extractEvidenceWithPlugins, getDefaultPlugins } from './plugins/analyzer.js';
 import { R3DoctorError } from './shared/errors.js';
+import { normalizeConfig } from './shared/config.js';
+import { parseReportLocale } from './i18n/locale.js';
 import { redactDiffReport, redactReport } from './shared/redaction.js';
 import { writeGitHubAnnotationsFile, writeGitHubSummaryFile } from './reporting/github.js';
 import type { RetentionAudit } from './persistence/retention.js';
@@ -47,9 +49,20 @@ function parseFormat(value: string): 'console' | 'markdown' | 'json' {
 
 function parseView(value: string): 'facts' | 'summary' | 'actions' | 'all' {
   if (!VALID_VIEWS.has(value)) {
-    throw new R3DoctorError('facts, summary, actions, all のいずれかを指定してください');
+    throw new R3DoctorError('expected one of: facts, summary, actions, all');
   }
   return value as 'facts' | 'summary' | 'actions' | 'all';
+}
+
+function applyLocaleOverride(snapshot: RepositorySnapshot, locale?: string): RepositorySnapshot {
+  if (!locale) {
+    return snapshot;
+  }
+  const parsed = parseReportLocale(locale);
+  return {
+    ...snapshot,
+    config: normalizeConfig({ ...snapshot.config, locale: parsed }),
+  };
 }
 
 function writeRetentionAudits(audits: RetentionAudit[]): void {
@@ -78,13 +91,14 @@ addLlmOptions(program
   .option('--save-baseline', 'save report as baseline', false)
   .option('--record-trend', 'append score to trend history', false)
   .option('--dry-run-semantic', 'print semantic prompt without calling the LLM', false)
-  .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json'))
+  .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json')
+  .option('--locale <en|ja>', 'report narrative locale (overrides config)'))
   .action(async (
     repoPath: string,
-    options: { format: string; view: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string } & LlmCliOptions,
+    options: { format: string; view: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string; locale?: string } & LlmCliOptions,
   ) => {
     const llmConfig = parseLlmExecutionPolicy(options, options.dryRunSemantic);
-    const snapshot = await createRepositorySnapshot(repoPath, options.unit, llmConfig);
+    const snapshot = applyLocaleOverride(await createRepositorySnapshot(repoPath, options.unit, llmConfig), options.locale);
     if (options.dryRunSemantic) {
       const plugins = getDefaultPlugins();
       const { evidence } = await extractEvidenceWithPlugins(snapshot, plugins);
@@ -129,16 +143,17 @@ addLlmOptions(program
   .option('--view <view>', 'facts|summary|actions|all (console/markdown projection; json always returns full report)', 'all')
   .option('--github-summary <file>', 'write GitHub job summary markdown')
   .option('--github-annotations <file>', 'write GitHub workflow annotations')
-  .option('--emit-annotations', 'emit GitHub workflow annotations to stdout'))
+  .option('--emit-annotations', 'emit GitHub workflow annotations to stdout')
+  .option('--locale <en|ja>', 'report narrative locale (overrides config)'))
   .action(async (
     repoPath: string,
-    options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean } & LlmCliOptions,
+    options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean; locale?: string } & LlmCliOptions,
   ) => {
     const llmConfig = parseLlmExecutionPolicy(options);
-    const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig);
+    const snapshot = applyLocaleOverride(await createRepositorySnapshot(repoPath, undefined, llmConfig), options.locale);
+    const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig, snapshot);
     const format = parseFormat(options.format);
     const view = parseView(options.view);
-    const snapshot = await createRepositorySnapshot(repoPath);
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
     const redacted = redactDiffReport(diff, policy.redactPaths);
 

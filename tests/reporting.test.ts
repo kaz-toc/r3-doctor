@@ -91,6 +91,23 @@ describe('reporting views', () => {
     expect(countOccurrences(all, report.evidence[0]!.evidenceId)).toBeLessThanOrEqual(1);
   });
 
+  it('keeps metric labels English while suffixes follow reportLocale ja', () => {
+    const summary = formatMarkdownReport(report, { view: 'summary' });
+    const actions = formatMarkdownReport(report, { view: 'actions' });
+
+    expect(summary).toContain('Regression Risk Score:');
+    expect(summary).toContain('Confidence:');
+    expect(summary).toContain('Calibration:');
+    expect(summary).toContain('確率');
+    expect(actions).toContain('他');
+  });
+
+  it('uses English suffixes when locale override is en', () => {
+    const facts = formatMarkdownReport(report, { view: 'facts', locale: 'en' });
+    expect(facts).toContain('and 65 more evidence');
+    expect(facts).not.toContain('他 65 evidence');
+  });
+
   it('returns full JSON regardless of view selection', () => {
     const json = formatReport(report, 'json', { view: 'facts' });
     const parsed = JSON.parse(json) as typeof report;

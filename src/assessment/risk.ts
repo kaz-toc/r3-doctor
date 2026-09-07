@@ -10,11 +10,12 @@ import type {
 import {
   ASSESSMENT_CONTRACT_VERSION,
   REPORT_SCHEMA_VERSION,
-  SCORE_DISCLAIMER,
   diagnosisReportSchema,
 } from '../schema/report.v1.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { SemanticProviderResolution } from '../semantic/provider.js';
+import { getScoreDisclaimer } from '../i18n/messages.js';
+import { resolveLocale } from '../i18n/locale.js';
 import { isScoreEligibleSemanticFinding } from '../semantic/semantic-response.js';
 import {
   axisHasSupportedSignals,
@@ -62,6 +63,7 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     isScoreEligibleSemanticFinding(finding, snapshotPaths, evidenceById),
   );
 
+  const locale = resolveLocale(input.snapshot.config);
   const axes: AxisAssessment[] = axisIds.map((axisId) => {
     const axisEvidence = evaluatedEvidence.filter((item) => item.axisId === axisId);
     const semantic = input.semanticFindings.filter((item) => item.axisId === axisId);
@@ -96,7 +98,7 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
     };
   });
 
-  const clusters = buildMechanismClusters(evaluatedEvidence, scoreEligibleSemanticFindings);
+  const clusters = buildMechanismClusters(evaluatedEvidence, scoreEligibleSemanticFindings, locale);
   const repositoryResult = scoreRepository(axes, clusters);
   assignContributionPoints(axes, repositoryResult.scoreBreakdown.axisBase);
 
@@ -153,11 +155,12 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
               input.semanticFindings.length === 0
             ? 'no findings returned'
             : undefined,
+      reportLocale: locale,
     },
     repository: {
       regressionRiskScore: repositoryResult.regressionRiskScore,
       confidence,
-      disclaimer: SCORE_DISCLAIMER,
+      disclaimer: getScoreDisclaimer(locale),
       scoreBreakdown: repositoryResult.scoreBreakdown,
       confidenceBreakdown,
       calibration: {

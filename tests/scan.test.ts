@@ -19,7 +19,15 @@ describe('scan pipeline', () => {
     const report = await runDiagnosis(snapshot);
     expect(diagnosisReportSchema.safeParse(report).success).toBe(true);
     expect(report.repository.regressionRiskScore).toBeLessThanOrEqual(35);
+    expect(report.repository.disclaimer).toContain('probability');
+  });
+
+  it('uses Japanese narrative when locale is ja', async () => {
+    const snapshot = await createRepositorySnapshot(path.join(fixturesRoot, 'stable-cart'));
+    snapshot.config = { ...snapshot.config, locale: 'ja' };
+    const report = await runDiagnosis(snapshot);
     expect(report.repository.disclaimer).toContain('確率');
+    expect(report.metadata.reportLocale).toBe('ja');
   });
 
   it('detects fragile patterns', async () => {
@@ -53,7 +61,7 @@ describe('scan pipeline', () => {
     const snapshot = await createRepositorySnapshot(path.join(fixturesRoot, 'fragile-cart'));
     const evidence = await extractDeterministicEvidence(snapshot);
     const report = await runDiagnosis(snapshot);
-    const interventions = buildInterventions(evidence, report.clusters);
+    const interventions = buildInterventions(evidence, report.clusters, [], report.repository.confidence, snapshot.config.churnDays, 'en');
     for (const intervention of interventions) {
       expect(intervention.linkedSignalIds.length).toBeGreaterThan(0);
       expect(intervention.verification.length).toBeGreaterThan(0);

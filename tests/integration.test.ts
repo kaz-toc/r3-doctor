@@ -522,7 +522,7 @@ describe('integration: CLI report views', () => {
       'verbose',
     ]).catch((caught: unknown) => caught as { stderr: string });
 
-    expect(error.stderr).toContain('facts, summary, actions, all のいずれかを指定してください');
+    expect(error.stderr).toContain('expected one of: facts, summary, actions, all');
   });
 });
 

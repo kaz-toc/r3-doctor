@@ -85,6 +85,7 @@ export function buildDecisionReportFixture(): DiagnosisReport {
         'Go analyzer: partial coverage',
       ],
       semanticProviderStatus: 'not-configured',
+      reportLocale: 'ja',
     },
     repository: {
       regressionRiskScore: 78,

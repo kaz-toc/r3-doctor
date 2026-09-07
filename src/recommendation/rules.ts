@@ -1,5 +1,8 @@
 import type { Evidence, Intervention, RiskCluster, SignalId } from '../schema/report.v1.js';
 import { isNonProductPath } from '../evidence/diagnostic-paths.js';
+import type { ReportLocale } from '../i18n/locale.js';
+import { DEFAULT_LOCALE } from '../i18n/locale.js';
+import { t, type MessageKey } from '../i18n/messages.js';
 
 export const COST_WEIGHT = { low: 1, medium: 2, high: 3 } as const;
 
@@ -31,170 +34,64 @@ type TemplateContext = {
   churnDays: number;
 };
 
-type MechanismTemplate = {
+type MechanismTemplateDef = {
   kind: Intervention['kind'];
+  cost: Intervention['cost'];
+  prefix: string;
+};
+
+const MECHANISM_TEMPLATE_DEFS: Record<string, MechanismTemplateDef> = {
+  'dependency-cycle': { kind: 'structure', cost: 'medium', prefix: 'dependency-cycle' },
+  'high-connectivity': { kind: 'structure', cost: 'high', prefix: 'high-connectivity' },
+  'verification-gap': { kind: 'test', cost: 'low', prefix: 'verification-gap' },
+  volatility: { kind: 'process', cost: 'low', prefix: 'volatility' },
+  'large-file': { kind: 'structure', cost: 'medium', prefix: 'large-file' },
+  'barrel-export': { kind: 'structure', cost: 'medium', prefix: 'barrel-export' },
+  'deep-nesting': { kind: 'structure', cost: 'medium', prefix: 'deep-nesting' },
+  'unresolved-import': { kind: 'structure', cost: 'high', prefix: 'unresolved-import' },
+  'semantic-ambiguity': { kind: 'process', cost: 'medium', prefix: 'semantic-ambiguity' },
+};
+
+const DEFAULT_TEMPLATE_DEF: MechanismTemplateDef = {
+  kind: 'structure',
+  cost: 'medium',
+  prefix: 'default',
+};
+
+function templateParams(ctx: TemplateContext): Record<string, string | number> {
+  return {
+    mechanismId: ctx.cluster.mechanismId,
+    primaryPath: ctx.primaryPath,
+    strongestMetric: ctx.strongestMetric,
+    score: ctx.cluster.score,
+    churnDays: ctx.churnDays,
+  };
+}
+
+function interventionKey(prefix: string, field: string): MessageKey {
+  return `intervention.${prefix}.${field}` as MessageKey;
+}
+
+function buildTemplateFields(locale: ReportLocale, prefix: string, ctx: TemplateContext): {
   title: string;
   description: string;
   expectedEffect: string;
-  cost: Intervention['cost'];
-  buildVerification: (ctx: TemplateContext) => { verification: string; verificationHorizon: string };
-  buildFirstStep: (ctx: TemplateContext) => string;
-  buildRationale: (ctx: TemplateContext) => string;
-};
-
-const MECHANISM_TEMPLATES: Record<string, MechanismTemplate> = {
-  'dependency-cycle': {
-    kind: 'structure',
-    title: '循環依存を解消する',
-    description: '依存方向を一方向に整理し、共有契約を境界モジュールへ移す。',
-    expectedEffect: 'structural-fragility と change-blast-radius の低下',
-    cost: 'medium',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} 周辺で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を起点に循環を断ち、共有契約を境界モジュールへ移す。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} 周辺の targeted test を実行し、r3-doctor scan で ${cluster.mechanismId} linked signal が減ることを確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  'high-connectivity': {
-    kind: 'structure',
-    title: '共有モジュールの表面積を縮小する',
-    description: '公開 API を狭め、内部実装を隠蔽するファサードを導入する。',
-    expectedEffect: 'change-blast-radius の低下',
-    cost: 'high',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} を hub として cluster score ${cluster.score} を押し上げている（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を確認し、公開 API を最小集合へ絞る。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} の contract/regression test を追加し、fan-in/fan-out metric の再診断を行う。`,
-      verificationHorizon: '次回 scan で linked cluster score と connectivity metric が低下していること。',
-    }),
-  },
-  'verification-gap': {
-    kind: 'test',
-    title: '変更前に境界テストを追加する',
-    description: '高 fan-in モジュールまたは共有契約に対し、回帰を検出するテストを先に追加する。',
-    expectedEffect: 'verification-gap の低下',
-    cost: 'low',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} をカバーする境界テストを先に追加する。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} 向け test command を CI に追加し、missing-test-pair linked signal の解消を確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  volatility: {
-    kind: 'process',
-    title: '高 churn 領域の変更手順を固定する',
-    description: '頻繁に壊れる領域に対し、変更チェックリストと小さな PR 単位を強制する。',
-    expectedEffect: 'change-volatility の安定化',
-    cost: 'low',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} に変更集中している（cluster score ${cluster.score}, ${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を hotspot として regression test と ownership/checklist を整備する。`,
-    buildVerification: ({ primaryPath }) => ({
-      verification: `${primaryPath} の regression test と change checklist/ownership が存在することを確認する。`,
-      verificationHorizon: 'churnDays 経過後の trend で git-churn linked signal/cluster が減少していること。',
-    }),
-  },
-  'large-file': {
-    kind: 'structure',
-    title: '責務ごとにモジュールを分割する',
-    description: '単一ファイルへの責務集中を解消し、変更単位を小さくする。',
-    expectedEffect: 'structural-fragility の低下',
-    cost: 'medium',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を確認し、責務単位でファイルを分割する。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} の split 後 test command を実行し、large-file linked signal の解消を確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  'barrel-export': {
-    kind: 'structure',
-    title: 'barrel 再エクスポートを具体 import に置き換える',
-    description: 'barrel 再エクスポートをやめ、依存境界を明示する。',
-    expectedEffect: 'structural-fragility の低下',
-    cost: 'medium',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を確認し、export * を具体 import へ置き換える。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} 周辺 test command を実行し、barrel-reexport linked signal の解消を確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  'deep-nesting': {
-    kind: 'structure',
-    title: '深いネストを関数分割で解消する',
-    description: '深いネストを小さな関数へ分割し、変更単位を局所化する。',
-    expectedEffect: 'structural-fragility の低下',
-    cost: 'medium',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を確認し、深い分岐を関数へ抽出する。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} の refactor 後 test command を実行し、deep-nesting linked signal の解消を確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  'unresolved-import': {
-    kind: 'structure',
-    title: '未解決 import を修正する',
-    description: '未解決 import を修正し、依存グラフを健全化する。',
-    expectedEffect: 'structural-fragility の低下',
-    cost: 'high',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を確認し、未解決 import を修正する。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} 周辺 build/test command を実行し、unresolved-import linked signal の解消を確認する。`,
-      verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-    }),
-  },
-  'semantic-ambiguity': {
-    kind: 'process',
-    title: '暗黙契約を decision record または contract test で固定する',
-    description: '命名や例外分岐の暗黙契約を ADR または contract test で可視化する。',
-    expectedEffect: 'semantic-ambiguity の低下',
-    cost: 'medium',
-    buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-      `${cluster.mechanismId} が ${primaryPath} 周辺で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-    buildFirstStep: ({ primaryPath, strongestMetric }) =>
-      `${primaryPath} の ${strongestMetric} を題材に contract test または decision record を追加する。`,
-    buildVerification: ({ primaryPath, cluster }) => ({
-      verification: `${primaryPath} 向け contract test または ADR を追加し、semantic scan を再実行する。`,
-      verificationHorizon: '次回 semantic scan で linked cluster score が低下していること。',
-    }),
-  },
-};
-
-const DEFAULT_TEMPLATE: MechanismTemplate = {
-  kind: 'structure',
-  title: '関連リスクを解消する',
-  description: 'cluster に関連する構造上の弱点を解消する。',
-  expectedEffect: 'linked cluster score の低下',
-  cost: 'medium',
-  buildRationale: ({ cluster, primaryPath, strongestMetric }) =>
-    `${cluster.mechanismId} が ${primaryPath} 周辺で cluster score ${cluster.score} を形成している（${strongestMetric}）。`,
-  buildFirstStep: ({ primaryPath, strongestMetric }) =>
-    `${primaryPath} の ${strongestMetric} を確認し、linked cluster の根本原因を解消する。`,
-  buildVerification: ({ primaryPath, cluster }) => ({
-    verification: `${primaryPath} 向け test command を実行し、linked signal/cluster の減少を確認する。`,
-    verificationHorizon: '次回 scan で linked cluster score が低下していること。',
-  }),
-};
+  rationale: string;
+  firstStep: string;
+  verification: string;
+  verificationHorizon: string;
+} {
+  const params = templateParams(ctx);
+  return {
+    title: t(locale, interventionKey(prefix, 'title')),
+    description: t(locale, interventionKey(prefix, 'description')),
+    expectedEffect: t(locale, interventionKey(prefix, 'expectedEffect')),
+    rationale: t(locale, interventionKey(prefix, 'rationale'), params),
+    firstStep: t(locale, interventionKey(prefix, 'firstStep'), params),
+    verification: t(locale, interventionKey(prefix, 'verification'), params),
+    verificationHorizon: t(locale, interventionKey(prefix, 'verificationHorizon'), params),
+  };
+}
 
 function primaryPath(cluster: RiskCluster, linkedEvidence: Evidence[]): string {
   const strengthByPath = new Map<string, number>();
@@ -257,15 +154,8 @@ function strongestMetric(linkedEvidence: Evidence[]): string {
   return formatMetric(key, value);
 }
 
-function templateForMechanism(mechanismId: string): MechanismTemplate {
-  return MECHANISM_TEMPLATES[mechanismId] ?? DEFAULT_TEMPLATE;
-}
-
-function applyChurnHorizon(verificationHorizon: string, churnDays: number, mechanismId: string): string {
-  if (mechanismId !== 'volatility') {
-    return verificationHorizon;
-  }
-  return verificationHorizon.replace('churnDays', String(churnDays));
+function templateDefForMechanism(mechanismId: string): MechanismTemplateDef {
+  return MECHANISM_TEMPLATE_DEFS[mechanismId] ?? DEFAULT_TEMPLATE_DEF;
 }
 
 export function buildInterventions(
@@ -274,6 +164,7 @@ export function buildInterventions(
   diagnosticSkipRoots: string[] = [],
   evidenceConfidence = 1,
   churnDays = 90,
+  locale: ReportLocale = DEFAULT_LOCALE,
 ): Intervention[] {
   const evidenceById = new Map(evidence.map((item) => [item.evidenceId, item]));
   const interventions: Intervention[] = [];
@@ -292,7 +183,7 @@ export function buildInterventions(
     const linkedSignalIds = [...new Set(linkedEvidence.map((item) => item.signalId))].sort() as SignalId[];
     const anchorPath = primaryPath(cluster, linkedEvidence);
     const metricLabel = strongestMetric(linkedEvidence);
-    const template = templateForMechanism(cluster.mechanismId);
+    const templateDef = templateDefForMechanism(cluster.mechanismId);
     const context: TemplateContext = {
       cluster,
       primaryPath: anchorPath,
@@ -301,29 +192,29 @@ export function buildInterventions(
       linkedSignalIds,
       churnDays,
     };
-    const { verification, verificationHorizon } = template.buildVerification(context);
+    const fields = buildTemplateFields(locale, templateDef.prefix, context);
 
     interventions.push({
       interventionId: `intervention:${cluster.clusterId}`,
       priority: 0,
-      title: template.title,
-      description: template.description,
-      kind: template.kind,
+      title: fields.title,
+      description: fields.description,
+      kind: templateDef.kind,
       targetPaths,
       linkedSignalIds,
       linkedClusterIds: [cluster.clusterId],
-      expectedEffect: template.expectedEffect,
-      verification,
-      cost: template.cost,
-      rationale: template.buildRationale(context),
-      firstStep: template.buildFirstStep(context),
+      expectedEffect: fields.expectedEffect,
+      verification: fields.verification,
+      cost: templateDef.cost,
+      rationale: fields.rationale,
+      firstStep: fields.firstStep,
       priorityScore: computePriorityScore(
         cluster.score,
         evidenceConfidence,
         targetPaths.length,
-        template.cost,
+        templateDef.cost,
       ),
-      verificationHorizon: applyChurnHorizon(verificationHorizon, churnDays, cluster.mechanismId),
+      verificationHorizon: fields.verificationHorizon,
     });
   }
 

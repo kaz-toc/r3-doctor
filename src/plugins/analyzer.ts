@@ -1,6 +1,9 @@
 import type { CapabilityResult, Evidence, SignalId, SourceLanguage } from '../schema/report.v1.js';
 import { ALL_SIGNAL_IDS, ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
+import type { ReportLocale } from '../i18n/locale.js';
+import { resolveLocale } from '../i18n/locale.js';
+import { t } from '../i18n/messages.js';
 import { IntakeError } from '../shared/errors.js';
 import { classifyPathRole } from '../evidence/path-role.js';
 import {
@@ -45,6 +48,7 @@ function extractLargeFileEvidence(
   files: SourceFile[],
   snapshot: RepositorySnapshot,
   languageLabel: string,
+  locale: ReportLocale,
 ): Evidence[] {
   return files
     .filter((file) => file.nonBlankLines > snapshot.config.maxFileLines)
@@ -56,7 +60,10 @@ function extractLargeFileEvidence(
         axisId: 'structural-fragility' as const,
         path: file.relativePath,
         severity: severityForStrength(strength),
-        message: `${languageLabel}: large file (${file.nonBlankLines} lines)`,
+        message: t(locale, 'evidence.largeFileLanguage', {
+          language: languageLabel,
+          lines: file.nonBlankLines,
+        }),
         metrics: { lines: file.nonBlankLines },
         source: 'deterministic' as const,
         strength,
@@ -162,10 +169,11 @@ export class TypeScriptAnalyzerPlugin implements AnalyzerPlugin {
 
   async extract(snapshot: RepositorySnapshot): Promise<Evidence[]> {
     const { extractDeterministicEvidence } = await import('../evidence/deterministic.js');
+    const locale = resolveLocale(snapshot.config);
     return extractDeterministicEvidence({
       ...snapshot,
       files: filterFiles(snapshot, this.extensions),
-    });
+    }, locale);
   }
 }
 
@@ -183,7 +191,8 @@ export class PythonStubAnalyzerPlugin implements AnalyzerPlugin {
   ];
 
   async extract(snapshot: RepositorySnapshot): Promise<Evidence[]> {
-    return extractLargeFileEvidence(filterFiles(snapshot, this.extensions), snapshot, 'Python');
+    const locale = resolveLocale(snapshot.config);
+    return extractLargeFileEvidence(filterFiles(snapshot, this.extensions), snapshot, 'Python', locale);
   }
 }
 
@@ -201,7 +210,8 @@ export class GoStubAnalyzerPlugin implements AnalyzerPlugin {
   ];
 
   async extract(snapshot: RepositorySnapshot): Promise<Evidence[]> {
-    return extractLargeFileEvidence(filterFiles(snapshot, this.extensions), snapshot, 'Go');
+    const locale = resolveLocale(snapshot.config);
+    return extractLargeFileEvidence(filterFiles(snapshot, this.extensions), snapshot, 'Go', locale);
   }
 }
 
