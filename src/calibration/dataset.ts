@@ -10,10 +10,12 @@ const calibrationConditionsSchema = z
   .array(z.string().trim().min(1))
   .refine((values) => new Set(values).size === values.length, 'conditions must be unique');
 
+export const CALIBRATION_SCORE_BANDS = ['0-30', '31-60', '61-80', '81-100'] as const;
+
 export const calibrationRecordSchema = z
   .object({
     schemaVersion: z.literal(1),
-    scoreBand: z.string(),
+    scoreBand: z.enum(CALIBRATION_SCORE_BANDS),
     sampleCount: z.number().int().nonnegative(),
     observedRegressions: z.number().int().nonnegative(),
     observedReverts: z.number().int().nonnegative(),
@@ -38,6 +40,7 @@ export type CalibrationDataset = z.infer<typeof calibrationDatasetSchema>;
 export type CalibrationResult = CalibrationDataset & {
   gateEligible: boolean;
   missingRequiredConditions: string[];
+  goldenRegressionPassed: boolean;
 };
 
 const DEFAULT_GATE_CONDITIONS = [
@@ -46,6 +49,15 @@ const DEFAULT_GATE_CONDITIONS = [
   'documented false positive / false negative rates',
   'ranking quality and explanation usefulness recorded',
 ];
+
+export function hasMinimumSamplesForEveryScoreBand(
+  records: CalibrationDataset['records'],
+  minimumSamples = 30,
+): boolean {
+  return CALIBRATION_SCORE_BANDS.every((scoreBand) =>
+    records.some((record) => record.scoreBand === scoreBand && record.sampleCount >= minimumSamples),
+  );
+}
 
 export async function loadCalibration(
   repositoryPath: string,
@@ -63,17 +75,18 @@ export async function loadCalibration(
       gateConditions: DEFAULT_GATE_CONDITIONS,
       satisfiedConditions: [],
       missingRequiredConditions: [...requiredConditions],
+      goldenRegressionPassed,
     };
   }
 
   try {
     const raw = await readFile(calibrationPath, 'utf8');
     const dataset = calibrationDatasetSchema.parse(JSON.parse(raw));
-    const minSamplesPerBand = dataset.records.every((record) => record.sampleCount >= 30);
-    const hasFalsePositiveRate = dataset.records.some((record) => record.falsePositiveRate !== undefined);
-    const hasMissRate = dataset.records.some((record) => record.missRate !== undefined);
-    const hasRankingQuality = dataset.records.some((record) => record.rankingQuality !== undefined);
-    const hasExplanationUsefulness = dataset.records.some((record) => record.explanationUsefulness !== undefined);
+    const minSamplesPerBand = hasMinimumSamplesForEveryScoreBand(dataset.records);
+    const hasFalsePositiveRate = dataset.records.every((record) => record.falsePositiveRate !== undefined);
+    const hasMissRate = dataset.records.every((record) => record.missRate !== undefined);
+    const hasRankingQuality = dataset.records.every((record) => record.rankingQuality !== undefined);
+    const hasExplanationUsefulness = dataset.records.every((record) => record.explanationUsefulness !== undefined);
     const missingRequiredConditions = requiredConditions.filter(
       (condition) => !dataset.satisfiedConditions.includes(condition),
     );
@@ -92,7 +105,7 @@ export async function loadCalibration(
       dataset.satisfiedConditions,
     );
 
-    return { ...dataset, gateEligible, missingRequiredConditions };
+    return { ...dataset, gateEligible, missingRequiredConditions, goldenRegressionPassed };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(calibrationPath, reason);

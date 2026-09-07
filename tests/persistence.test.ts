@@ -11,31 +11,22 @@ import { resolveSafeStorageDir } from '../src/persistence/storage-boundary.js';
 import { loadTrendHistory } from '../src/persistence/trend-store.js';
 import { runDiagnosis } from '../src/pipeline/diagnose.js';
 import type { DiagnosisReport } from '../src/schema/report.v1.js';
+import { ASSESSMENT_CONTRACT_VERSION, BASELINE_SCHEMA_VERSION } from '../src/schema/report.v1.js';
 import { ConfigError, R3DoctorError } from '../src/shared/errors.js';
 import { redactionPolicyFingerprint } from '../src/shared/redaction.js';
 import { createGitRepository } from './helpers/git-repository.js';
+import { minimalReportMetadata, minimalRepository, minimalV4Report } from './helpers/v4-report-fixtures.js';
 
 function minimalReport(inputId: string, generatedAt: string): DiagnosisReport {
-  return {
-    metadata: {
-      schemaVersion: 1,
-      assessmentContractVersion: 3,
+  return minimalV4Report({
+    metadata: minimalReportMetadata({
       generatedAt,
       inputId,
       repositoryPath: '/tmp/repository',
-      analyzers: [],
-      truncated: false,
-      unevaluatedAreas: [],
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
-    },
-    repository: { regressionRiskScore: 0, confidence: 1, disclaimer: 'test' },
-    axes: [],
-    clusters: [],
-    evidence: [],
-    semanticFindings: [],
-    interventions: [],
-    capabilities: [],
-  };
+    }),
+    repository: minimalRepository({ regressionRiskScore: 0 }),
+  });
 }
 
 describe('persistence storage boundary', () => {
@@ -186,7 +177,7 @@ describe('persistence storage boundary', () => {
       inputId: 'outside',
       score: 1,
       confidence: 1,
-      contractVersion: 3,
+      contractVersion: ASSESSMENT_CONTRACT_VERSION,
       topClusters: [],
     })}\n`;
     await writeFile(outsideHistoryPath, outsideContent);
@@ -219,11 +210,11 @@ describe('persistence retention', () => {
     const sourceCommitSha = 'a'.repeat(40);
     const victimPath = path.join(outsideDirectory, `baseline-${inputId}-${sourceCommitSha}.json`);
     await writeFile(victimPath, JSON.stringify({
-      schemaVersion: 3,
+      schemaVersion: BASELINE_SCHEMA_VERSION,
       kind: 'r3-doctor/baseline',
       inputId,
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 3,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       sourceCommitSha,
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       analysisContextFingerprint: 'a'.repeat(64),
@@ -255,11 +246,11 @@ describe('persistence retention', () => {
     const ignoredPath = path.join(directory, 'notes.txt');
     const nestedDirectory = path.join(directory, 'nested.json');
     await writeFile(expiredPath, JSON.stringify({
-      schemaVersion: 3,
+      schemaVersion: BASELINE_SCHEMA_VERSION,
       kind: 'r3-doctor/baseline',
       inputId,
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 3,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       sourceCommitSha,
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       analysisContextFingerprint: 'a'.repeat(64),
@@ -302,7 +293,7 @@ describe('persistence retention', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 3,
+        contractVersion: ASSESSMENT_CONTRACT_VERSION,
         topClusters: [],
       }),
       JSON.stringify({
@@ -311,7 +302,7 @@ describe('persistence retention', () => {
         inputId: 'fresh',
         score: 2,
         confidence: 1,
-        contractVersion: 3,
+        contractVersion: ASSESSMENT_CONTRACT_VERSION,
         topClusters: [],
       }),
     ].join('\n'));
@@ -338,7 +329,7 @@ describe('persistence retention', () => {
       inputId: 'expired',
       score: 1,
       confidence: 1,
-      contractVersion: 3,
+      contractVersion: ASSESSMENT_CONTRACT_VERSION,
       topClusters: [],
     })}\n{broken\n`;
     await writeFile(historyPath, content);

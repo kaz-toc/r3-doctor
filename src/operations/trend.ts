@@ -1,5 +1,8 @@
 import type { DiagnosisReport, Intervention, TrendEntry } from '../schema/report.v1.js';
+import { computePriorityScore, computeScopeFactor, COST_WEIGHT, displayTargetPaths } from '../recommendation/rules.js';
 import { R3DoctorError } from '../shared/errors.js';
+
+export { computePriorityScore, computeScopeFactor, COST_WEIGHT, displayTargetPaths };
 
 export type ContributingChange = {
   generatedAt: string;
@@ -16,8 +19,6 @@ export type TrendAnalysis = {
   contributingChanges: ContributingChange[];
 };
 
-const COST_WEIGHT = { low: 1, medium: 2, high: 3 } as const;
-
 export type InvestmentPriority = {
   intervention: Intervention;
   urgency: number;
@@ -25,20 +26,13 @@ export type InvestmentPriority = {
 };
 
 export function rankInvestmentPriorities(report: DiagnosisReport): InvestmentPriority[] {
-  return report.interventions
-    .map((intervention) => {
-      const linkedClusters = report.clusters.filter((cluster) =>
-        intervention.linkedClusterIds.includes(cluster.clusterId),
-      );
-      const clusterScore = linkedClusters.length > 0 ? Math.max(...linkedClusters.map((c) => c.score)) : 0;
-      const urgency = clusterScore / COST_WEIGHT[intervention.cost];
-      return {
-        intervention,
-        urgency: Number(urgency.toFixed(2)),
-        rationale: `clusterScore=${clusterScore}, cost=${intervention.cost}`,
-      };
-    })
-    .sort((a, b) => b.urgency - a.urgency);
+  return [...report.interventions]
+    .sort((left, right) => left.priority - right.priority)
+    .map((intervention) => ({
+      intervention,
+      urgency: intervention.priorityScore,
+      rationale: `priorityScore=${intervention.priorityScore}, priority=${intervention.priority}, cost=${intervention.cost}`,
+    }));
 }
 
 export function analyzeTrend(entries: TrendEntry[]): TrendAnalysis {

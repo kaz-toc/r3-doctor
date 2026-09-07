@@ -53,6 +53,14 @@ describe('semantic prompt boundary', () => {
   });
 
   it('publishes a new provider implementation identity for the prompt contract', () => {
-    expect(SEMANTIC_PROVIDER_IMPL_VERSION).toBe('2.0.0');
+    expect(SEMANTIC_PROVIDER_IMPL_VERSION).toBe('2.1.0');
+  });
+
+  it('requires impactScope and keeps confidence separate from risk magnitude', () => {
+    const result = buildBudgetedSemanticPrompt(snapshot, evidence, 2_048);
+
+    expect(result.prompt).toContain('"impactScope":"local"');
+    expect(result.prompt).toContain('confidence measures finding certainty only');
+    expect(result.prompt).toContain('impactScope must be one of local, module, or repository');
   });
 });

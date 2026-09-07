@@ -1,6 +1,6 @@
-# 評価契約 v1
+# 評価契約 v4
 
-`schemaVersion: 1` の Assessment Contract。スコアは障害発生確率ではなく、同一契約内の優先順位と時系列比較に用いる相対指標である。
+`schemaVersion: 2` の Assessment Contract（`assessmentContractVersion: 4`）。スコアは障害発生確率ではなく、同一契約内の優先順位と時系列比較に用いる相対指標である。
 
 ## 評価軸
 
@@ -12,30 +12,53 @@
 | `change-volatility` | Change Volatility | 高いほど危険 | churn、修正反復 |
 | `semantic-ambiguity` | Semantic Ambiguity | 高いほど危険 | LLM 意味所見（決定論のみ時は未評価） |
 
-## スコア集約
+## Signal Strength と severity
 
-1. 各軸は 0–100。シグナル重み付き平均で算出。
-2. Repository Regression Risk Score は軸スコアの加重平均。デフォルト重みは均等（各 0.2）。
-3. 重大クラスターがある場合、クラスター最大スコアの 30% をブレンドし、局所リスクを隠さない。
-4. 未評価軸は集約から除外し、確信度を下げる。ゼロ点として扱わない。
+- `Evidence.strength`（0–100）が canonical な強度。障害確率ではない。
+- `Evidence.severity` は strength から導出する表示 band であり、独立に上書きできない。
+  - `strength >= 70` → `high`
+  - `strength >= 40` → `medium`
+  - それ以外 → `low`
+
+## Axis score と contribution
+
+各 axis は `scoreBreakdown`（`peak`、`breadth`、`diversity`）を必須とする。
+
+```
+score = round(0.65 * peak + 0.25 * breadth + 0.10 * diversity)
+```
+
+`contributionPoints` は Repository score のうち当該 axis が実際に加えた点数。旧 `contribution`（構成比）は廃止する。
+
+## Repository score
+
+`scoreBreakdown.axisBase` は評価済み axis の等重み平均。最大 cluster がそれを上回る場合のみ `criticalClusterUplift`（差分の 30%）を加える。
+
+```
+repositoryScore = round(axisBase + 0.30 * max(0, maxClusterScore - axisBase))
+```
+
+`confidenceBreakdown` は signal coverage、semantic analysis、git history、input completeness を 0–1 で示す。
+
+`calibration.status` は outcome data に基づく解釈状態（`uncalibrated`、`provisional`、`validated`）。score 値そのものを実行時に書き換えない。
 
 ## 確信度
 
-`confidence` は 0–1。次を反映する:
-
-- 利用できた決定論シグナル数 / 期待シグナル数
-- LLM 意味解析の有無
-- Git 履歴の利用可否
-- 解析上限による truncation の有無
+`confidence` は 0–1。`confidenceBreakdown` と整合する総合値。
 
 ## リスククラスター
 
 同一 `failureMechanism` に関与するファイル群。クラスタースコアは関連シグナルの最大値と平均の混合。
 
+## Intervention
+
+各 intervention は `rationale`、`firstStep`、`priorityScore`、`verificationHorizon` を必須とする。
+
 ## 比較規則
 
-- `assessmentContractVersion` が一致するベースラインのみ差分可能。
-- 契約不一致時は `riskDelta` を出力せず、警告を付与する。
+- `assessmentContractVersion` と report schema version が一致するベースラインのみ差分可能。
+- 契約不一致時は parse error ではなく「比較不能」として reason を返し、`riskDelta` と signal changes を出力しない。
+- 保存済み v3 baseline / trend を暗黙 migration しない。
 
 ## 表示上の免責
 

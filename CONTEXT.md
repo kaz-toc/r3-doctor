@@ -47,3 +47,35 @@ _Avoid_: 前回の数字（評価条件が異なる場合）
 **リスク差分（Risk Delta）**:
 ベースラインと現在の診断結果の間で増減したデグレリスクと、その根拠の変化。
 _Avoid_: コード差分
+
+**シグナル強度（Signal Strength）**:
+1 件の観測値が、その signal の開始閾値をどれだけ超えているかを 0–100 へ正規化した強度。
+_Avoid_: 障害確率、severity ラベルそのもの
+
+**Evidence Confidence**:
+analyzer coverage、入力完全性、測定再現性に基づく根拠の信頼可能性。
+_Avoid_: score の正しさ、障害確率
+
+**Calibration Status**:
+outcome data による score 検証状態（`uncalibrated`、`provisional`、`validated`）。
+_Avoid_: score 値そのもの、品質ラベルの暗黙推定
+
+**Contribution Points**:
+Repository score のうち各 axis が実際に加えた点数。
+_Avoid_: axis score の構成比、百分率表示だけ
+
+**Facts View**:
+観測済み Evidence、metric、path、解析範囲、未評価領域だけを示す現状表示。
+_Avoid_: score 解釈、priority、改善案
+
+**Summary View**:
+score、上位 cluster、主要因、Evidence confidence、Calibration status、制約を示す診断要約。
+_Avoid_: 新しい事実の生成、intervention 詳細
+
+**Actions View**:
+優先順位付き intervention、理由、最初の一手、確認方法を示す改善ポイント表示。
+_Avoid_: 全 Evidence table、無関係な cluster
+
+**All View**:
+Summary、Actions、Facts を重複なく 3 章として合成した一体レポート表示。
+_Avoid_: 章間での Evidence や limitation の重複

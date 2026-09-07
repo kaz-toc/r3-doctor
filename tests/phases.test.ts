@@ -122,6 +122,7 @@ describe('phase 4-6 capabilities', () => {
         summary: 'Injected provider finding',
         relatedEvidenceIds: [],
         confidence: 0.8,
+        impactScope: 'module',
       },
     ]);
   });

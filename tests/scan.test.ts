@@ -45,9 +45,8 @@ describe('scan pipeline', () => {
     const snapshot = await createRepositorySnapshot(repoRoot);
     const report = await runDiagnosis(snapshot);
     expect(report.evidence.some((item) => item.path?.includes('fragile-cart'))).toBe(false);
-    expect(report.evidence.some((item) => item.signalId === 'dep-cycle' && item.path?.startsWith('src/'))).toBe(
-      false,
-    );
+    expect(report.evidence.some((item) => item.path?.includes('tests/fixtures'))).toBe(false);
+    expect(report.evidence.some((item) => item.path?.includes('test-fixtures'))).toBe(false);
   });
 
   it('links interventions to signals', async () => {
@@ -64,19 +63,19 @@ describe('scan pipeline', () => {
   it('renders markdown report', async () => {
     const snapshot = await createRepositorySnapshot(path.join(fixturesRoot, 'stable-cart'));
     const report = await runDiagnosis(snapshot);
-    const markdown = formatMarkdownReport(report);
+    const markdown = formatMarkdownReport(report, { view: 'all' });
     expect(markdown).toContain('# r3-doctor Diagnosis Report');
+    expect(markdown).toContain('## Diagnosis summary');
     expect(markdown).toContain('Regression Risk Score');
-    expect(markdown).toContain('## Evidence');
-    expect(markdown).toContain('## Semantic Findings');
+    expect(markdown).toContain('## Current state');
   });
 
   it('renders independent evidence sections in console output', async () => {
     const snapshot = await createRepositorySnapshot(path.join(fixturesRoot, 'fragile-cart'));
     const report = await runDiagnosis(snapshot);
-    const consoleOut = formatConsoleReport(report);
-    expect(consoleOut).toContain('Evidence:');
-    expect(consoleOut).toContain('Semantic findings:');
-    expect(consoleOut).toContain('none (axis unevaluated)');
+    const consoleOut = formatConsoleReport(report, { view: 'all' });
+    expect(consoleOut).toContain('Current state');
+    expect(consoleOut).toContain('Grouped evidence');
+    expect(consoleOut).toContain('semantic-ambiguity: LLM provider not configured');
   });
 });

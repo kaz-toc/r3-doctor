@@ -32,5 +32,6 @@
 | SEC-2026-007 | Prompt limit excluded fixed/evidence content and leaked absolute path | fixed | Budgeting covered only a partial context packet | Budget final prompt and use repository token | REG-2026-018 | protected | — |
 | SEC-2026-008 | Repository policy path could escape through traversal or symlink | fixed | Direct path join/read had no physical containment check | Contained regular-file resolver and policy bounds | REG-2026-019 | protected | — |
 | SEC-2026-009 | Repository-influenced PATH could select Git/provider executables | fixed | Child lookup inherited unsafe PATH and Git inherited secrets | Sanitize lookup path, reject repo executables, allowlist Git env | REG-2026-020 | protected | — |
+| report-quality-improvement#non-actionable-report | Human-readable report hides score meaning and actionable next steps | fixed | Contract v3 lacked strength, contribution points, calibration status, and view boundaries | ADR-0004 contract v4 and report views | REG-2026-021 | protected | none |
 
 証拠なしに root cause を推測しない。調査で確定するまで `unknown` を使う。

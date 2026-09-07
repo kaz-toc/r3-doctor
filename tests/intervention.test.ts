@@ -38,4 +38,29 @@ describe('intervention effectiveness', () => {
       expect(intervention.linkedSignalIds.every((id) => signalIds.has(id))).toBe(true);
     }
   });
+
+  it('generates one ranked intervention per cluster with mechanism-specific first steps', async () => {
+    const fragile = await runDiagnosis(await createRepositorySnapshot(path.join(fixturesRoot, 'fragile-cart')));
+    const actions = fragile.interventions;
+    const topCluster = fragile.clusters[0];
+
+    expect(topCluster).toBeDefined();
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.length).toBeLessThanOrEqual(fragile.clusters.length);
+    expect(actions.map((action) => action.priority)).toEqual(
+      [...actions.keys()].map((index) => index + 1),
+    );
+    const topAction = actions.find((action) => action.linkedClusterIds.includes(topCluster!.clusterId));
+    expect(topAction).toMatchObject({
+      linkedClusterIds: [topCluster!.clusterId],
+      targetPaths: expect.arrayContaining([topCluster!.paths[0]!]),
+      rationale: expect.stringContaining(topCluster!.mechanismId),
+      firstStep: expect.stringContaining(topCluster!.paths[0]!),
+    });
+    for (const action of actions) {
+      expect(action.verification.length).toBeGreaterThan(0);
+      expect(action.verificationHorizon.length).toBeGreaterThan(0);
+      expect(action.linkedClusterIds).toHaveLength(1);
+    }
+  });
 });

@@ -8,7 +8,13 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { writeGitHubAnnotationsFile, writeGitHubSummaryFile } from '../src/reporting/github.js';
-import { diffReportSchema } from '../src/schema/report.v1.js';
+import {
+  ASSESSMENT_CONTRACT_VERSION,
+  DIFF_SCHEMA_VERSION,
+  REPORT_SCHEMA_VERSION,
+  diffReportSchema,
+  provisionalEvidenceDetails,
+} from '../src/schema/report.v1.js';
 import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { loadBaseline, saveBaseline } from '../src/persistence/baseline-store.js';
 import { appendTrend, loadTrendHistory } from '../src/persistence/trend-store.js';
@@ -31,6 +37,64 @@ import type { AnalyzerPlugin } from '../src/plugins/analyzer.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const fixturesRoot = path.join(root, 'fixtures');
 const execFileAsync = promisify(execFile);
+
+function minimalV4Repository(overrides: Record<string, unknown> = {}) {
+  return {
+    regressionRiskScore: 10,
+    confidence: 1,
+    disclaimer: 'd',
+    scoreBreakdown: { axisBase: 10, criticalClusterUplift: 0 },
+    confidenceBreakdown: {
+      signalCoverage: 1,
+      semanticAnalysis: 0,
+      gitHistory: 1,
+      inputCompleteness: 1,
+    },
+    calibration: { status: 'uncalibrated' },
+    ...overrides,
+  };
+}
+
+function minimalV4Metadata(inputId: string) {
+  return {
+    schemaVersion: REPORT_SCHEMA_VERSION,
+    assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    inputId,
+    repositoryPath: '/tmp',
+    analyzers: [],
+    truncated: false,
+    unevaluatedAreas: [],
+  };
+}
+
+function sampleV4Evidence(overrides: Record<string, unknown> = {}) {
+  const details = provisionalEvidenceDetails('high', 'src/a.ts');
+  return {
+    evidenceId: 'evidence:dep-cycle:src/a.ts',
+    signalId: 'dep-cycle',
+    axisId: 'structural-fragility',
+    path: 'src/a.ts',
+    severity: 'high',
+    message: 'cycle detected',
+    source: 'deterministic',
+    ...details,
+    ...overrides,
+  };
+}
+
+function minimalV4Report(inputId: string) {
+  return {
+    metadata: minimalV4Metadata(inputId),
+    repository: minimalV4Repository(),
+    axes: [],
+    clusters: [],
+    evidence: [],
+    semanticFindings: [],
+    interventions: [],
+    capabilities: [],
+  };
+}
 
 describe('integration: multi-language scan', () => {
   it('negotiates capabilities per detected language', async () => {
@@ -288,19 +352,23 @@ describe('integration: Git-dependent capability unevaluated', () => {
         extensions: ['.ts'],
         capabilities: [{
           language: 'typescript-javascript',
-          contractVersion: 3,
+          contractVersion: 4,
           signals: ['git-churn'],
           completeness: 'partial',
         }],
-        extract: async () => [{
-          evidenceId: 'evidence:git-churn:src/a.ts',
-          signalId: 'git-churn',
-          axisId: 'change-volatility',
-          path: 'src/a.ts',
-          severity: 'high',
-          message: 'unsupported churn evidence retained for audit',
-          source: 'deterministic',
-        }],
+        extract: async () => {
+          const details = provisionalEvidenceDetails('high', 'src/a.ts');
+          return [{
+            evidenceId: 'evidence:git-churn:src/a.ts',
+            signalId: 'git-churn',
+            axisId: 'change-volatility',
+            path: 'src/a.ts',
+            severity: 'high',
+            message: 'unsupported churn evidence retained for audit',
+            source: 'deterministic',
+            ...details,
+          }];
+        },
       };
 
       const report = await runDiagnosis(snapshot, { analyzerPlugins: [plugin] });
@@ -318,22 +386,143 @@ describe('integration: Git-dependent capability unevaluated', () => {
   });
 });
 
+describe('integration: calibration status in diagnosis', () => {
+  it('reports uncalibrated when calibration file is absent', async () => {
+    const report = await runDiagnosis(await createRepositorySnapshot(path.join(fixturesRoot, 'stable-cart')));
+    expect(report.repository.calibration.status).toBe('uncalibrated');
+  });
+
+  it('reports provisional when calibration dataset is incomplete', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-calibration-status-'));
+    try {
+      await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
+      await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const a = 1;\n');
+      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({ schemaVersion: 1 }));
+      await mkdir(path.join(repositoryPath, '.r3-doctor'), { recursive: true });
+      await writeFile(path.join(repositoryPath, '.r3-doctor', 'calibration.json'), JSON.stringify({
+        schemaVersion: 1,
+        records: [{
+          schemaVersion: 1,
+          scoreBand: '0-30',
+          sampleCount: 12,
+          observedRegressions: 1,
+          observedReverts: 0,
+          falsePositiveRate: 0.1,
+          missRate: 0.1,
+          rankingQuality: 0.8,
+          explanationUsefulness: 0.8,
+        }],
+        gateConditions: [],
+        satisfiedConditions: [],
+      }));
+
+      const report = await runDiagnosis(await createRepositorySnapshot(repositoryPath));
+      expect(report.repository.calibration.status).toBe('provisional');
+      expect(report.repository.calibration.missingConditions?.length).toBeGreaterThan(0);
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
+  it('does not rewrite regression risk score from calibration data', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-calibration-score-'));
+    try {
+      await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
+      await writeFile(path.join(repositoryPath, 'src', 'a.ts'), 'export const a = 1;\n');
+      await writeFile(path.join(repositoryPath, 'r3-doctor.config.json'), JSON.stringify({ schemaVersion: 1 }));
+
+      const withoutCalibration = await runDiagnosis(await createRepositorySnapshot(repositoryPath));
+      await mkdir(path.join(repositoryPath, '.r3-doctor'), { recursive: true });
+      await writeFile(path.join(repositoryPath, '.r3-doctor', 'calibration.json'), JSON.stringify({
+        schemaVersion: 1,
+        records: [{
+          schemaVersion: 1,
+          scoreBand: '0-30',
+          sampleCount: 12,
+          observedRegressions: 1,
+          observedReverts: 0,
+          falsePositiveRate: 0.1,
+          missRate: 0.1,
+          rankingQuality: 0.8,
+          explanationUsefulness: 0.8,
+        }],
+        gateConditions: [],
+        satisfiedConditions: [],
+      }));
+
+      const withCalibration = await runDiagnosis(await createRepositorySnapshot(repositoryPath));
+      expect(withCalibration.repository.regressionRiskScore).toBe(withoutCalibration.repository.regressionRiskScore);
+      expect(withCalibration.repository.calibration.status).toBe('provisional');
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('integration: output evidence traceability', () => {
   it('includes evidence details in console, markdown, and json outputs', async () => {
     const report = await runDiagnosis(await createRepositorySnapshot(path.join(fixturesRoot, 'fragile-cart')));
-    const consoleOut = formatConsoleReport(report);
-    const markdownOut = formatMarkdownReport(report);
+    const consoleOut = formatConsoleReport(report, { view: 'all' });
+    const markdownOut = formatMarkdownReport(report, { view: 'all' });
     const jsonOut = formatJsonReport(report);
 
     expect(consoleOut).toContain('mechanism:');
-    expect(consoleOut).toContain('evidence:');
-    expect(consoleOut).toContain('Evidence:');
-    expect(consoleOut).toContain('Semantic findings:');
-    expect(markdownOut).toContain('- Evidence:');
-    expect(markdownOut).toContain('## Evidence');
-    expect(markdownOut).toContain('## Semantic Findings');
+    expect(consoleOut).toContain('Grouped evidence');
+    expect(consoleOut).toContain('Improvement points');
+    expect(markdownOut).toContain('## Current state');
+    expect(markdownOut).toContain('### Grouped evidence');
+    expect(markdownOut).toContain('## Improvement points');
     expect(jsonOut).toContain('"evidenceId"');
     expect(jsonOut).toContain('"capabilities"');
+  });
+});
+
+describe('integration: CLI report views', () => {
+  it('defaults to all view and keeps json full when view is facts', async () => {
+    const repositoryPath = path.join(fixturesRoot, 'fragile-cart');
+    const cliPath = path.join(root, '..', 'src', 'cli.ts');
+    const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+
+    const markdown = await execFileAsync(process.execPath, [
+      tsxPath,
+      cliPath,
+      'scan',
+      repositoryPath,
+      '--format',
+      'markdown',
+    ]);
+    expect(markdown.stdout).toContain('## Diagnosis summary');
+    expect(markdown.stdout).toContain('## Improvement points');
+    expect(markdown.stdout).toContain('## Current state');
+
+    const factsJson = await execFileAsync(process.execPath, [
+      tsxPath,
+      cliPath,
+      'scan',
+      repositoryPath,
+      '--format',
+      'json',
+      '--view',
+      'facts',
+    ]);
+    const parsed = JSON.parse(factsJson.stdout) as { evidence: unknown[] };
+    expect(parsed.evidence.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unknown view values at parse time', async () => {
+    const repositoryPath = path.join(fixturesRoot, 'fragile-cart');
+    const cliPath = path.join(root, '..', 'src', 'cli.ts');
+    const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+    const error = await execFileAsync(process.execPath, [
+      tsxPath,
+      cliPath,
+      'scan',
+      repositoryPath,
+      '--view',
+      'verbose',
+    ]).catch((caught: unknown) => caught as { stderr: string });
+
+    expect(error.stderr).toContain('facts, summary, actions, all のいずれかを指定してください');
   });
 });
 
@@ -372,7 +561,7 @@ describe('integration: trend corrupt line errors', () => {
         inputId: 'a',
         score: 1,
         confidence: 1,
-        contractVersion: 3,
+        contractVersion: 4,
         topClusters: [],
       })}\n{broken\n`,
     );
@@ -395,7 +584,7 @@ describe('integration: trend persistence boundary', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 3,
+        contractVersion: 4,
         topClusters: [],
       })}\n`);
 
@@ -473,7 +662,7 @@ describe('integration: CLI retention audits', () => {
         inputId: 'expired',
         score: 1,
         confidence: 1,
-        contractVersion: 3,
+        contractVersion: 4,
         topClusters: [],
       })}\n`);
 
@@ -540,7 +729,7 @@ describe('integration: CLI calibration conditions', () => {
         schemaVersion: 1,
         records: [{
           schemaVersion: 1,
-          scoreBand: '0-100',
+          scoreBand: '0-30',
           sampleCount: 30,
           observedRegressions: 1,
           observedReverts: 0,
@@ -588,26 +777,8 @@ describe('integration: plugin catalog', () => {
 describe('integration: diff report contract', () => {
   it('returns versioned DiffReport shape from compareSignalChanges path', () => {
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
-      current: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'c',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 10, confidence: 1, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
-      },
+      schemaVersion: DIFF_SCHEMA_VERSION,
+      current: minimalV4Report('c'),
       comparison: {
         compatible: false,
         reason: 'assessment contract mismatch',
@@ -630,52 +801,15 @@ describe('integration: github outputs', () => {
   it('writes summary and annotations with diagnostic evidence', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-gh-'));
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: DIFF_SCHEMA_VERSION,
       current: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'c',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 80, confidence: 0.9, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [{
-          evidenceId: 'evidence:dep-cycle:src/a.ts',
-          signalId: 'dep-cycle',
-          axisId: 'structural-fragility',
-          path: 'src/a.ts',
-          severity: 'high',
-          message: 'cycle detected',
-          source: 'deterministic',
-        }],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
+        ...minimalV4Report('c'),
+        repository: minimalV4Repository({ regressionRiskScore: 80, confidence: 0.9 }),
+        evidence: [sampleV4Evidence()],
       },
       base: {
-        metadata: {
-          schemaVersion: 1,
-          assessmentContractVersion: 3,
-          generatedAt: '2026-01-01T00:00:00.000Z',
-          inputId: 'b',
-          repositoryPath: '/tmp',
-          analyzers: [],
-          truncated: false,
-          unevaluatedAreas: [],
-        },
-        repository: { regressionRiskScore: 50, confidence: 0.9, disclaimer: 'd' },
-        axes: [],
-        clusters: [],
-        evidence: [],
-        semanticFindings: [],
-        interventions: [],
-        capabilities: [],
+        ...minimalV4Report('b'),
+        repository: minimalV4Repository({ regressionRiskScore: 50, confidence: 0.9 }),
       },
       comparison: {
         compatible: true,
@@ -710,7 +844,8 @@ describe('integration: github outputs', () => {
     const annotations = await readFile(annotationsPath, 'utf8');
     expect(summary).toContain('Baseline: b');
     expect(summary).toContain('Base score: 50');
-    expect(summary).toContain('cycle detected');
+    expect(summary).toContain('## Changed risk clusters');
+    expect(summary).toContain('## Top actions');
     expect(summary).toContain('Direct dependencies:');
     expect(annotations).toContain('::error file=src/a.ts');
     expect(formatDiffConsoleReport(diff)).toContain('Base score: 50');

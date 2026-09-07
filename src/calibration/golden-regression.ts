@@ -36,12 +36,14 @@ export async function runGoldenAssessmentRegression(fixturesRoot?: string): Prom
   const goldenPath = path.join(root, 'golden', 'assessments.json');
   const golden = JSON.parse(await readFile(goldenPath, 'utf8')) as Record<string, GoldenSpec>;
   const results: GoldenRegressionResult[] = [];
+  const scores = new Map<string, number>();
 
   for (const [fixture, spec] of Object.entries(golden)) {
     const snapshot = await createRepositorySnapshot(path.join(root, fixture));
-    const report = await runDiagnosis(snapshot);
+    const report = await runDiagnosis(snapshot, { skipCalibrationResolution: true });
     const signals = new Set(report.evidence.map((item) => item.signalId));
     const violations: string[] = [];
+    scores.set(fixture, report.repository.regressionRiskScore);
 
     if (spec.expected.maxScore !== undefined && report.repository.regressionRiskScore > spec.expected.maxScore) {
       violations.push(`score ${report.repository.regressionRiskScore} > max ${spec.expected.maxScore}`);
@@ -69,6 +71,26 @@ export async function runGoldenAssessmentRegression(fixturesRoot?: string): Prom
       score: report.repository.regressionRiskScore,
       violations,
     });
+  }
+
+  const fragile = scores.get('fragile-cart');
+  const improved = scores.get('fragile-cart-improved');
+  const stable = scores.get('stable-cart');
+  if (fragile !== undefined && improved !== undefined && fragile <= improved) {
+    const orderingViolation = `expected fragile-cart (${fragile}) > fragile-cart-improved (${improved})`;
+    const fragileResult = results.find((result) => result.fixture === 'fragile-cart');
+    if (fragileResult) {
+      fragileResult.violations.push(orderingViolation);
+      fragileResult.passed = false;
+    }
+  }
+  if (improved !== undefined && stable !== undefined && improved < stable) {
+    const orderingViolation = `expected fragile-cart-improved (${improved}) >= stable-cart (${stable})`;
+    const improvedResult = results.find((result) => result.fixture === 'fragile-cart-improved');
+    if (improvedResult) {
+      improvedResult.violations.push(orderingViolation);
+      improvedResult.passed = false;
+    }
   }
 
   return {

@@ -75,6 +75,18 @@ LLM の起動と外部送信は解析対象の `r3-doctor.config.json` では設
 
 エイリアス: `openai` → `codex`, `anthropic` → `claude`.
 
+## Regression Risk Score の読み方
+
+Regression Risk Score は障害発生確率ではなく、同一 assessment contract 内の相対順位と時系列比較に使う指標です。レポートの `repository.calibration.status` は outcome data に基づく解釈状態を示し、score 値そのものを実行時に書き換えません。
+
+| status | 意味 |
+|---|---|
+| `uncalibrated` | calibration dataset がない。同一 contract 内の相対順位のみに使用可能。 |
+| `provisional` | outcome sample または品質条件が不足。`missingConditions` に不足理由を記録。 |
+| `validated` | 記録された dataset 条件（各 score band 30 samples 以上、false positive/miss rate、ranking quality、explanation usefulness、golden regression pass、team policy 条件）をすべて満たす。この条件内でのみ score の解釈に利用可能。 |
+
+CI gate は既存どおり calibration eligibility（`policy --evaluate` の `gateEligible`）を満たすまで advisory のまま抑止されます。`gateEnabled` を有効化しても、calibration dataset が validated 条件を満たさない場合は gate は動作しません。
+
 ## プロジェクト文書
 
 - [PROJECT.md](PROJECT.md) — プロダクトの目的、ユーザー、成果

@@ -1,3 +1,28 @@
+import type { Evidence } from '../schema/report.v1.js';
+
+export type ImpactScope = 'local' | 'module' | 'repository';
+
+export const IMPACT_SCOPE_STRENGTH: Record<ImpactScope, number> = {
+  local: 35,
+  module: 60,
+  repository: 85,
+};
+
+export type ParsedSemanticFinding = {
+  axisId: string;
+  path?: string;
+  summary: string;
+  relatedEvidenceIds?: string[];
+  confidence: number;
+  impactScope?: ImpactScope;
+};
+
+export type ScoreEligibleSemanticFinding = {
+  path?: string;
+  relatedEvidenceIds: string[];
+  impactScope?: ImpactScope;
+};
+
 function balancedArrayCandidates(text: string): string[] {
   const candidates: Array<{ start: number; value: string }> = [];
   const starts: number[] = [];
@@ -57,4 +82,22 @@ export function parseSemanticResponse(responseText: string): unknown {
     }
   }
   throw new Error('semantic response did not contain a JSON array');
+}
+
+export function semanticRiskStrength(impactScope: ImpactScope): number {
+  return IMPACT_SCOPE_STRENGTH[impactScope];
+}
+
+export function isScoreEligibleSemanticFinding(
+  finding: ScoreEligibleSemanticFinding,
+  snapshotPaths: Set<string>,
+  evidenceById: Map<string, Evidence>,
+): boolean {
+  if (!finding.path || !snapshotPaths.has(finding.path)) {
+    return false;
+  }
+  if (finding.relatedEvidenceIds.length === 0) {
+    return false;
+  }
+  return finding.relatedEvidenceIds.some((evidenceId) => evidenceById.get(evidenceId)?.source === 'deterministic');
 }

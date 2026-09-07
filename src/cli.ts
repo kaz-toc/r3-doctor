@@ -9,6 +9,7 @@ import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
 import { runDiffDiagnosis } from './commands/diff.js';
 import { loadPolicy, evaluatePolicy } from './operations/policy.js';
 import { loadCalibration, summarizeCalibration } from './calibration/dataset.js';
+import { summarizeCalibrationQuality } from './calibration/quality.js';
 import { runGoldenAssessmentRegression } from './calibration/golden-regression.js';
 import { DefaultReporterAdapter } from './adapters/reporter.js';
 import { analyzeTrend, rankInvestmentPriorities } from './operations/trend.js';
@@ -30,6 +31,7 @@ import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
+const VALID_VIEWS = new Set(['facts', 'summary', 'actions', 'all']);
 const reporter = new DefaultReporterAdapter();
 
 const program = new Command();
@@ -41,6 +43,13 @@ function parseFormat(value: string): 'console' | 'markdown' | 'json' {
     throw new R3DoctorError(`invalid format: ${value}`);
   }
   return value as 'console' | 'markdown' | 'json';
+}
+
+function parseView(value: string): 'facts' | 'summary' | 'actions' | 'all' {
+  if (!VALID_VIEWS.has(value)) {
+    throw new R3DoctorError('facts, summary, actions, all のいずれかを指定してください');
+  }
+  return value as 'facts' | 'summary' | 'actions' | 'all';
 }
 
 function writeRetentionAudits(audits: RetentionAudit[]): void {
@@ -65,13 +74,14 @@ addLlmOptions(program
   .command('scan')
   .argument('<path>', 'repository path')
   .option('--format <format>', 'console|markdown|json', 'console')
+  .option('--view <view>', 'facts|summary|actions|all (console/markdown projection; json always returns full report)', 'all')
   .option('--save-baseline', 'save report as baseline', false)
   .option('--record-trend', 'append score to trend history', false)
   .option('--dry-run-semantic', 'print semantic prompt without calling the LLM', false)
   .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json'))
   .action(async (
     repoPath: string,
-    options: { format: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string } & LlmCliOptions,
+    options: { format: string; view: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string } & LlmCliOptions,
   ) => {
     const llmConfig = parseLlmExecutionPolicy(options, options.dryRunSemantic);
     const snapshot = await createRepositorySnapshot(repoPath, options.unit, llmConfig);
@@ -92,9 +102,10 @@ addLlmOptions(program
     }
 
     const format = parseFormat(options.format);
+    const view = parseView(options.view);
     const report = await runDiagnosis(snapshot);
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
-    const output = reporter.format(redactReport(report, policy.redactPaths), format);
+    const output = reporter.format(redactReport(report, policy.redactPaths), format, { view });
 
     if (options.saveBaseline) {
       const baseline = await saveBaseline(snapshot, report);
@@ -115,16 +126,18 @@ addLlmOptions(program
   .argument('<path>', 'repository path')
   .requiredOption('--base <ref>', 'git ref for baseline comparison')
   .option('--format <format>', 'console|markdown|json', 'console')
+  .option('--view <view>', 'facts|summary|actions|all (console/markdown projection; json always returns full report)', 'all')
   .option('--github-summary <file>', 'write GitHub job summary markdown')
   .option('--github-annotations <file>', 'write GitHub workflow annotations')
   .option('--emit-annotations', 'emit GitHub workflow annotations to stdout'))
   .action(async (
     repoPath: string,
-    options: { base: string; format: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean } & LlmCliOptions,
+    options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean } & LlmCliOptions,
   ) => {
     const llmConfig = parseLlmExecutionPolicy(options);
     const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig);
     const format = parseFormat(options.format);
+    const view = parseView(options.view);
     const snapshot = await createRepositorySnapshot(repoPath);
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
     const redacted = redactDiffReport(diff, policy.redactPaths);
@@ -143,7 +156,7 @@ addLlmOptions(program
       process.stderr.write(`warning: ${diff.comparison.reason ?? 'assessment contract mismatch — risk delta suppressed'}\n`);
     }
 
-    process.stdout.write(reporter.formatDiff(redacted, format));
+    process.stdout.write(reporter.formatDiff(redacted, format, { view }));
     process.exit(0);
   });
 
@@ -249,7 +262,10 @@ program
       golden.passed,
       policy.requiredCalibrationConditions,
     );
-    process.stdout.write(`${summarizeCalibration(calibration)}\n`);
+    const quality = summarizeCalibrationQuality(calibration);
+    process.stdout.write(
+      `${summarizeCalibration(calibration)}\nQuality status: ${quality.status}\n`,
+    );
   });
 
 program

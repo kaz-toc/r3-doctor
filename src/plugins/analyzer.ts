@@ -2,6 +2,12 @@ import type { CapabilityResult, Evidence, SignalId, SourceLanguage } from '../sc
 import { ALL_SIGNAL_IDS, ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
 import { IntakeError } from '../shared/errors.js';
+import { classifyPathRole } from '../evidence/path-role.js';
+import {
+  buildNumericRationale,
+  normalizeAboveThreshold,
+  severityForStrength,
+} from '../evidence/strength.js';
 import { LANGUAGE_EXTENSIONS } from './language-extensions.js';
 
 export type AnalyzerCapability = {
@@ -42,16 +48,23 @@ function extractLargeFileEvidence(
 ): Evidence[] {
   return files
     .filter((file) => file.nonBlankLines > snapshot.config.maxFileLines)
-    .map((file) => ({
-      evidenceId: `evidence:large-file:${file.relativePath}`,
-      signalId: 'large-file' as const,
-      axisId: 'structural-fragility' as const,
-      path: file.relativePath,
-      severity: 'medium' as const,
-      message: `${languageLabel}: large file (${file.nonBlankLines} lines)`,
-      metrics: { lines: file.nonBlankLines },
-      source: 'deterministic' as const,
-    }));
+    .map((file) => {
+      const strength = normalizeAboveThreshold(file.nonBlankLines, snapshot.config.maxFileLines);
+      return {
+        evidenceId: `evidence:large-file:${file.relativePath}`,
+        signalId: 'large-file' as const,
+        axisId: 'structural-fragility' as const,
+        path: file.relativePath,
+        severity: severityForStrength(strength),
+        message: `${languageLabel}: large file (${file.nonBlankLines} lines)`,
+        metrics: { lines: file.nonBlankLines },
+        source: 'deterministic' as const,
+        strength,
+        rationale: buildNumericRationale(file.nonBlankLines, snapshot.config.maxFileLines),
+        pathRole: classifyPathRole(file.relativePath, snapshot.config.diagnosticSkipRoots),
+        relatedPaths: [],
+      };
+    });
 }
 
 export function detectLanguages(snapshot: RepositorySnapshot): SourceLanguage[] {

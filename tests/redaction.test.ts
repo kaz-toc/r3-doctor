@@ -11,6 +11,13 @@ import { deriveGateEligible } from '../src/operations/policy.js';
 import { diagnosisReportSchema, diffReportSchema } from '../src/schema/report.v1.js';
 import type { DiagnosisReport } from '../src/schema/report.v1.js';
 import { redactDiffReport } from '../src/shared/redaction.js';
+import { DIFF_SCHEMA_VERSION } from '../src/schema/report.v1.js';
+import {
+  minimalReportMetadata,
+  minimalRepository,
+  minimalV4Report,
+  sampleEvidence,
+} from './helpers/v4-report-fixtures.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,33 +57,17 @@ describe('policy redaction and gate eligibility', () => {
 
   it('preserves entity namespaces and remains idempotent for already-redacted reports', () => {
     const evidenceId = 'evidence:large-file:Repo/evidence/a.ts';
-    const report: DiagnosisReport = {
-      metadata: {
-        schemaVersion: 1,
-        assessmentContractVersion: 3,
-        generatedAt: '2026-01-01T00:00:00.000Z',
+    const report: DiagnosisReport = minimalV4Report({
+      metadata: minimalReportMetadata({
         inputId: 'input',
         repositoryPath: '/Repo/evidence',
-        analyzers: [],
-        truncated: false,
-        unevaluatedAreas: [],
-      },
-      repository: { regressionRiskScore: 1, confidence: 1, disclaimer: 'test' },
-      axes: [],
-      clusters: [],
-      evidence: [{
+      }),
+      evidence: [sampleEvidence({
         evidenceId,
-        signalId: 'large-file',
-        axisId: 'structural-fragility',
         path: 'Repo/evidence/a.ts',
-        severity: 'medium',
         message: 'Repo evidence path',
-        source: 'deterministic',
-      }],
-      semanticFindings: [],
-      interventions: [],
-      capabilities: [],
-    };
+      })],
+    });
 
     const once = redactReport(report, ['evidence', 'R']);
     const twice = redactReport(once, ['R', 'evidence']);
@@ -88,25 +79,12 @@ describe('policy redaction and gate eligibility', () => {
   });
 
   it('removes legacy absolute paths from already-redacted reports', () => {
-    const redacted = redactReport({
-      metadata: {
-        schemaVersion: 1 as const,
-        assessmentContractVersion: 3 as const,
-        generatedAt: '2026-01-01T00:00:00.000Z',
+    const redacted = redactReport(minimalV4Report({
+      metadata: minimalReportMetadata({
         inputId: 'input',
         repositoryPath: '/private/legacy/repository',
-        analyzers: [],
-        truncated: false,
-        unevaluatedAreas: [],
-      },
-      repository: { regressionRiskScore: 1, confidence: 1, disclaimer: 'test' },
-      axes: [],
-      clusters: [],
-      evidence: [],
-      semanticFindings: [],
-      interventions: [],
-      capabilities: [],
-    }, []);
+      }),
+    }), []);
     const report = {
       ...redacted,
       metadata: {
@@ -119,26 +97,18 @@ describe('policy redaction and gate eligibility', () => {
   });
 
   it('removes legacy absolute paths from an already-redacted diff', () => {
-    const current = redactReport({
-      metadata: {
-        schemaVersion: 1,
-        assessmentContractVersion: 3,
-        generatedAt: '2026-01-01T00:00:00.000Z',
+    const current = redactReport(minimalV4Report({
+      metadata: minimalReportMetadata({
         inputId: 'current',
         repositoryPath: '/private/legacy/repository',
-        analyzers: [],
-        truncated: false,
-        unevaluatedAreas: [],
-      },
-      repository: { regressionRiskScore: 1, confidence: 1, disclaimer: 'test' },
-      axes: [], clusters: [], evidence: [], semanticFindings: [], interventions: [], capabilities: [],
-    }, []);
+      }),
+    }), []);
     const legacyCurrent = {
       ...current,
       metadata: { ...current.metadata, repositoryPath: '/private/legacy/repository' },
     };
     const diff = diffReportSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: DIFF_SCHEMA_VERSION,
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       current: legacyCurrent,
       comparison: {
@@ -153,44 +123,20 @@ describe('policy redaction and gate eligibility', () => {
 
   it('keeps raw token-shaped entity IDs distinct from generated pseudonyms', () => {
     const pseudonym = createHash('sha256').update('r3-doctor-redaction-v1\0secret').digest('hex');
-    const report = {
-      metadata: {
-        schemaVersion: 1 as const,
-        assessmentContractVersion: 3 as const,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        inputId: 'input',
-        repositoryPath: '/repository',
-        analyzers: [],
-        truncated: false,
-        unevaluatedAreas: [],
-      },
-      repository: { regressionRiskScore: 1, confidence: 1, disclaimer: 'test' },
-      axes: [],
-      clusters: [],
+    const report = minimalV4Report({
       evidence: [
-        {
+        sampleEvidence({
           evidenceId: 'evidence:large-file:secret',
-          signalId: 'large-file' as const,
-          axisId: 'structural-fragility' as const,
           path: 'secret',
-          severity: 'medium' as const,
           message: 'secret',
-          source: 'deterministic' as const,
-        },
-        {
+        }),
+        sampleEvidence({
           evidenceId: `evidence:large-file:[REDACTED:${pseudonym}]`,
-          signalId: 'large-file' as const,
-          axisId: 'structural-fragility' as const,
           path: `[REDACTED:${pseudonym}]`,
-          severity: 'medium' as const,
           message: `[REDACTED:${pseudonym}]`,
-          source: 'deterministic' as const,
-        },
+        }),
       ],
-      semanticFindings: [],
-      interventions: [],
-      capabilities: [],
-    };
+    });
 
     const redacted = redactReport(report, ['secret']);
 

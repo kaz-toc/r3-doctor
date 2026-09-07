@@ -14,6 +14,11 @@ import { runDiagnosis } from '../src/pipeline/diagnose.js';
 import type { AnalyzerPlugin } from '../src/plugins/analyzer.js';
 import { baselineEntrySchema } from '../src/schema/report.v1.js';
 import type { BaselineEntry, DiagnosisReport } from '../src/schema/report.v1.js';
+import {
+  ASSESSMENT_CONTRACT_VERSION,
+  BASELINE_SCHEMA_VERSION,
+  provisionalEvidenceDetails,
+} from '../src/schema/report.v1.js';
 import { ConfigError } from '../src/shared/errors.js';
 import { redactionPolicyFingerprint } from '../src/shared/redaction.js';
 import { redactReport } from '../src/shared/redaction.js';
@@ -45,6 +50,7 @@ function versionedAnalyzer(
       severity: 'high',
       message: 'versioned analyzer high-risk result',
       source: 'deterministic',
+      ...provisionalEvidenceDetails('high', 'src/a.ts'),
     }] : [],
   };
 }
@@ -69,11 +75,27 @@ async function checkout(repositoryPath: string, ref: string): Promise<void> {
   await execFileAsync('git', ['checkout', '--detach', ref], { cwd: repositoryPath });
 }
 
+function minimalRepository(): DiagnosisReport['repository'] {
+  return {
+    regressionRiskScore: 10,
+    confidence: 1,
+    disclaimer: 'test',
+    scoreBreakdown: { axisBase: 10, criticalClusterUplift: 0 },
+    confidenceBreakdown: {
+      signalCoverage: 1,
+      semanticAnalysis: 0,
+      gitHistory: 1,
+      inputCompleteness: 1,
+    },
+    calibration: { status: 'uncalibrated' },
+  };
+}
+
 function minimalReport(inputId: string): DiagnosisReport {
   return {
     metadata: {
-      schemaVersion: 1,
-      assessmentContractVersion: 3,
+      schemaVersion: 2,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       generatedAt: '2026-01-01T00:00:00.000Z',
       inputId,
       repositoryPath: '/tmp/secret-repo',
@@ -81,8 +103,16 @@ function minimalReport(inputId: string): DiagnosisReport {
       truncated: false,
       unevaluatedAreas: [],
     },
-    repository: { regressionRiskScore: 10, confidence: 1, disclaimer: 'test' },
-    axes: [],
+    repository: minimalRepository(),
+    axes: [{
+      axisId: 'structural-fragility',
+      name: 'Structural Fragility',
+      score: 10,
+      contributionPoints: 10,
+      scoreBreakdown: { peak: 10, breadth: 0, diversity: 0 },
+      confidence: 1,
+      unevaluated: false,
+    }],
     clusters: [],
     evidence: [],
     semanticFindings: [],
@@ -92,16 +122,72 @@ function minimalReport(inputId: string): DiagnosisReport {
 }
 
 describe('pure comparison', () => {
-  it('preserves distinct redacted evidence identities so removals remain visible', () => {
-    const evidence = (secret: string) => ({
-      evidenceId: `evidence:large-file:${secret}/same.ts`,
-      signalId: 'large-file' as const,
-      axisId: 'structural-fragility' as const,
-      path: `${secret}/same.ts`,
-      severity: 'medium' as const,
-      message: `large file at ${secret}/same.ts`,
-      source: 'deterministic' as const,
+  it('returns an explicit incompatibility reason for v3 baselines without signal changes', () => {
+    const current = minimalReport('current');
+    const baseline = {
+      schemaVersion: 3,
+      kind: 'r3-doctor/baseline',
+      inputId: 'baseline',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      assessmentContractVersion: 3,
+      sourceCommitSha: 'base-sha',
+      redactionPolicyFingerprint: redactionPolicyFingerprint([]),
+      analysisContextFingerprint: 'analysis-context',
+      report: {
+        ...minimalReport('baseline'),
+        metadata: {
+          ...minimalReport('baseline').metadata,
+          schemaVersion: 1,
+          assessmentContractVersion: 3,
+        },
+        repository: {
+          regressionRiskScore: 10,
+          confidence: 1,
+          disclaimer: 'test',
+        },
+        axes: [{
+          axisId: 'structural-fragility',
+          name: 'Structural Fragility',
+          score: 10,
+          contribution: 1,
+          confidence: 1,
+          unevaluated: false,
+        }],
+      },
+    } as BaselineEntry;
+
+    const result = compareDiagnosis(current, baseline, {
+      resolvedBaseSha: 'base-sha',
+      redactPaths: [],
+      redactionPolicyFingerprint: redactionPolicyFingerprint([]),
+      analysisContextFingerprint: 'analysis-context',
+      changedFiles: [],
+      blastRadius: [],
     });
+
+    expect(result.base).toBeUndefined();
+    expect(result.comparison.compatible).toBe(false);
+    expect(result.comparison.reason).toContain('assessment contract mismatch');
+    expect(result.comparison.riskDelta).toBeUndefined();
+    expect(result.comparison.newSignals).toEqual([]);
+    expect(result.comparison.worsenedSignals).toEqual([]);
+    expect(result.comparison.improvedSignals).toEqual([]);
+  });
+
+  it('preserves distinct redacted evidence identities so removals remain visible', () => {
+    const evidence = (secret: string) => {
+      const severity = 'medium' as const;
+      return {
+        evidenceId: `evidence:large-file:${secret}/same.ts`,
+        signalId: 'large-file' as const,
+        axisId: 'structural-fragility' as const,
+        path: `${secret}/same.ts`,
+        severity,
+        message: `large file at ${secret}/same.ts`,
+        source: 'deterministic' as const,
+        ...provisionalEvidenceDetails(severity, `${secret}/same.ts`),
+      };
+    };
     const first = evidence('secret-a');
     const second = evidence('secret-b');
     const base = { ...minimalReport('base'), evidence: [first, second] };
@@ -121,11 +207,11 @@ describe('pure comparison', () => {
   it('suppresses baseline-derived values when the redaction policy differs', () => {
     const current = minimalReport('current');
     const baseline: BaselineEntry = {
-      schemaVersion: 3,
+      schemaVersion: BASELINE_SCHEMA_VERSION,
       kind: 'r3-doctor/baseline',
       inputId: 'baseline',
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 3,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       sourceCommitSha: 'base-sha',
       redactionPolicyFingerprint: 'saved-policy',
       analysisContextFingerprint: 'analysis-context',
@@ -152,11 +238,11 @@ describe('pure comparison', () => {
   it('suppresses baseline-derived values when the analysis context differs', () => {
     const current = minimalReport('current');
     const baseline = {
-      schemaVersion: 3,
+      schemaVersion: BASELINE_SCHEMA_VERSION,
       kind: 'r3-doctor/baseline',
       inputId: 'baseline',
       generatedAt: '2026-01-01T00:00:00.000Z',
-      assessmentContractVersion: 3,
+      assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
       sourceCommitSha: 'base-sha',
       redactionPolicyFingerprint: redactionPolicyFingerprint([]),
       analysisContextFingerprint: 'baseline-context',
@@ -341,7 +427,7 @@ describe('commit-bound baseline comparison', () => {
       const comparison = await compareAgainstSavedBaseline(snapshot, currentReport, repo.headSha);
 
       expect(baselineReport.repository.regressionRiskScore).toBe(0);
-      expect(currentReport.repository.regressionRiskScore).toBe(75);
+      expect(currentReport.repository.regressionRiskScore).toBe(64);
       expect(comparison.comparison.compatible).toBe(false);
       expect(comparison.comparison.reason).toContain('analysis context mismatch');
     } finally {
@@ -370,7 +456,7 @@ describe('commit-bound baseline comparison', () => {
       const comparison = await compareAgainstSavedBaseline(snapshot, currentReport, repo.headSha);
 
       expect(baselineReport.repository.regressionRiskScore).toBe(0);
-      expect(currentReport.repository.regressionRiskScore).toBe(75);
+      expect(currentReport.repository.regressionRiskScore).toBe(64);
       expect(currentReport.capabilities.map((capability) => [
         capability.analyzerId,
         capability.analyzerImplementationVersion,
@@ -420,7 +506,7 @@ describe('commit-bound baseline comparison', () => {
         maxPromptBytes: 80_000,
       });
       const baselineReport = await runDiagnosis(snapshot, {
-        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, false)],
+        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, true)],
         semanticProviderFactory: {
           create: () => ({
             status: 'available' as const,
@@ -434,7 +520,7 @@ describe('commit-bound baseline comparison', () => {
       });
       await saveBaseline(snapshot, baselineReport);
       const currentReport = await runDiagnosis(snapshot, {
-        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, false)],
+        analyzerPlugins: [versionedAnalyzer('1.0.0', 2, true)],
         semanticProviderFactory: {
           create: () => ({
             status: 'available' as const,
@@ -446,7 +532,7 @@ describe('commit-bound baseline comparison', () => {
                 axisId: 'semantic-ambiguity' as const,
                 path: 'src/a.ts',
                 summary: 'versioned semantic result',
-                relatedEvidenceIds: [],
+                relatedEvidenceIds: ['evidence:large-file:src/a.ts'],
                 confidence: 1,
               }],
             },
@@ -591,11 +677,11 @@ describe('commit-bound baseline comparison', () => {
       await writeFile(
         path.join(baselineDir, 'older-compatible.json'),
         JSON.stringify({
-          schemaVersion: 3,
+          schemaVersion: BASELINE_SCHEMA_VERSION,
           kind: 'r3-doctor/baseline',
           inputId: 'older-compatible',
           generatedAt: '2026-01-01T00:00:00.000Z',
-          assessmentContractVersion: 3,
+          assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
           sourceCommitSha: repo.baseSha,
           redactionPolicyFingerprint: redactionPolicyFingerprint([]),
           analysisContextFingerprint: snapshot.analysisContextFingerprint,
@@ -605,10 +691,10 @@ describe('commit-bound baseline comparison', () => {
       await writeFile(
         path.join(baselineDir, 'newer-incompatible.json'),
         JSON.stringify({
-          schemaVersion: 2,
+          schemaVersion: 3,
           inputId: 'newer-incompatible',
           generatedAt: '2026-01-02T00:00:00.000Z',
-          assessmentContractVersion: 3,
+          assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
           sourceCommitSha: repo.baseSha,
           redactionPolicyFingerprint: redactionPolicyFingerprint([]),
           report,
@@ -635,10 +721,10 @@ describe('commit-bound baseline comparison', () => {
       await writeFile(
         path.join(baselineDir, 'unrelated-old.json'),
         JSON.stringify({
-          schemaVersion: 2,
+          schemaVersion: 3,
           inputId: 'unrelated-old',
           generatedAt: '2026-01-02T00:00:00.000Z',
-          assessmentContractVersion: 3,
+          assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
           sourceCommitSha: repo.headSha,
           redactionPolicyFingerprint: redactionPolicyFingerprint([]),
           report,
@@ -666,7 +752,7 @@ describe('commit-bound baseline comparison', () => {
       await writeFile(
         path.join(baselineDir, 'old.json'),
         JSON.stringify({
-          schemaVersion: 2,
+          schemaVersion: 3,
           inputId: report.metadata.inputId,
           generatedAt: report.metadata.generatedAt,
           assessmentContractVersion: report.metadata.assessmentContractVersion,
@@ -698,7 +784,7 @@ describe('commit-bound baseline comparison', () => {
       await writeFile(
         path.join(baselineDir, 'old-contract.json'),
         JSON.stringify({
-          schemaVersion: 3,
+          schemaVersion: BASELINE_SCHEMA_VERSION,
           kind: 'r3-doctor/baseline',
           inputId: report.metadata.inputId,
           generatedAt: report.metadata.generatedAt,

@@ -4,12 +4,25 @@ import ts from 'typescript';
 import type { Evidence, RiskAxisId, SignalId } from '../schema/report.v1.js';
 import type { RepositorySnapshot, SourceFile } from '../intake/snapshot.js';
 import { isNonProductPath, isTestFile } from './diagnostic-paths.js';
+import { classifyPathRole } from './path-role.js';
+import {
+  BINARY_SIGNAL_STRENGTH,
+  buildBinaryRationale,
+  buildNumericRationale,
+  normalizeAboveThreshold,
+  severityForStrength,
+} from './strength.js';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 
 export type ImportEdge = {
   from: string;
   to: string;
   kind: 'relative' | 'package';
+};
+
+type TestCoverage = {
+  coverageKind: 'direct' | 'transitive';
+  testPaths: string[];
 };
 
 function extractImports(file: SourceFile): string[] {
@@ -146,25 +159,106 @@ export function findImportCycles(edges: ImportEdge[]): string[][] {
   return uniqueCycles;
 }
 
-export function buildTestCoverageIndex(snapshot: RepositorySnapshot, edges: ImportEdge[]): Set<string> {
+function buildRelatedPathsIndex(edges: ImportEdge[], availablePaths: Set<string>): Map<string, string[]> {
+  const imports = new Map<string, Set<string>>();
+  const dependents = new Map<string, Set<string>>();
+
+  for (const edge of edges) {
+    if (edge.kind !== 'relative') {
+      continue;
+    }
+    if (!availablePaths.has(edge.from) || !availablePaths.has(edge.to)) {
+      continue;
+    }
+    const importSet = imports.get(edge.from) ?? new Set<string>();
+    importSet.add(edge.to);
+    imports.set(edge.from, importSet);
+
+    const dependentSet = dependents.get(edge.to) ?? new Set<string>();
+    dependentSet.add(edge.from);
+    dependents.set(edge.to, dependentSet);
+  }
+
+  const related = new Map<string, string[]>();
+  for (const filePath of availablePaths) {
+    const neighbors = new Set<string>();
+    for (const imported of imports.get(filePath) ?? []) {
+      neighbors.add(imported);
+    }
+    for (const dependent of dependents.get(filePath) ?? []) {
+      neighbors.add(dependent);
+    }
+    related.set(filePath, [...neighbors].sort());
+  }
+  return related;
+}
+
+function buildTestCoverageIndex(
+  snapshot: RepositorySnapshot,
+  edges: ImportEdge[],
+): Map<string, TestCoverage> {
   const filesByPath = new Map(snapshot.files.map((file) => [file.relativePath, file]));
-  const covered = new Set<string>();
+  const importsFrom = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (edge.kind !== 'relative' || !filesByPath.has(edge.to)) {
+      continue;
+    }
+    const list = importsFrom.get(edge.from) ?? [];
+    list.push(edge.to);
+    importsFrom.set(edge.from, list);
+  }
+
+  const coverage = new Map<string, { coverageKind: 'direct' | 'transitive'; testPaths: Set<string> }>();
 
   for (const file of snapshot.files) {
     if (!isTestFile(file.relativePath)) {
       continue;
     }
-    for (const edge of edges) {
-      if (edge.from !== file.relativePath || edge.kind !== 'relative') {
+
+    const queue: Array<{ path: string; hops: number }> = [{ path: file.relativePath, hops: 0 }];
+    const visited = new Set<string>([file.relativePath]);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) {
         continue;
       }
-      if (filesByPath.has(edge.to) && !isTestFile(edge.to)) {
-        covered.add(edge.to);
+
+      for (const next of importsFrom.get(current.path) ?? []) {
+        if (visited.has(next)) {
+          continue;
+        }
+        visited.add(next);
+
+        if (isTestFile(next)) {
+          queue.push({ path: next, hops: current.hops + 1 });
+          continue;
+        }
+        if (!filesByPath.has(next) || isNonProductPath(next, snapshot.config.diagnosticSkipRoots)) {
+          continue;
+        }
+
+        const kind = current.hops + 1 === 1 ? 'direct' : 'transitive';
+        const existing = coverage.get(next) ?? { coverageKind: kind, testPaths: new Set<string>() };
+        if (existing.coverageKind === 'direct' || kind === 'direct') {
+          existing.coverageKind = 'direct';
+        }
+        existing.testPaths.add(file.relativePath);
+        coverage.set(next, existing);
+        queue.push({ path: next, hops: current.hops + 1 });
       }
     }
   }
 
-  return covered;
+  return new Map(
+    [...coverage.entries()].map(([filePath, entry]) => [
+      filePath,
+      {
+        coverageKind: entry.coverageKind,
+        testPaths: [...entry.testPaths].sort(),
+      },
+    ]),
+  );
 }
 
 function expectedTestPath(sourcePath: string): string | null {
@@ -190,39 +284,84 @@ function maxBraceDepth(content: string): number {
   return max;
 }
 
+type EvidenceDetails = {
+  strength: number;
+  rationale: string;
+  pathRole: Evidence['pathRole'];
+  relatedPaths: string[];
+  severity: Evidence['severity'];
+};
+
+function buildEvidenceDetails(
+  snapshot: RepositorySnapshot,
+  filePath: string | undefined,
+  relatedPathsIndex: Map<string, string[]>,
+  testCoverage: Map<string, TestCoverage>,
+  input: { strength: number; rationale: string },
+): EvidenceDetails {
+  const pathRole = filePath
+    ? classifyPathRole(filePath, snapshot.config.diagnosticSkipRoots)
+    : 'product';
+  const importNeighbors = filePath ? (relatedPathsIndex.get(filePath) ?? []) : [];
+  const coverage = filePath ? testCoverage.get(filePath) : undefined;
+  const relatedPaths = [...new Set([...importNeighbors, ...(coverage?.testPaths ?? [])])].sort();
+  return {
+    strength: input.strength,
+    rationale: input.rationale,
+    pathRole,
+    relatedPaths,
+    severity: severityForStrength(input.strength),
+  };
+}
+
 function makeEvidence(
+  snapshot: RepositorySnapshot,
+  relatedPathsIndex: Map<string, string[]>,
+  testCoverage: Map<string, TestCoverage>,
   signalId: SignalId,
   axisId: RiskAxisId,
-  severity: Evidence['severity'],
   message: string,
   filePath?: string,
   metrics?: Evidence['metrics'],
+  details?: { strength: number; rationale: string; relatedPaths?: string[] },
 ): Evidence {
   const target = metrics && 'target' in metrics && typeof metrics.target === 'string' ? metrics.target : undefined;
   const evidenceKey =
     signalId === 'unresolved-import' && filePath && target
       ? `${filePath}:${target}`
       : (filePath ?? 'repo');
+  const built = buildEvidenceDetails(snapshot, filePath, relatedPathsIndex, testCoverage, {
+    strength: details?.strength ?? 0,
+    rationale: details?.rationale ?? 'formula=unknown',
+  });
+
   return {
     evidenceId: `evidence:${signalId}:${evidenceKey}`,
     signalId,
     axisId,
     path: filePath,
-    severity,
+    severity: built.severity,
     message,
     metrics,
     source: 'deterministic',
+    strength: built.strength,
+    rationale: built.rationale,
+    pathRole: built.pathRole,
+    relatedPaths: details?.relatedPaths ?? built.relatedPaths,
   };
 }
 
 export async function extractDeterministicEvidence(snapshot: RepositorySnapshot): Promise<Evidence[]> {
   const evidence: Evidence[] = [];
   const edges = buildImportGraph(snapshot);
+  const availablePaths = new Set(snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')));
+  const relatedPathsIndex = buildRelatedPathsIndex(edges, availablePaths);
   const filesByPath = new Map(snapshot.files.map((file) => [file.relativePath, file]));
   const testCoverage = buildTestCoverageIndex(snapshot, edges);
   const skipRoots = snapshot.config.diagnosticSkipRoots;
   const fanOut = new Map<string, number>();
   const fanIn = new Map<string, number>();
+  const churnOnset = 5;
 
   for (const edge of edges) {
     if (edge.kind === 'relative') {
@@ -232,12 +371,18 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
       } else if (edge.to.startsWith('.') && !isTestFile(edge.from) && !isNonProductPath(edge.from, skipRoots)) {
         evidence.push(
           makeEvidence(
+            snapshot,
+            relatedPathsIndex,
+            testCoverage,
             'unresolved-import',
             'structural-fragility',
-            'medium',
             `解決不能な相対 import: ${edge.to}`,
             edge.from,
             { target: edge.to },
+            {
+              strength: BINARY_SIGNAL_STRENGTH['unresolved-import'],
+              rationale: buildBinaryRationale('unresolved-import'),
+            },
           ),
         );
       }
@@ -245,36 +390,42 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
   }
 
   for (const [filePath, count] of fanOut.entries()) {
-    if (isNonProductPath(filePath, skipRoots)) {
-      continue;
-    }
     if (count >= snapshot.config.fanOutThreshold) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'high-fan-out',
           'change-blast-radius',
-          count >= snapshot.config.fanOutThreshold * 2 ? 'high' : 'medium',
           `fan-out が高い (${count})`,
           filePath,
           { fanOut: count },
+          {
+            strength: normalizeAboveThreshold(count, snapshot.config.fanOutThreshold),
+            rationale: buildNumericRationale(count, snapshot.config.fanOutThreshold),
+          },
         ),
       );
     }
   }
 
   for (const [filePath, count] of fanIn.entries()) {
-    if (isNonProductPath(filePath, skipRoots)) {
-      continue;
-    }
     if (count >= snapshot.config.fanInThreshold) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'high-fan-in',
           'change-blast-radius',
-          count >= snapshot.config.fanInThreshold * 2 ? 'high' : 'medium',
           `fan-in が高い (${count})`,
           filePath,
           { fanIn: count },
+          {
+            strength: normalizeAboveThreshold(count, snapshot.config.fanInThreshold),
+            rationale: buildNumericRationale(count, snapshot.config.fanInThreshold),
+          },
         ),
       );
     }
@@ -286,74 +437,112 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
       continue;
     }
     const primaryPath = unique.find((filePath) => !isNonProductPath(filePath, skipRoots)) ?? unique[0];
+    const built = buildEvidenceDetails(snapshot, primaryPath, relatedPathsIndex, testCoverage, {
+      strength: BINARY_SIGNAL_STRENGTH['dep-cycle'],
+      rationale: buildBinaryRationale('dep-cycle'),
+    });
     evidence.push({
       evidenceId: `evidence:dep-cycle:${unique.join('->')}`,
       signalId: 'dep-cycle',
       axisId: 'structural-fragility',
       path: primaryPath,
-      severity: 'high',
+      severity: built.severity,
       message: `循環依存: ${unique.join(' -> ')}`,
       metrics: { cycle: unique.join('->') },
       source: 'deterministic',
+      strength: built.strength,
+      rationale: built.rationale,
+      pathRole: built.pathRole,
+      relatedPaths: unique,
     });
   }
 
   for (const file of snapshot.files) {
-    if (isNonProductPath(file.relativePath, skipRoots) || isTestFile(file.relativePath)) {
+    if (isNonProductPath(file.relativePath, skipRoots)) {
       continue;
     }
 
     if (file.nonBlankLines > snapshot.config.maxFileLines) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'large-file',
           'structural-fragility',
-          'medium',
           `大規模ファイル (${file.nonBlankLines} 行)`,
           file.relativePath,
           { lines: file.nonBlankLines },
+          {
+            strength: normalizeAboveThreshold(file.nonBlankLines, snapshot.config.maxFileLines),
+            rationale: buildNumericRationale(file.nonBlankLines, snapshot.config.maxFileLines),
+          },
         ),
       );
+    }
+
+    if (isTestFile(file.relativePath)) {
+      continue;
     }
 
     if (file.content.includes('export * from')) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'barrel-reexport',
           'structural-fragility',
-          'low',
           'barrel 再エクスポートを検出',
           file.relativePath,
+          undefined,
+          {
+            strength: BINARY_SIGNAL_STRENGTH['barrel-reexport'],
+            rationale: buildBinaryRationale('barrel-reexport'),
+          },
         ),
       );
     }
 
     const depth = maxBraceDepth(file.content);
-    if (depth >= 6) {
+    const nestingOnset = 6;
+    if (depth >= nestingOnset) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'deep-nesting',
           'structural-fragility',
-          'medium',
           `深いネスト (深度 ${depth})`,
           file.relativePath,
           { depth },
+          {
+            strength: normalizeAboveThreshold(depth, nestingOnset),
+            rationale: buildNumericRationale(depth, nestingOnset),
+          },
         ),
       );
     }
 
     const expectedTest = expectedTestPath(file.relativePath);
     const hasColocatedTest = expectedTest ? filesByPath.has(expectedTest) : false;
-    const hasImportCoverage = testCoverage.has(file.relativePath);
-    if (expectedTest && !hasColocatedTest && !hasImportCoverage) {
+    const coverage = testCoverage.get(file.relativePath);
+    if (expectedTest && !hasColocatedTest && !coverage) {
       evidence.push(
         makeEvidence(
+          snapshot,
+          relatedPathsIndex,
+          testCoverage,
           'missing-test-pair',
           'verification-gap',
-          'medium',
           `対応テストが見つからない (期待: ${expectedTest})`,
           file.relativePath,
-          { expectedTest },
+          { expectedTest, coverageKind: 'missing' },
+          {
+            strength: BINARY_SIGNAL_STRENGTH['missing-test-pair'],
+            rationale: buildBinaryRationale('missing-test-pair'),
+          },
         ),
       );
     }
@@ -362,18 +551,21 @@ export async function extractDeterministicEvidence(snapshot: RepositorySnapshot)
   if (snapshot.gitAvailable) {
     const churn = await collectGitChurn(snapshot);
     for (const [filePath, count] of churn.entries()) {
-      if (isNonProductPath(filePath, skipRoots)) {
-        continue;
-      }
-      if (count >= 5) {
+      if (count >= churnOnset) {
         evidence.push(
           makeEvidence(
+            snapshot,
+            relatedPathsIndex,
+            testCoverage,
             'git-churn',
             'change-volatility',
-            count >= 10 ? 'high' : 'medium',
             `直近 ${snapshot.config.churnDays} 日で ${count} 回変更`,
             filePath,
             { churn: count, days: snapshot.config.churnDays },
+            {
+              strength: normalizeAboveThreshold(count, churnOnset),
+              rationale: buildNumericRationale(count, churnOnset),
+            },
           ),
         );
       }
