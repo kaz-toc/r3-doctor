@@ -8,7 +8,9 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { runLlmInspect } from '../../src/commands/llm-inspect.js';
+import { runSetup } from '../../src/setup/run.js';
 import { checkReportSchema, setupReportSchema } from '../../src/setup/schema.js';
+import { createGitRepository } from '../helpers/git-repository.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(root, '..', '..');
@@ -152,6 +154,40 @@ describe('setup command', () => {
       expect(report.baselineSaved).toBe(false);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('defers baseline save when setup writes config and completes scan without error', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const { stdout } = await runCli(['setup', repo.path, '--yes', '--scan', '--save-baseline', '--locale', 'en']);
+      expect(stdout).toContain('scan completed');
+      expect(stdout).not.toContain('error:');
+      expect(stdout).toContain('baseline cannot be saved in this run');
+      expect(stdout).toContain('--save-baseline');
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('marks baselineSaved false when baseline is deferred during setup run', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const report = await runSetup({
+        repositoryPath: repo.path,
+        locale: 'en',
+        yes: true,
+        dryRun: false,
+        force: false,
+        runScan: true,
+        saveBaseline: true,
+      });
+      expect(report.scanRan).toBe(true);
+      expect(report.baselineSaved).toBe(false);
+      expect(report.warnings.some((warning) => warning.includes('baseline cannot be saved'))).toBe(true);
+      expect(report.errors).toHaveLength(0);
+    } finally {
+      await repo.cleanup();
     }
   });
 });

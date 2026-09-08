@@ -3,7 +3,8 @@ import { realpath } from 'node:fs/promises';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { DiagnosisReport } from '../schema/report.v1.js';
-import { ConfigError } from '../shared/errors.js';
+import { baselineDirtyWorktreeMessage, baselineWorktreeChangedMessage } from './baseline-messages.js';
+import { BaselineSaveError, ConfigError } from '../shared/errors.js';
 
 export async function assertSnapshotPersistenceIntegrity(
   snapshot: RepositorySnapshot,
@@ -29,7 +30,7 @@ export async function assertSnapshotPersistenceIntegrity(
     throw new ConfigError(snapshot.repositoryPath, 'Git commit identity was not captured during intake');
   }
   if (options.requireClean && snapshot.gitDirty) {
-    throw new ConfigError(snapshot.repositoryPath, 'refusing to save a commit-bound baseline from a dirty worktree');
+    throw new BaselineSaveError(baselineDirtyWorktreeMessage());
   }
 
   const currentGit = await new DefaultGitProvider().inspectRepository(snapshot.repositoryPath);
@@ -46,7 +47,7 @@ export async function assertSnapshotPersistenceIntegrity(
     throw new ConfigError(snapshot.repositoryPath, 'Git worktree state changed after repository intake');
   }
   if (options.requireClean && currentGit.dirty) {
-    throw new ConfigError(snapshot.repositoryPath, 'worktree became dirty after repository intake');
+    throw new BaselineSaveError(baselineWorktreeChangedMessage());
   }
   return snapshot.sourceCommitSha;
 }

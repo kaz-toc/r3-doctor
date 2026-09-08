@@ -168,6 +168,9 @@ export const MESSAGE_KEYS = [
   'setup.scanCompleted',
   'setup.baselineSaved',
   'setup.error.saveBaselineRequiresScan',
+  'setup.warn.baselineBlocked.willWriteConfig',
+  'setup.warn.baselineBlocked.dirtyWorktree',
+  'setup.warn.baselineBlocked.notGit',
 ] as const;
 
 export type MessageKey = (typeof MESSAGE_KEYS)[number];
@@ -371,7 +374,7 @@ const en: Catalog = {
   'check.baseline.missing': 'no baseline entries yet',
   'check.ready': 'status: ready for scan',
   'check.notReady': 'status: not ready — resolve errors above',
-  'check.warn.dirty': 'working tree is dirty; baseline save may be rejected',
+  'check.warn.dirty': 'uncommitted changes detected; commit or discard changes before r3-doctor scan <path> --save-baseline',
   'check.warn.configMissing': 'run r3-doctor setup --yes to create r3-doctor.config.json',
   'check.warn.baselineMissing': 'run r3-doctor scan <path> --save-baseline after first scan',
   'check.warn.llmUnavailable': 'LLM provider inspect failed; semantic axis stays disabled',
@@ -397,6 +400,12 @@ const en: Catalog = {
   'setup.scanCompleted': 'scan completed',
   'setup.baselineSaved': 'baseline saved',
   'setup.error.saveBaselineRequiresScan': '--save-baseline requires --scan',
+  'setup.warn.baselineBlocked.willWriteConfig':
+    'baseline cannot be saved in this run because setup will write r3-doctor.config.json (that leaves uncommitted changes). After committing, run: r3-doctor scan {path} --save-baseline',
+  'setup.warn.baselineBlocked.dirtyWorktree':
+    'baseline cannot be saved while the repository has uncommitted changes. Commit or discard changes, then run: r3-doctor scan {path} --save-baseline',
+  'setup.warn.baselineBlocked.notGit':
+    'baseline requires a git repository. Initialize git first, then run: r3-doctor scan {path} --save-baseline',
 };
 
 const ja: Catalog = {
@@ -576,7 +585,7 @@ const ja: Catalog = {
   'check.baseline.missing': 'baseline はまだありません',
   'check.ready': 'status: scan 可能',
   'check.notReady': 'status: 未準備 — 上記 error を解消してください',
-  'check.warn.dirty': 'working tree が dirty です。baseline 保存が拒否される場合があります',
+  'check.warn.dirty': '未コミットの変更があります。baseline 保存前に変更をコミットするか元に戻してください（r3-doctor scan <path> --save-baseline）',
   'check.warn.configMissing': 'r3-doctor setup --yes で r3-doctor.config.json を作成してください',
   'check.warn.baselineMissing': '初回 scan 後に r3-doctor scan <path> --save-baseline を実行してください',
   'check.warn.llmUnavailable': 'LLM provider inspect 失敗。semantic 軸は無効のままです',
@@ -602,6 +611,12 @@ const ja: Catalog = {
   'setup.scanCompleted': 'scan 完了',
   'setup.baselineSaved': 'baseline 保存完了',
   'setup.error.saveBaselineRequiresScan': '--save-baseline には --scan が必要です',
+  'setup.warn.baselineBlocked.willWriteConfig':
+    'この実行では r3-doctor.config.json を書き込むため baseline を保存できません。変更をコミットしてから r3-doctor scan {path} --save-baseline を実行してください',
+  'setup.warn.baselineBlocked.dirtyWorktree':
+    '未コミットの変更があるため baseline を保存できません。変更をコミットするか元に戻してから r3-doctor scan {path} --save-baseline を実行してください',
+  'setup.warn.baselineBlocked.notGit':
+    'baseline 保存には git リポジトリが必要です。git init 後に r3-doctor scan {path} --save-baseline を実行してください',
 };
 
 export const catalogs: Record<ReportLocale, Catalog> = { en, ja };

@@ -18,6 +18,13 @@ export class ConfigError extends R3DoctorError {
   }
 }
 
+export class BaselineSaveError extends R3DoctorError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BaselineSaveError';
+  }
+}
+
 export class IntakeError extends R3DoctorError {
   constructor(message: string) {
     super(message);

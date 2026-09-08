@@ -19,7 +19,7 @@ import {
   BASELINE_SCHEMA_VERSION,
   provisionalEvidenceDetails,
 } from '../src/schema/report.v1.js';
-import { ConfigError } from '../src/shared/errors.js';
+import { ConfigError, BaselineSaveError } from '../src/shared/errors.js';
 import { redactionPolicyFingerprint } from '../src/shared/redaction.js';
 import { redactReport } from '../src/shared/redaction.js';
 import { createGitRepository } from './helpers/git-repository.js';
@@ -370,8 +370,9 @@ describe('commit-bound baseline comparison', () => {
       const outcome = await saveBaseline(snapshot, report).catch((error: unknown) => error);
 
       expect(snapshot.gitDirty).toBe(true);
-      expect(outcome).toBeInstanceOf(ConfigError);
-      expect(String(outcome)).toContain('dirty');
+      expect(outcome).toBeInstanceOf(BaselineSaveError);
+      expect(String(outcome)).toContain('uncommitted changes');
+      expect(String(outcome)).toContain('--save-baseline');
     } finally {
       await repo.cleanup();
     }
@@ -389,7 +390,7 @@ describe('commit-bound baseline comparison', () => {
 
       expect(snapshot.files.map((file) => file.relativePath)).toContain('src/generated.ts');
       expect(snapshot.gitDirty).toBe(true);
-      expect(outcome).toBeInstanceOf(ConfigError);
+      expect(outcome).toBeInstanceOf(BaselineSaveError);
     } finally {
       await repo.cleanup();
     }

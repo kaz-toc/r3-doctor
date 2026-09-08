@@ -1,9 +1,16 @@
 import type { ReportLocale } from '../i18n/locale.js';
 import type { RepositoryConfig } from '../shared/config.js';
 
+import { assessBaselineSaveEligibility, type BaselineSaveBlockReason } from './baseline-eligibility.js';
 import { configFileExists } from './detect.js';
 import { setupT } from './messages.js';
 import { createSetupPrompts, suggestedInteractiveLocale } from './prompts.js';
+
+const BASELINE_BLOCKED_MESSAGE_KEYS: Record<BaselineSaveBlockReason, `setup.warn.baselineBlocked.${BaselineSaveBlockReason}`> = {
+  willWriteConfig: 'setup.warn.baselineBlocked.willWriteConfig',
+  dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
+  notGit: 'setup.warn.baselineBlocked.notGit',
+};
 
 export type InteractiveSetupChoices = {
   locale: ReportLocale;
@@ -40,7 +47,13 @@ export async function runInteractiveSetupChoices(
     if (!dryRun) {
       runScan = await prompts.confirm(setupT(locale, 'setup.prompt.runScan'), false);
       if (runScan) {
-        saveBaseline = await prompts.confirm(setupT(locale, 'setup.prompt.saveBaseline'), false);
+        const willWriteConfig = !configExists || force;
+        const eligibility = await assessBaselineSaveEligibility(repositoryPath, { willWriteConfig });
+        if (eligibility.eligible) {
+          saveBaseline = await prompts.confirm(setupT(locale, 'setup.prompt.saveBaseline'), false);
+        } else if (eligibility.reason) {
+          process.stdout.write(`\n${setupT(locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], { path: repositoryPath })}\n`);
+        }
       }
     }
 

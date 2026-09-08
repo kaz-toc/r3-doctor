@@ -4,11 +4,18 @@ import { loadConfig } from '../intake/snapshot.js';
 import { defaultLlmConfig, type RepositoryConfig } from '../shared/config.js';
 import type { ReportLocale } from '../i18n/locale.js';
 
+import { assessBaselineSaveEligibility, type BaselineSaveBlockReason } from './baseline-eligibility.js';
 import { configFileExists, countBaselineEntries, detectRepository } from './detect.js';
 import { setupT } from './messages.js';
 import { buildNextSteps } from './next-steps.js';
 import type { SetupReport } from './schema.js';
 import { CONFIG_FILE_NAME, writeRepositoryConfig } from './write-config.js';
+
+const BASELINE_BLOCKED_MESSAGE_KEYS: Record<BaselineSaveBlockReason, `setup.warn.baselineBlocked.${BaselineSaveBlockReason}`> = {
+  willWriteConfig: 'setup.warn.baselineBlocked.willWriteConfig',
+  dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
+  notGit: 'setup.warn.baselineBlocked.notGit',
+};
 
 export type RunSetupOptions = {
   repositoryPath: string;
@@ -65,17 +72,28 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
 
   let scanRan = false;
   let baselineSaved = false;
+  let saveBaseline = Boolean(options.saveBaseline);
+  if (saveBaseline && options.runScan && errors.length === 0) {
+    const eligibility = await assessBaselineSaveEligibility(repositoryPath, {
+      willWriteConfig: configWritten,
+    });
+    if (!eligibility.eligible && eligibility.reason) {
+      warnings.push(setupT(options.locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], { path: repositoryPath }));
+      saveBaseline = false;
+    }
+  }
+
   if (options.runScan && errors.length === 0 && (configWritten || configSkipped)) {
     try {
       const { runScanAction } = await import('../commands/scan.js');
       await runScanAction({
         repoPath: repositoryPath,
         format: 'json',
-        saveBaseline: Boolean(options.saveBaseline),
+        saveBaseline,
         locale: options.locale,
       });
       scanRan = true;
-      baselineSaved = Boolean(options.saveBaseline);
+      baselineSaved = saveBaseline;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       errors.push(reason);
