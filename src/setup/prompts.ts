@@ -6,6 +6,7 @@ import { DEFAULT_LOCALE, parseReportLocale } from '../i18n/locale.js';
 
 export type SetupPromptAdapter = {
   selectLocale(suggested: ReportLocale): Promise<ReportLocale>;
+  selectProvider<T extends string>(message: string, options: ReadonlyArray<{ value: T; label: string }>): Promise<T>;
   confirm(message: string, initial?: boolean): Promise<boolean>;
   close(): Promise<void>;
 };
@@ -56,6 +57,26 @@ export function createReadlinePrompts(): SetupPromptAdapter {
       }
     },
 
+    async selectProvider<T extends string>(
+      message: string,
+      options: ReadonlyArray<{ value: T; label: string }>,
+    ): Promise<T> {
+      output.write(`${message}\n`);
+      for (const [index, option] of options.entries()) {
+        output.write(`  ${index + 1}. ${option.label} (${option.value})\n`);
+      }
+      for (;;) {
+        const answer = await rl.question(`Choose [1-${options.length}] (default: 1): `);
+        const trimmed = answer.trim();
+        const selectedIndex = trimmed === '' ? 0 : Number.parseInt(trimmed, 10) - 1;
+        const selected = options[selectedIndex];
+        if (selected) {
+          return selected.value;
+        }
+        output.write(`Enter a number from 1 to ${options.length}.\n`);
+      }
+    },
+
     async close(): Promise<void> {
       rl.close();
     },
@@ -97,6 +118,19 @@ export async function createSetupPrompts(): Promise<SetupPromptAdapter> {
           throw new Error('setup cancelled');
         }
         return value;
+      },
+      async selectProvider<T extends string>(
+        message: string,
+        options: ReadonlyArray<{ value: T; label: string }>,
+      ): Promise<T> {
+        const value = await clack.select({
+          message,
+          options: options.map((option) => ({ value: option.value, label: `${option.label} (${option.value})` })),
+        } as Parameters<typeof clack.select>[0]);
+        if (clack.isCancel(value)) {
+          throw new Error('setup cancelled');
+        }
+        return value as T;
       },
       async close(): Promise<void> {
         // clack manages its own lifecycle

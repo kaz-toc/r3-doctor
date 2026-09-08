@@ -7,6 +7,7 @@ import { defaultLlmConfig } from '../shared/config.js';
 import { R3DoctorError } from '../shared/errors.js';
 import { resolveSetupLocale } from '../setup/locale.js';
 import { runInteractiveSetupChoices } from '../setup/interactive.js';
+import type { SetupLlmProviderId } from '../setup/llm-providers.js';
 import { formatSetupConsole, runSetup, setupExitCode } from '../setup/run.js';
 import { setupReportSchema } from '../setup/schema.js';
 
@@ -25,7 +26,7 @@ export function registerSetupCommand(program: Command): void {
     .option('--locale <en|ja>', 'UI locale and config locale field')
     .option('--scan', 'run scan after setup (opt-in)', false)
     .option('--save-baseline', 'with --scan, save baseline after scan', false)
-    .option('--skip-llm', 'omit LLM next-step guidance', false)
+    .option('--skip-llm', 'skip LLM provider setup', false)
     .option('--skip-baseline', 'omit baseline next-step guidance', false)
     .action(async (
       repoPath: string,
@@ -67,6 +68,10 @@ export function registerSetupCommand(program: Command): void {
       let skipBaseline = options.skipBaseline;
       let runScan = Boolean(options.scan);
       let saveBaseline = Boolean(options.saveBaseline);
+      let configureLlm = false;
+      let llmProvider: SetupLlmProviderId | undefined;
+      let saveOperatorProfile = false;
+      let llmInspectAvailable: boolean | undefined;
 
       if (isInteractive(options)) {
         const choices = await runInteractiveSetupChoices(repositoryPath, {
@@ -82,6 +87,10 @@ export function registerSetupCommand(program: Command): void {
         skipBaseline = choices.skipBaseline;
         runScan = choices.runScan;
         saveBaseline = choices.saveBaseline;
+        configureLlm = choices.configureLlm;
+        llmProvider = choices.llmProvider;
+        saveOperatorProfile = choices.saveOperatorProfile;
+        llmInspectAvailable = choices.configureLlm ? choices.llmInspectAvailable : undefined;
       } else if (!options.yes) {
         throw new R3DoctorError('setup requires a TTY or --yes for non-interactive mode');
       }
@@ -100,6 +109,10 @@ export function registerSetupCommand(program: Command): void {
         skipBaseline,
         runScan,
         saveBaseline,
+        configureLlm,
+        llmProvider,
+        saveOperatorProfile,
+        llmInspectAvailable,
       });
 
       if (options.json) {
