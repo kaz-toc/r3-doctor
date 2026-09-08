@@ -9,6 +9,8 @@ import {
   type LlmConfig,
 } from '../shared/config.js';
 import { R3DoctorError } from '../shared/errors.js';
+import type { OperatorProfile } from '../operator/profile.js';
+import { mergeOperatorLlmDefaults } from '../operator/profile.js';
 
 export type LlmCliOptions = {
   llmProvider?: string;
@@ -37,15 +39,34 @@ const cliPolicySchema = z
   })
   .strict();
 
-export function parseLlmExecutionPolicy(options: LlmCliOptions, dryRun = false): LlmConfig {
+export function parseLlmExecutionPolicy(
+  options: LlmCliOptions,
+  dryRun = false,
+  operatorProfile?: OperatorProfile | null,
+): LlmConfig {
+  const profileDefaults = mergeOperatorLlmDefaults(operatorProfile);
+  const mergedOptions: LlmCliOptions = {
+    llmProvider: options.llmProvider ?? (profileDefaults?.provider && profileDefaults.provider !== 'none'
+      ? profileDefaults.provider
+      : undefined),
+    llmModel: options.llmModel ?? profileDefaults?.model,
+    llmExecutable: options.llmExecutable ?? profileDefaults?.executablePath,
+    llmSendScope: options.llmSendScope ?? profileDefaults?.sendScope,
+    llmMaxFiles: options.llmMaxFiles ?? (profileDefaults?.maxFiles !== undefined
+      ? String(profileDefaults.maxFiles)
+      : undefined),
+    llmMaxPromptBytes: options.llmMaxPromptBytes ?? (profileDefaults?.maxPromptBytes !== undefined
+      ? String(profileDefaults.maxPromptBytes)
+      : undefined),
+  };
   try {
     const parsed = cliPolicySchema.parse({
-      llmProvider: options.llmProvider,
-      llmModel: options.llmModel,
-      llmExecutable: options.llmExecutable,
-      llmSendScope: options.llmSendScope,
-      llmMaxFiles: options.llmMaxFiles,
-      llmMaxPromptBytes: options.llmMaxPromptBytes,
+      llmProvider: mergedOptions.llmProvider,
+      llmModel: mergedOptions.llmModel,
+      llmExecutable: mergedOptions.llmExecutable,
+      llmSendScope: mergedOptions.llmSendScope,
+      llmMaxFiles: mergedOptions.llmMaxFiles,
+      llmMaxPromptBytes: mergedOptions.llmMaxPromptBytes,
     });
     const provider = parsed.llmProvider ?? 'none';
     const enabled = provider !== 'none';

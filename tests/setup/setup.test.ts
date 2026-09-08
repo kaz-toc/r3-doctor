@@ -132,4 +132,26 @@ describe('setup command', () => {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('rejects setup --save-baseline without --scan', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-setup-scan-'));
+    try {
+      await expect(runCli(['setup', tempDir, '--yes', '--save-baseline'])).rejects.toThrow();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('defaults --yes --json without --locale to en', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-setup-en-'));
+    try {
+      const { stdout } = await runCli(['setup', tempDir, '--yes', '--json']);
+      const report = setupReportSchema.parse(JSON.parse(stdout));
+      expect(report.locale).toBe('en');
+      expect(report.scanRan).toBe(false);
+      expect(report.baselineSaved).toBe(false);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

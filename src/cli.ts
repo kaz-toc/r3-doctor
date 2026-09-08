@@ -2,13 +2,14 @@
 import { Command } from 'commander';
 import path from 'node:path';
 
-import { createRepositorySnapshot, type RepositorySnapshot } from './intake/snapshot.js';
+import { createRepositorySnapshot } from './intake/snapshot.js';
 import { runDiagnosis } from './pipeline/diagnose.js';
 import { saveBaseline } from './persistence/baseline-store.js';
 import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
 import { runDiffDiagnosis } from './commands/diff.js';
 import { registerCheckCommand } from './commands/check.js';
 import { registerLlmInspectCommand } from './commands/llm-inspect.js';
+import { registerScanCommand } from './commands/scan.js';
 import { registerSetupCommand } from './commands/setup.js';
 import { loadPolicy, evaluatePolicy } from './operations/policy.js';
 import { loadCalibration, summarizeCalibration } from './calibration/dataset.js';
@@ -21,17 +22,16 @@ import {
   PythonStubAnalyzerPlugin,
   TypeScriptAnalyzerPlugin,
 } from './plugins/analyzer.js';
-import { extractEvidenceWithPlugins, getDefaultPlugins } from './plugins/analyzer.js';
-import { selectLlmCandidateFiles } from './semantic/provider.js';
-import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 import { R3DoctorError } from './shared/errors.js';
 import { normalizeConfig } from './shared/config.js';
 import { parseReportLocale } from './i18n/locale.js';
+import type { RepositorySnapshot } from './intake/snapshot.js';
 import { redactDiffReport, redactReport } from './shared/redaction.js';
 import { writeGitHubAnnotationsFile, writeGitHubSummaryFile } from './reporting/github.js';
 import type { RetentionAudit } from './persistence/retention.js';
 import { resolveSafeStorageDir } from './persistence/storage-boundary.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
+import { loadOperatorProfile } from './operator/profile.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const VALID_VIEWS = new Set(['facts', 'summary', 'actions', 'all']);
@@ -81,59 +81,11 @@ function addLlmOptions(command: Command): Command {
     .option('--llm-executable <path>', 'operator-selected provider executable')
     .option('--llm-send-scope <scope>', 'changed|cluster-context|all')
     .option('--llm-max-files <count>', 'maximum source files sent to the provider')
-    .option('--llm-max-prompt-bytes <count>', 'maximum prompt size in bytes');
+    .option('--llm-max-prompt-bytes <count>', 'maximum prompt size in bytes')
+    .option('--profile <path>', 'operator profile JSON (defaults to ~/.config/r3-doctor/profile.json)');
 }
 
-addLlmOptions(program
-  .command('scan')
-  .argument('<path>', 'repository path')
-  .option('--format <format>', 'console|markdown|json', 'console')
-  .option('--view <view>', 'facts|summary|actions|all (console/markdown projection; json always returns full report)', 'all')
-  .option('--save-baseline', 'save report as baseline', false)
-  .option('--record-trend', 'append score to trend history', false)
-  .option('--dry-run-semantic', 'print semantic prompt without calling the LLM', false)
-  .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json')
-  .option('--locale <en|ja>', 'report narrative locale (overrides config)'))
-  .action(async (
-    repoPath: string,
-    options: { format: string; view: string; saveBaseline: boolean; recordTrend: boolean; dryRunSemantic: boolean; unit?: string; locale?: string } & LlmCliOptions,
-  ) => {
-    const llmConfig = parseLlmExecutionPolicy(options, options.dryRunSemantic);
-    const snapshot = applyLocaleOverride(await createRepositorySnapshot(repoPath, options.unit, llmConfig), options.locale);
-    if (options.dryRunSemantic) {
-      const plugins = getDefaultPlugins();
-      const { evidence } = await extractEvidenceWithPlugins(snapshot, plugins);
-      const scopedSnapshot = {
-        ...snapshot,
-        files: selectLlmCandidateFiles(snapshot, evidence),
-      };
-      const { prompt } = buildBudgetedSemanticPrompt(
-        scopedSnapshot,
-        evidence,
-        snapshot.config.llm.maxPromptBytes,
-      );
-      process.stdout.write(`${prompt}\n`);
-      return;
-    }
-
-    const format = parseFormat(options.format);
-    const view = parseView(options.view);
-    const report = await runDiagnosis(snapshot);
-    const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
-    const output = reporter.format(redactReport(report, policy.redactPaths), format, { view });
-
-    if (options.saveBaseline) {
-      const baseline = await saveBaseline(snapshot, report);
-      process.stderr.write(`baseline saved: ${baseline.path}\n`);
-      writeRetentionAudits(baseline.retention);
-    }
-    if (options.recordTrend) {
-      const trend = await appendTrend(snapshot, report);
-      writeRetentionAudits(trend.retention);
-    }
-
-    process.stdout.write(output);
-  });
+registerScanCommand(program);
 
 addLlmOptions(program
   .command('diff')
@@ -147,9 +99,10 @@ addLlmOptions(program
   .option('--locale <en|ja>', 'report narrative locale (overrides config)'))
   .action(async (
     repoPath: string,
-    options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean; locale?: string } & LlmCliOptions,
+    options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean; locale?: string; profile?: string } & LlmCliOptions,
   ) => {
-    const llmConfig = parseLlmExecutionPolicy(options);
+    const operatorProfile = await loadOperatorProfile(options.profile);
+    const llmConfig = parseLlmExecutionPolicy(options, false, operatorProfile);
     const snapshot = applyLocaleOverride(await createRepositorySnapshot(repoPath, undefined, llmConfig), options.locale);
     const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig, snapshot);
     const format = parseFormat(options.format);
