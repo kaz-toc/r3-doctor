@@ -40,6 +40,8 @@ export const setupReportSchema = z
     configSkipped: z.boolean(),
     configWritten: z.boolean(),
     configPath: z.string(),
+    scanRan: z.boolean(),
+    baselineSaved: z.boolean(),
     detected: z
       .object({
         workspaces: z.array(z.string()),

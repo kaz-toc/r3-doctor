@@ -19,15 +19,16 @@ Phase 0–1 MVP（schema、決定論 scan、golden fixtures）と Phase 2–3 �
 ## Quick start
 
 ```bash
-# 1. Preflight (read-only)
+# Interactive setup wizard (TTY)
+r3-doctor setup .
+
+# Non-interactive
 r3-doctor check .
-
-# 2. Generate r3-doctor.config.json (non-interactive)
-r3-doctor setup . --yes --locale ja
-
-# 3. First scan
+r3-doctor setup . --yes --locale en
 r3-doctor scan . --format json
 ```
+
+Optional flags: `--scan`, `--save-baseline` (requires `--scan`), `--profile` for operator LLM defaults (`~/.config/r3-doctor/profile.json`).
 
 Agent-friendly JSON:
 
@@ -36,7 +37,7 @@ r3-doctor check . --json --locale en
 r3-doctor setup . --yes --dry-run --json --locale en
 ```
 
-`setup` writes repository config only (no LLM execution policy — see ADR 0003). Use `--locale` to set both setup messages and the `locale` field in `r3-doctor.config.json`.
+`setup` writes repository config only (no LLM execution policy — see ADR 0003). Operator LLM defaults belong in `~/.config/r3-doctor/profile.json` (ADR 0005).
 
 ## Installation
 

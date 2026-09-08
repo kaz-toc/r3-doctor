@@ -5,6 +5,7 @@ import { defaultLlmConfig } from '../shared/config.js';
 export type SetupLocaleOptions = {
   localeFlag?: string;
   jsonMode?: boolean;
+  nonInteractive?: boolean;
   existingConfigLocale?: ReportLocale;
 };
 
@@ -20,6 +21,9 @@ export function resolveSetupLocale(options: SetupLocaleOptions): ReportLocale {
   if (options.existingConfigLocale) {
     return options.existingConfigLocale;
   }
+  if (options.jsonMode || options.nonInteractive) {
+    return DEFAULT_LOCALE;
+  }
   return inferLocaleFromEnvironment();
 }
 
@@ -34,6 +38,6 @@ export async function resolveCheckLocale(
     const config = await loadConfig(repositoryPath, defaultLlmConfig);
     return resolveLocale(config, undefined);
   } catch {
-    return inferLocaleFromEnvironment();
+    return DEFAULT_LOCALE;
   }
 }

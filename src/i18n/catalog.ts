@@ -160,6 +160,14 @@ export const MESSAGE_KEYS = [
   'setup.detect.workspaces',
   'setup.detect.exclude',
   'setup.gitignore.hint',
+  'setup.prompt.overwriteConfig',
+  'setup.prompt.writeConfig',
+  'setup.prompt.runScan',
+  'setup.prompt.saveBaseline',
+  'setup.prompt.showLlmSteps',
+  'setup.scanCompleted',
+  'setup.baselineSaved',
+  'setup.error.saveBaselineRequiresScan',
 ] as const;
 
 export type MessageKey = (typeof MESSAGE_KEYS)[number];
@@ -381,6 +389,14 @@ const en: Catalog = {
   'setup.detect.workspaces': 'detected workspaces: {list}',
   'setup.detect.exclude': 'suggested exclude: {list}',
   'setup.gitignore.hint': 'add .r3-doctor/ to .gitignore if baselines should stay local',
+  'setup.prompt.overwriteConfig': 'Overwrite existing r3-doctor.config.json?',
+  'setup.prompt.writeConfig': 'Write r3-doctor.config.json now?',
+  'setup.prompt.runScan': 'Run first scan now?',
+  'setup.prompt.saveBaseline': 'Save scan result as baseline?',
+  'setup.prompt.showLlmSteps': 'Include LLM setup guidance in next steps?',
+  'setup.scanCompleted': 'scan completed',
+  'setup.baselineSaved': 'baseline saved',
+  'setup.error.saveBaselineRequiresScan': '--save-baseline requires --scan',
 };
 
 const ja: Catalog = {
@@ -578,6 +594,14 @@ const ja: Catalog = {
   'setup.detect.workspaces': '検出 workspace: {list}',
   'setup.detect.exclude': '提案 exclude: {list}',
   'setup.gitignore.hint': 'baseline をローカルに留める場合は .gitignore に .r3-doctor/ を追加',
+  'setup.prompt.overwriteConfig': '既存の r3-doctor.config.json を上書きしますか？',
+  'setup.prompt.writeConfig': 'r3-doctor.config.json を書き込みますか？',
+  'setup.prompt.runScan': '初回 scan を今実行しますか？',
+  'setup.prompt.saveBaseline': 'scan 結果を baseline として保存しますか？',
+  'setup.prompt.showLlmSteps': '次のステップに LLM セットアップ案内を含めますか？',
+  'setup.scanCompleted': 'scan 完了',
+  'setup.baselineSaved': 'baseline 保存完了',
+  'setup.error.saveBaselineRequiresScan': '--save-baseline には --scan が必要です',
 };
 
 export const catalogs: Record<ReportLocale, Catalog> = { en, ja };

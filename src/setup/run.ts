@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { loadConfig } from '../intake/snapshot.js';
-import { defaultLlmConfig } from '../shared/config.js';
+import { defaultLlmConfig, type RepositoryConfig } from '../shared/config.js';
 import type { ReportLocale } from '../i18n/locale.js';
 
 import { configFileExists, countBaselineEntries, detectRepository } from './detect.js';
@@ -18,6 +18,9 @@ export type RunSetupOptions = {
   force: boolean;
   skipLlm?: boolean;
   skipBaseline?: boolean;
+  runScan?: boolean;
+  saveBaseline?: boolean;
+  proposedConfig?: RepositoryConfig;
 };
 
 export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
@@ -25,6 +28,7 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
   const warnings: string[] = [];
   const errors: string[] = [];
   const detected = await detectRepository(repositoryPath, options.locale);
+  const proposedConfig = options.proposedConfig ?? detected.proposedConfig;
 
   const configExists = await configFileExists(repositoryPath);
   let configSkipped = false;
@@ -35,11 +39,11 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
     configSkipped = true;
     warnings.push(setupT(options.locale, 'setup.warn.configExists'));
   } else {
-    const baselineCount = await countBaselineEntries(repositoryPath, detected.proposedConfig.baselineDir);
+    const baselineCount = await countBaselineEntries(repositoryPath, proposedConfig.baselineDir);
     if (baselineCount > 0 && !options.force) {
       errors.push(setupT(options.locale, 'setup.warn.baselineExists', { count: baselineCount }));
     } else if (!options.dryRun) {
-      await writeRepositoryConfig(repositoryPath, detected.proposedConfig);
+      await writeRepositoryConfig(repositoryPath, proposedConfig);
       configWritten = true;
       try {
         await loadConfig(repositoryPath, defaultLlmConfig);
@@ -52,12 +56,31 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
     }
   }
 
-  const hasBaseline = await countBaselineEntries(repositoryPath, detected.proposedConfig.baselineDir) > 0;
+  const hasBaseline = await countBaselineEntries(repositoryPath, proposedConfig.baselineDir) > 0;
   const nextSteps = buildNextSteps(options.locale, repositoryPath, {
     skipLlm: options.skipLlm,
-    skipBaseline: options.skipBaseline,
-    hasBaseline,
+    skipBaseline: options.skipBaseline || Boolean(options.saveBaseline),
+    hasBaseline: hasBaseline || Boolean(options.saveBaseline),
   });
+
+  let scanRan = false;
+  let baselineSaved = false;
+  if (options.runScan && errors.length === 0 && (configWritten || configSkipped)) {
+    try {
+      const { runScanAction } = await import('../commands/scan.js');
+      await runScanAction({
+        repoPath: repositoryPath,
+        format: 'json',
+        saveBaseline: Boolean(options.saveBaseline),
+        locale: options.locale,
+      });
+      scanRan = true;
+      baselineSaved = Boolean(options.saveBaseline);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      errors.push(reason);
+    }
+  }
 
   return {
     schemaVersion: 1,
@@ -67,6 +90,8 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
     configSkipped,
     configWritten,
     configPath,
+    scanRan,
+    baselineSaved,
     detected: {
       workspaces: detected.workspaces,
       suggestedExclude: detected.suggestedExclude,
@@ -90,6 +115,12 @@ export function formatSetupConsole(report: SetupReport): string {
   }
   if (report.configSkipped) {
     lines.push(setupT(locale, 'setup.configSkipped', { path: report.configPath }));
+  }
+  if (report.scanRan) {
+    lines.push(setupT(locale, 'setup.scanCompleted'));
+  }
+  if (report.baselineSaved) {
+    lines.push(setupT(locale, 'setup.baselineSaved'));
   }
 
   if (report.detected.workspaces.length > 0) {
