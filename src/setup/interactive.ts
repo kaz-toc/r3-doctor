@@ -1,18 +1,12 @@
 import type { ReportLocale } from '../i18n/locale.js';
 import type { RepositoryConfig } from '../shared/config.js';
 
-import { assessBaselineSaveEligibility, type BaselineSaveBlockReason } from './baseline-eligibility.js';
+import { assessBaselineSaveEligibility } from './baseline-eligibility.js';
 import { runLlmInspect } from '../commands/llm-inspect.js';
 import { configFileExists } from './detect.js';
 import { SETUP_LLM_PROVIDER_OPTIONS, type SetupLlmProviderId } from './llm-providers.js';
-import { setupT } from './messages.js';
+import { BASELINE_BLOCKED_MESSAGE_KEYS, setupT } from './messages.js';
 import { createSetupPrompts, suggestedInteractiveLocale } from './prompts.js';
-
-const BASELINE_BLOCKED_MESSAGE_KEYS: Record<BaselineSaveBlockReason, `setup.warn.baselineBlocked.${BaselineSaveBlockReason}`> = {
-  willWriteConfig: 'setup.warn.baselineBlocked.willWriteConfig',
-  dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
-  notGit: 'setup.warn.baselineBlocked.notGit',
-};
 
 export type InteractiveSetupChoices = {
   locale: ReportLocale;

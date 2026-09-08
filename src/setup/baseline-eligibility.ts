@@ -1,6 +1,6 @@
 import { DefaultGitProvider } from '../adapters/git-provider.js';
 
-export type BaselineSaveBlockReason = 'willWriteConfig' | 'dirtyWorktree' | 'notGit';
+export type BaselineSaveBlockReason = 'willWriteConfig' | 'dirtyWorktree';
 
 export type BaselineSaveEligibility = {
   eligible: boolean;
@@ -17,7 +17,7 @@ export async function assessBaselineSaveEligibility(
 
   const gitState = await new DefaultGitProvider().inspectRepository(repositoryPath);
   if (!gitState) {
-    return { eligible: false, reason: 'notGit' };
+    return { eligible: true, reason: null };
   }
   if (gitState.dirty) {
     return { eligible: false, reason: 'dirtyWorktree' };

@@ -378,6 +378,23 @@ describe('commit-bound baseline comparison', () => {
     }
   });
 
+  it('REG-2026-023: reports baseline remediation when the worktree becomes dirty after intake', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      const snapshot = await createRepositorySnapshot(repo.path);
+      const report = await runDiagnosis(snapshot);
+      await repo.write('src/a.ts', 'export const a = 2;\n');
+
+      const outcome = await saveBaseline(snapshot, report).catch((error: unknown) => error);
+
+      expect(outcome).toBeInstanceOf(BaselineSaveError);
+      expect(String(outcome)).toContain('repository changed during scan');
+      expect(String(outcome)).toContain('--save-baseline');
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
   it('refuses to bind an ignored analyzed source file to HEAD', async () => {
     const repo = await createGitRepository({
       '.gitignore': '.r3-doctor/baselines/\n.r3-doctor/trends/\nsrc/generated.ts\n',

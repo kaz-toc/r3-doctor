@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +87,26 @@ describe('check command', () => {
       expect(report.errors.length).toBeGreaterThan(0);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('REG-2026-023: check dirty warning includes the resolved baseline command', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    const repositoryPath = `${repo.path} with spaces & 'quoted'`;
+    await repo.write('src/a.ts', 'export const a = 2;\n');
+    await rename(repo.path, repositoryPath);
+    try {
+      const { stdout } = await runCli(['check', repositoryPath, '--json', '--locale', 'en']);
+      const report = checkReportSchema.parse(JSON.parse(stdout));
+      const dirtyWarning = report.warnings.find((warning) => warning.includes('uncommitted changes'));
+      const expectedCommand = `r3-doctor scan '${repo.path} with spaces & `
+        + "'\\''quoted'\\''"
+        + `' --save-baseline`;
+
+      expect(dirtyWarning).toContain(expectedCommand);
+      expect(dirtyWarning).not.toContain('<path>');
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
     }
   });
 });

@@ -4,21 +4,15 @@ import { loadConfig } from '../intake/snapshot.js';
 import { defaultLlmConfig, type RepositoryConfig } from '../shared/config.js';
 import type { ReportLocale } from '../i18n/locale.js';
 
-import { assessBaselineSaveEligibility, type BaselineSaveBlockReason } from './baseline-eligibility.js';
+import { assessBaselineSaveEligibility } from './baseline-eligibility.js';
 import { configFileExists, countBaselineEntries, detectRepository } from './detect.js';
-import { setupT } from './messages.js';
+import { BASELINE_BLOCKED_MESSAGE_KEYS, setupT } from './messages.js';
 import { buildNextSteps } from './next-steps.js';
 import { configureOperatorLlm, formatLlmSetupConsole, saveSetupLlmProfile, type LlmSetupReport } from './llm-setup.js';
 import { defaultOperatorProfilePath } from '../operator/profile.js';
 import type { SetupLlmProviderId } from './llm-providers.js';
 import type { SetupReport } from './schema.js';
 import { CONFIG_FILE_NAME, writeRepositoryConfig } from './write-config.js';
-
-const BASELINE_BLOCKED_MESSAGE_KEYS: Record<BaselineSaveBlockReason, `setup.warn.baselineBlocked.${BaselineSaveBlockReason}`> = {
-  willWriteConfig: 'setup.warn.baselineBlocked.willWriteConfig',
-  dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
-  notGit: 'setup.warn.baselineBlocked.notGit',
-};
 
 export type RunSetupOptions = {
   repositoryPath: string;

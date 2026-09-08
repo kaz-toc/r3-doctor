@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-023",
+  "status": "active",
+  "title": "Baseline save eligibility and remediation stay consistent",
+  "invariant": "Non-Git repositories remain eligible for baseline persistence, while dirty Git repositories receive BaselineSaveError guidance with the resolved rescan command.",
+  "incident": "pr-18-review#baseline-save-consistency",
+  "productionFiles": [
+    "src/i18n/catalog.ts",
+    "src/persistence/snapshot-integrity.ts",
+    "src/setup/baseline-eligibility.ts",
+    "src/setup/messages.ts",
+    "src/setup/readiness.ts"
+  ],
+  "testFiles": [
+    "tests/comparison.test.ts",
+    "tests/setup/baseline-eligibility.test.ts",
+    "tests/setup/setup.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/comparison.test.ts tests/setup/baseline-eligibility.test.ts tests/setup/setup.test.ts -t REG-2026-023"
+  ]
+}
