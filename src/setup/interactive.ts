@@ -41,21 +41,6 @@ export async function runInteractiveSetupChoices(
       dryRun = !(await prompts.confirm(setupT(locale, 'setup.prompt.createConfig'), true));
     }
 
-    let runScan = false;
-    let saveBaseline = false;
-    if (!dryRun) {
-      runScan = await prompts.confirm(setupT(locale, 'setup.prompt.runScan'), false);
-      if (runScan) {
-        const willWriteConfig = !configExists || force;
-        const eligibility = await assessBaselineSaveEligibility(repositoryPath, { willWriteConfig });
-        if (eligibility.eligible) {
-          saveBaseline = await prompts.confirm(setupT(locale, 'setup.prompt.saveBaseline'), false);
-        } else if (eligibility.reason) {
-          process.stdout.write(`\n${setupT(locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], { path: repositoryPath })}\n`);
-        }
-      }
-    }
-
     let configureLlm = false;
     let llmProvider: SetupLlmProviderId | undefined;
     let saveOperatorProfile = false;
@@ -77,6 +62,21 @@ export async function runInteractiveSetupChoices(
           saveOperatorProfile = await prompts.confirm(setupT(locale, 'setup.prompt.saveOperatorProfile'), true);
         } else {
           process.stdout.write(`\n${setupT(locale, 'setup.llm.setupDeferred')}\n`);
+        }
+      }
+    }
+
+    let runScan = false;
+    let saveBaseline = false;
+    if (!dryRun) {
+      runScan = await prompts.confirm(setupT(locale, 'setup.prompt.runScan'), false);
+      if (runScan) {
+        const willWriteConfig = !configExists || force;
+        const eligibility = await assessBaselineSaveEligibility(repositoryPath, { willWriteConfig });
+        if (eligibility.eligible) {
+          saveBaseline = await prompts.confirm(setupT(locale, 'setup.prompt.saveBaseline'), false);
+        } else if (eligibility.reason) {
+          process.stdout.write(`\n${setupT(locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], { path: repositoryPath })}\n`);
         }
       }
     }
