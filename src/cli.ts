@@ -39,7 +39,7 @@ const reporter = new DefaultReporterAdapter();
 
 const program = new Command();
 
-program.name('r3-doctor').description('Regression Risk Recovery Doctor').version('0.1.1');
+program.name('r3-doctor').description('Regression Risk Recovery Doctor').version('0.2.0');
 
 function parseFormat(value: string): 'console' | 'markdown' | 'json' {
   if (!VALID_FORMATS.has(value)) {

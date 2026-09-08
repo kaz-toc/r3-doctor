@@ -7,20 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-08
+
 ### Added
 
+- `check` command for readiness diagnostics (Node, Git, config, baseline, optional LLM inspect)
+- Interactive `setup` wizard for repository config, first scan, and operator LLM profile defaults
+- Operator profile support (`~/.config/r3-doctor/profile.json`) for LLM defaults per ADR 0005
 - Report locale setting (`locale: en | ja`, default `en`) in config and `--locale` on `scan` / `diff`
 - `src/i18n/` catalog with type-safe `t()` helper and `metadata.reportLocale` on diagnosis reports
-- `tests/i18n.test.ts` for catalog completeness
-
-### Changed
-
-- **Breaking:** Default scan output uses English narrative prose (disclaimer, evidence messages, clusters, interventions)
-- Formatter suffixes (`and N more evidence` / `他 N evidence`) follow `metadata.reportLocale`; section headings and metric labels stay English
-- `parseView` CLI error message is English
-
-### Added (prior)
-
 - Assessment contract v4 with contribution points, score breakdown, calibration status, and actionable intervention fields
 - Report views (`facts`, `summary`, `actions`, `all`) for independently selectable human-readable output
 - Calibration quality summary (`uncalibrated`, `provisional`, `validated`) on standard diagnosis reports
@@ -28,12 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Default scan output uses English narrative prose (disclaimer, evidence messages, clusters, interventions)
+- Formatter suffixes (`and N more evidence` / `他 N evidence`) follow `metadata.reportLocale`; section headings and metric labels stay English
 - Markdown and console formatters project a single view model instead of dumping all evidence in every view
 - v3 baselines and diffs return explicit incompatibility reasons instead of silent score deltas
+- Setup wizard consolidates config prompts and defers baseline save when the worktree cannot accept commit-bound baselines
 
 ### Fixed
 
 - Human-readable reports no longer hide score meaning, calibration status, or top actionable next steps
+- Baseline save failures now explain remediation instead of misleading `config error` messages
+- Setup wizard no longer asks redundant overwrite/write config questions
 
 ## [0.1.1] - 2026-09-07
 
@@ -81,5 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regression Risk Score is a relative indicator, not a failure probability guarantee
 - Persistence defaults to `.r3-doctor/` in the target repository
 
+[0.2.0]: https://github.com/kaz-toc/r3-doctor/releases/tag/v0.2.0
 [0.1.1]: https://github.com/kaz-toc/r3-doctor/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kaz-toc/r3-doctor/releases/tag/v0.1.0
