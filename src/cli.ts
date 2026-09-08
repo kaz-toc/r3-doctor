@@ -7,6 +7,9 @@ import { runDiagnosis } from './pipeline/diagnose.js';
 import { saveBaseline } from './persistence/baseline-store.js';
 import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
 import { runDiffDiagnosis } from './commands/diff.js';
+import { registerCheckCommand } from './commands/check.js';
+import { registerLlmInspectCommand } from './commands/llm-inspect.js';
+import { registerSetupCommand } from './commands/setup.js';
 import { loadPolicy, evaluatePolicy } from './operations/policy.js';
 import { loadCalibration, summarizeCalibration } from './calibration/dataset.js';
 import { summarizeCalibrationQuality } from './calibration/quality.js';
@@ -19,6 +22,8 @@ import {
   TypeScriptAnalyzerPlugin,
 } from './plugins/analyzer.js';
 import { extractEvidenceWithPlugins, getDefaultPlugins } from './plugins/analyzer.js';
+import { selectLlmCandidateFiles } from './semantic/provider.js';
+import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 import { R3DoctorError } from './shared/errors.js';
 import { normalizeConfig } from './shared/config.js';
 import { parseReportLocale } from './i18n/locale.js';
@@ -26,10 +31,6 @@ import { redactDiffReport, redactReport } from './shared/redaction.js';
 import { writeGitHubAnnotationsFile, writeGitHubSummaryFile } from './reporting/github.js';
 import type { RetentionAudit } from './persistence/retention.js';
 import { resolveSafeStorageDir } from './persistence/storage-boundary.js';
-import { createOneShotAcpClient } from './semantic/acp/acp-client.js';
-import { buildLlmLaunchSpec, getLlmProviderDefinition } from './semantic/acp/provider-registry.js';
-import { normalizeProviderId, selectLlmCandidateFiles } from './semantic/provider.js';
-import { buildBudgetedSemanticPrompt } from './semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
@@ -296,45 +297,9 @@ program
     }, null, 2)}\n`);
   });
 
-const llm = program.command('llm').description('LLM provider utilities');
-
-llm
-  .command('inspect')
-  .description('inspect configured LLM provider availability')
-  .option('--provider <id>', 'provider id (copilot|cursor|codex|claude|openai|anthropic)')
-  .option('--path <path>', 'repository path used as ACP runtime directory', process.cwd())
-  .action(async (options: { provider?: string; path: string }) => {
-    const providerRaw = options.provider ?? 'codex';
-    const providerId = normalizeProviderId(providerRaw);
-    if (!providerId || providerId === 'none') {
-      throw new R3DoctorError(`invalid provider: ${providerRaw}`);
-    }
-
-    const definition = getLlmProviderDefinition(providerId);
-    const repositoryPath = path.resolve(options.path);
-    const spec = buildLlmLaunchSpec(providerId, {
-      executablePath: definition.defaultExecutablePath,
-      modelIdentifier: providerId === 'copilot' ? 'auto' : '',
-      runtimeDirectory: repositoryPath,
-      inheritedEnv: process.env,
-    });
-
-    const client = createOneShotAcpClient();
-    const result = await client.inspect({ spec });
-
-    if (result.ok) {
-      process.stderr.write(`provider=${providerId} status=available\n`);
-      if (result.value.agentInfo) {
-        process.stderr.write(`agent=${result.value.agentInfo.name}${result.value.agentInfo.version ? `@${result.value.agentInfo.version}` : ''}\n`);
-      }
-      process.stderr.write(`authMethods=${result.value.authMethods.map((method) => method.id).join(',') || 'none'}\n`);
-      process.exit(0);
-    }
-
-    process.stderr.write(`provider=${providerId} status=unavailable reason=${result.reason}\n`);
-    process.stderr.write(`installHint=${definition.installHint}\n`);
-    process.exit(result.reason === 'executable_missing' ? 1 : 2);
-  });
+registerCheckCommand(program);
+registerSetupCommand(program);
+registerLlmInspectCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
