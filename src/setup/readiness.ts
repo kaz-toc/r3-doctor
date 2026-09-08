@@ -8,7 +8,7 @@ import type { ReportLocale } from '../i18n/locale.js';
 import { runLlmInspect } from '../commands/llm-inspect.js';
 
 import { configFileExists, countBaselineEntries } from './detect.js';
-import { setupT } from './messages.js';
+import { quoteCliArgument, setupT } from './messages.js';
 import type { CheckReport } from './schema.js';
 
 const MIN_NODE_MAJOR = 22;
@@ -52,7 +52,7 @@ export async function runCheck(options: RunCheckOptions): Promise<CheckReport> {
         }),
       };
       if (gitState.dirty) {
-        warnings.push(setupT(locale, 'check.warn.dirty', { path: repositoryPath }));
+        warnings.push(setupT(locale, 'check.warn.dirty', { path: quoteCliArgument(repositoryPath) }));
       }
     }
   } catch {

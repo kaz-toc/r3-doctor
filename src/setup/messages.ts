@@ -16,6 +16,10 @@ export const BASELINE_BLOCKED_MESSAGE_KEYS: Record<
   dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
 };
 
+export function quoteCliArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 export function setupT(locale: ReportLocale, key: SetupMessageKey, params?: Record<string, string | number>): string {
   return t(locale, key, params);
 }
