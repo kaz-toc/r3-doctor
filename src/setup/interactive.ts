@@ -2,7 +2,9 @@ import type { ReportLocale } from '../i18n/locale.js';
 import type { RepositoryConfig } from '../shared/config.js';
 
 import { assessBaselineSaveEligibility, type BaselineSaveBlockReason } from './baseline-eligibility.js';
+import { runLlmInspect } from '../commands/llm-inspect.js';
 import { configFileExists } from './detect.js';
+import { SETUP_LLM_PROVIDER_OPTIONS, type SetupLlmProviderId } from './llm-providers.js';
 import { setupT } from './messages.js';
 import { createSetupPrompts, suggestedInteractiveLocale } from './prompts.js';
 
@@ -20,6 +22,10 @@ export type InteractiveSetupChoices = {
   skipBaseline: boolean;
   runScan: boolean;
   saveBaseline: boolean;
+  configureLlm: boolean;
+  llmProvider?: SetupLlmProviderId;
+  saveOperatorProfile: boolean;
+  llmInspectAvailable: boolean;
 };
 
 export async function runInteractiveSetupChoices(
@@ -56,7 +62,32 @@ export async function runInteractiveSetupChoices(
       }
     }
 
-    const skipLlm = options.skipLlm ?? !(await prompts.confirm(setupT(locale, 'setup.prompt.showLlmSteps'), true));
+    let configureLlm = false;
+    let llmProvider: SetupLlmProviderId | undefined;
+    let saveOperatorProfile = false;
+    let llmInspectAvailable = false;
+
+    if (!options.skipLlm) {
+      configureLlm = await prompts.confirm(setupT(locale, 'setup.prompt.configureLlm'), true);
+      if (configureLlm) {
+        llmProvider = await prompts.selectProvider(
+          setupT(locale, 'setup.prompt.selectLlmProvider'),
+          SETUP_LLM_PROVIDER_OPTIONS,
+        );
+        const inspect = await runLlmInspect({ provider: llmProvider, path: repositoryPath });
+        llmInspectAvailable = inspect.exitCode === 0;
+        if (inspect.stderr) {
+          process.stderr.write(inspect.stderr);
+        }
+        if (llmInspectAvailable) {
+          saveOperatorProfile = await prompts.confirm(setupT(locale, 'setup.prompt.saveOperatorProfile'), true);
+        } else {
+          process.stdout.write(`\n${setupT(locale, 'setup.llm.setupDeferred')}\n`);
+        }
+      }
+    }
+
+    const skipLlm = options.skipLlm || !configureLlm;
     const skipBaseline = options.skipBaseline ?? false;
 
     return {
@@ -67,6 +98,10 @@ export async function runInteractiveSetupChoices(
       skipBaseline,
       runScan,
       saveBaseline,
+      configureLlm,
+      llmProvider,
+      saveOperatorProfile,
+      llmInspectAvailable,
     };
   } finally {
     await prompts.close();

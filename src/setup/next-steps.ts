@@ -5,7 +5,7 @@ import { setupT } from './messages.js';
 export function buildNextSteps(
   locale: ReportLocale,
   repositoryPath: string,
-  options: { skipLlm?: boolean; skipBaseline?: boolean; hasBaseline?: boolean },
+  options: { skipLlm?: boolean; skipBaseline?: boolean; hasBaseline?: boolean; llmProvider?: string },
 ): string[] {
   const target = repositoryPath === '.' ? '.' : repositoryPath;
   const steps = [
@@ -17,6 +17,8 @@ export function buildNextSteps(
   }
   if (!options.skipLlm) {
     steps.push(setupT(locale, 'setup.next.llm', { path: target }));
+  } else if (options.llmProvider) {
+    steps.push(setupT(locale, 'setup.next.scanWithLlm', { path: target, provider: options.llmProvider }));
   }
   return steps;
 }

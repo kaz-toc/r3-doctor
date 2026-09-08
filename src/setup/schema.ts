@@ -42,6 +42,15 @@ export const setupReportSchema = z
     configPath: z.string(),
     scanRan: z.boolean(),
     baselineSaved: z.boolean(),
+    operatorProfile: z
+      .object({
+        attempted: z.boolean(),
+        provider: z.string().optional(),
+        inspectAvailable: z.boolean(),
+        profilePath: z.string().optional(),
+        profileWritten: z.boolean(),
+      })
+      .optional(),
     detected: z
       .object({
         workspaces: z.array(z.string()),
