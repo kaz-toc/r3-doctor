@@ -16,6 +16,28 @@ Phase 0–1 MVP（schema、決定論 scan、golden fixtures）と Phase 2–3 �
 
 最初の公開リリース境界（Phase 0 + Phase 1）は満たしています。
 
+## Quick start
+
+```bash
+# 1. Preflight (read-only)
+r3-doctor check .
+
+# 2. Generate r3-doctor.config.json (non-interactive)
+r3-doctor setup . --yes --locale ja
+
+# 3. First scan
+r3-doctor scan . --format json
+```
+
+Agent-friendly JSON:
+
+```bash
+r3-doctor check . --json --locale en
+r3-doctor setup . --yes --dry-run --json --locale en
+```
+
+`setup` writes repository config only (no LLM execution policy — see ADR 0003). Use `--locale` to set both setup messages and the `locale` field in `r3-doctor.config.json`.
+
 ## Installation
 
 Node.js 22 以降が必要です。リポジトリ clone なしで CLI を実行できます。
