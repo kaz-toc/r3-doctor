@@ -66,11 +66,13 @@ function reportHeaderLines(report: DiagnosisReport): string[] {
 }
 
 function formatEvidenceBullet(item: Evidence): string {
-  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
+  const scoreScope = item.pathRole === 'product' ? '' : ' score=excluded';
+  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} role=${item.pathRole}${scoreScope} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
 }
 
 function formatEvidenceConsoleBullet(item: Evidence): string {
-  return `  - [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
+  const scoreScope = item.pathRole === 'product' ? '' : ' score=excluded';
+  return `  - [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} role=${item.pathRole}${scoreScope} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
 }
 
 function renderFactGroupMarkdown(group: FactEvidenceGroup, locale: ReportLocale): string[] {
@@ -81,7 +83,7 @@ function renderFactGroupMarkdown(group: FactEvidenceGroup, locale: ReportLocale)
     '- Evidence:',
   ];
   for (const item of group.evidence) {
-    lines.push(`  ${formatEvidenceBullet(item).replace(/^- /, '')}`);
+    lines.push(`  ${formatEvidenceBullet(item)}`);
   }
   if (group.remainingEvidenceCount > 0) {
     lines.push(`  - ${remainingSuffix(locale, 'format.remainingEvidence', group.remainingEvidenceCount)}`);
@@ -170,6 +172,9 @@ function renderSummaryMarkdown(
     `- Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand})`,
     `- Confidence: ${summary.confidence}`,
     `- Calibration: ${summary.calibrationStatus}`,
+    ...(summary.calibrationMissingConditions.length > 0
+      ? [`- Calibration gaps: ${summary.calibrationMissingConditions.join('; ')}`]
+      : []),
     `- Unevaluated axes: ${summary.unevaluatedAxisCount}`,
     '',
     `> ${summary.disclaimer}`,
@@ -179,12 +184,12 @@ function renderSummaryMarkdown(
     `- Axis base: ${summary.scoreBreakdown.axisBase}`,
     `- Critical cluster uplift: ${summary.scoreBreakdown.criticalClusterUplift}`,
     '',
-    '| Axis | Score | Contribution | Confidence | Top rationale |',
-    '|---|---:|---:|---:|---|',
+    '| Axis | Score | Peak | Breadth | Diversity | Contribution | Confidence | Top rationale |',
+    '|---|---:|---:|---:|---:|---:|---:|---|',
   ];
   for (const axis of summary.axes) {
     lines.push(
-      `| ${axis.name} | ${axis.scoreLabel} | ${axis.contributionPoints} | ${axis.confidence} | ${axis.topRationale} |`,
+      `| ${axis.name} | ${axis.scoreLabel} | ${axis.scoreBreakdown.peak} | ${axis.scoreBreakdown.breadth} | ${axis.scoreBreakdown.diversity} | ${axis.contributionPoints} | ${axis.confidence} | ${axis.topRationale} |`,
     );
   }
   lines.push('');
@@ -245,6 +250,9 @@ function renderSummaryConsole(
   const lines = [
     heading,
     `Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand}, confidence ${summary.confidence}, calibration ${summary.calibrationStatus}, unevaluated axes: ${summary.unevaluatedAxisCount})`,
+    ...(summary.calibrationMissingConditions.length > 0
+      ? [`Calibration gaps: ${summary.calibrationMissingConditions.join('; ')}`]
+      : []),
     summary.disclaimer,
     '',
     'Why this score:',
@@ -253,7 +261,7 @@ function renderSummaryConsole(
     'Axes:',
   ];
   for (const axis of summary.axes) {
-    lines.push(`  - ${axis.name}: ${axis.scoreLabel} (contribution ${axis.contributionPoints}, confidence ${axis.confidence})`);
+    lines.push(`  - ${axis.name}: ${axis.scoreLabel} (peak ${axis.scoreBreakdown.peak}, breadth ${axis.scoreBreakdown.breadth}, diversity ${axis.scoreBreakdown.diversity}, contribution ${axis.contributionPoints}, confidence ${axis.confidence})`);
     lines.push(`    rationale: ${axis.topRationale}`);
   }
   lines.push('Top risk clusters:');
@@ -353,6 +361,7 @@ function renderActionsConsole(
     lines.push(`    first step: ${intervention.firstStep}`);
     lines.push(`    targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`);
     lines.push(`    verify: ${intervention.verification}`);
+    lines.push(`    horizon: ${intervention.verificationHorizon}`);
     if (item.changeRelevance) {
       lines.push(`    PR relevance: ${item.changeRelevance}`);
     }

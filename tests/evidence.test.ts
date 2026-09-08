@@ -67,6 +67,8 @@ describe('path role classification', () => {
   it('classifies product, test, and generated paths', () => {
     expect(classifyPathRole('src/cart.ts')).toBe('product');
     expect(classifyPathRole('tests/cart.test.ts')).toBe('test');
+    expect(classifyPathRole('tests/helpers/fake-agent.ts')).toBe('test');
+    expect(classifyPathRole('tests/fixtures/cart/src/index.ts')).toBe('fixture');
     expect(classifyPathRole('dist/cli.js')).toBe('generated');
   });
 });

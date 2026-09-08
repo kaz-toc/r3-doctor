@@ -1,4 +1,11 @@
-import type { AxisAssessment, CapabilityResult, ConfidenceBreakdown } from '../schema/report.v1.js';
+import type {
+  AxisAssessment,
+  CapabilityResult,
+  ConfidenceBreakdown,
+  RiskAxisId,
+  SignalId,
+} from '../schema/report.v1.js';
+import { SIGNAL_AXIS } from '../schema/report.v1.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { SemanticProviderResolution } from '../semantic/provider.js';
 
@@ -23,6 +30,35 @@ function computeCapabilityCoverage(capabilities: CapabilityResult[]): number {
   }
   const supportedSignals = capabilities.flatMap((entry) => entry.supportedSignals);
   return supportedSignals.length / expectedSignals.length;
+}
+
+function computeAxisCapabilityCoverage(
+  capabilities: CapabilityResult[],
+  axisId: RiskAxisId,
+): number {
+  const relevantSignals = new Set(
+    (Object.entries(SIGNAL_AXIS) as Array<[SignalId, RiskAxisId]>)
+      .filter(([, mappedAxis]) => mappedAxis === axisId)
+      .map(([signalId]) => signalId),
+  );
+  const relevantCapabilities = capabilities
+    .map((capability) => ({
+      supported: capability.supportedSignals.filter((signalId) => relevantSignals.has(signalId)),
+      unevaluated: capability.unevaluatedSignals.filter((signalId) => relevantSignals.has(signalId)),
+    }))
+    .filter((capability) => capability.supported.length + capability.unevaluated.length > 0);
+  const expectedCount = relevantCapabilities.reduce(
+    (sum, capability) => sum + capability.supported.length + capability.unevaluated.length,
+    0,
+  );
+  if (expectedCount === 0) {
+    return 1;
+  }
+  const supportedCount = relevantCapabilities.reduce(
+    (sum, capability) => sum + capability.supported.length,
+    0,
+  );
+  return supportedCount / expectedCount;
 }
 
 function computeInputCompleteness(snapshot: RepositorySnapshot, axes: AxisAssessment[]): number {
@@ -58,6 +94,38 @@ function computeMeasurementReliability(
   return analyzerRatio * semanticFactor;
 }
 
+function combineConfidence(
+  capabilityCoverage: number,
+  inputCompleteness: number,
+  measurementReliability: number,
+): number {
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      Number(
+        (0.5 * capabilityCoverage + 0.3 * inputCompleteness + 0.2 * measurementReliability).toFixed(2),
+      ),
+    ),
+  );
+}
+
+export function computeAxisEvidenceConfidence(
+  input: ConfidenceInput,
+  axisId: Exclude<RiskAxisId, 'semantic-ambiguity'>,
+): number {
+  return combineConfidence(
+    computeAxisCapabilityCoverage(input.capabilities, axisId),
+    computeInputCompleteness(input.snapshot, input.axes),
+    computeMeasurementReliability(
+      input.selectedAnalyzers,
+      input.successfulAnalyzers,
+      input.semanticResolution,
+      input.snapshot,
+    ),
+  );
+}
+
 export function computeEvidenceConfidence(input: ConfidenceInput): ConfidenceResult {
   const capabilityCoverage = computeCapabilityCoverage(input.capabilities);
   const inputCompleteness = computeInputCompleteness(input.snapshot, input.axes);
@@ -68,14 +136,10 @@ export function computeEvidenceConfidence(input: ConfidenceInput): ConfidenceRes
     input.snapshot,
   );
 
-  const confidence = Math.max(
-    0,
-    Math.min(
-      1,
-      Number(
-        (0.5 * capabilityCoverage + 0.3 * inputCompleteness + 0.2 * measurementReliability).toFixed(2),
-      ),
-    ),
+  const confidence = combineConfidence(
+    capabilityCoverage,
+    inputCompleteness,
+    measurementReliability,
   );
 
   const semanticAnalysis =
