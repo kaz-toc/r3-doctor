@@ -41,12 +41,12 @@ repository ごとに fan-in、churn、score band を調整する。導入は速�
 
 shadow validation を次の4境界へ分離する。
 
-1. Candidate scoring: 既存 assessment input から shadow score と集計済み feature を計算する。
+1. Candidate scoring: 既存 snapshot と v4 report から shadow score と集計済み feature を計算する。
 2. Validation storage: score snapshot と outcome を strict schema、atomic write、owned directory で保存する。
 3. Outcome evaluation: 観測期間が揃った sample だけで候補を比較する。
 4. CLI reporting: sample 記録、outcome 登録、状態確認、比較結果表示を担当する。
 
-candidate scoring は `assessRisk()` の戻り値を変更しない。v4 report の生成後、同じ assessment input から独立した `ShadowScore[]` を生成する。
+candidate scoring は `assessRisk()` の戻り値を変更しない。v4 report の生成後、その report と元の snapshot から独立した `ShadowScore[]` を生成する。
 
 ```ts
 export type ShadowCandidateId =
@@ -67,7 +67,10 @@ export type ShadowScore = {
   };
 };
 
-export function computeShadowScores(input: AssessmentInput): ShadowScore[];
+export function computeShadowScores(
+  snapshot: RepositorySnapshot,
+  report: DiagnosisReport,
+): ShadowScore[];
 ```
 
 `null` axis は unevaluated を表し、0点と区別する。candidate ID と formula version は保存後の再計算を禁止するため必須とする。
@@ -200,11 +203,11 @@ r3-doctor scan . --record-validation --validation-horizon-days 30
 ```
 
 1. 通常の snapshot、Evidence、v4 report を生成する。
-2. 同じ assessment input から4つの shadow score を生成する。
+2. 同じ snapshot と v4 report から4つの shadow score を生成する。
 3. Gitが利用でき、診断後もHEADとanalyzed snapshotが一致することを確認する。dirty snapshot、HEAD変更、Git非利用時は記録しない。
 4. repository ID がなければ生成し、validation snapshot をtemporary fileへ書いてatomic renameする。
 5. 同じsample IDと同じcanonical payloadならno-op、内容が異なれば上書きせず`ConfigError`を返す。
-6. retention auditをstderrへ出力する。診断reportのstdoutは変えない。
+6. validation mutation auditをstderrへ出力する。診断reportのstdoutは変えない。
 
 `--record-validation`を指定しない`scan`は引き続きread-onlyである。
 
