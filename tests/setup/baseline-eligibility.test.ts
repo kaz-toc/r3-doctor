@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { BaselineSaveError } from '../../src/shared/errors.js';
@@ -34,6 +38,16 @@ describe('assessBaselineSaveEligibility', () => {
       expect(result).toEqual({ eligible: true, reason: null });
     } finally {
       await repo.cleanup();
+    }
+  });
+
+  it('REG-2026-023: preserves baseline support for repositories without Git', async () => {
+    const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-non-git-'));
+    try {
+      const result = await assessBaselineSaveEligibility(repositoryPath, { willWriteConfig: false });
+      expect(result).toEqual({ eligible: true, reason: null });
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
     }
   });
 });

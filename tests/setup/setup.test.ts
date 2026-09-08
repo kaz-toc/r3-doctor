@@ -89,6 +89,21 @@ describe('check command', () => {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('REG-2026-023: check dirty warning includes the resolved baseline command', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    try {
+      await repo.write('src/a.ts', 'export const a = 2;\n');
+      const { stdout } = await runCli(['check', repo.path, '--json', '--locale', 'en']);
+      const report = checkReportSchema.parse(JSON.parse(stdout));
+      const dirtyWarning = report.warnings.find((warning) => warning.includes('uncommitted changes'));
+
+      expect(dirtyWarning).toContain(`r3-doctor scan ${repo.path} --save-baseline`);
+      expect(dirtyWarning).not.toContain('<path>');
+    } finally {
+      await repo.cleanup();
+    }
+  });
 });
 
 describe('setup command', () => {

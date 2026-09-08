@@ -52,7 +52,7 @@ export async function runCheck(options: RunCheckOptions): Promise<CheckReport> {
         }),
       };
       if (gitState.dirty) {
-        warnings.push(setupT(locale, 'check.warn.dirty'));
+        warnings.push(setupT(locale, 'check.warn.dirty', { path: repositoryPath }));
       }
     }
   } catch {

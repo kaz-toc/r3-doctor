@@ -43,11 +43,11 @@ export async function assertSnapshotPersistenceIntegrity(
   if (currentGit.headSha !== snapshot.sourceCommitSha) {
     throw new ConfigError(snapshot.repositoryPath, 'Git HEAD changed after repository intake');
   }
-  if (currentGit.statusFingerprint !== snapshot.gitStatusFingerprint) {
-    throw new ConfigError(snapshot.repositoryPath, 'Git worktree state changed after repository intake');
-  }
   if (options.requireClean && currentGit.dirty) {
     throw new BaselineSaveError(baselineWorktreeChangedMessage());
+  }
+  if (currentGit.statusFingerprint !== snapshot.gitStatusFingerprint) {
+    throw new ConfigError(snapshot.repositoryPath, 'Git worktree state changed after repository intake');
   }
   return snapshot.sourceCommitSha;
 }
