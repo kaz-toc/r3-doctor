@@ -33,13 +33,12 @@ export async function runInteractiveSetupChoices(
 
     const configExists = await configFileExists(repositoryPath);
     let force = Boolean(options.force);
+    let dryRun = Boolean(options.dryRun);
+
     if (configExists && !force) {
       force = await prompts.confirm(setupT(locale, 'setup.prompt.overwriteConfig'), false);
-    }
-
-    let dryRun = Boolean(options.dryRun);
-    if (!dryRun) {
-      dryRun = !(await prompts.confirm(setupT(locale, 'setup.prompt.writeConfig'), true));
+    } else if (!configExists && !dryRun) {
+      dryRun = !(await prompts.confirm(setupT(locale, 'setup.prompt.createConfig'), true));
     }
 
     let runScan = false;
