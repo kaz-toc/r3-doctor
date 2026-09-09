@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `r3-doctor llm list` — catalog of supported LLM providers with optional `--inspect` availability probes
+- Shared `src/semantic/llm/` core for inspect stderr contract and provider catalog (`llm-catalog.v1` schema)
+- Regression contract `REG-2026-024` for provider catalog and inspect stderr stability
 ## [0.2.0] - 2026-09-08
 
 ### Added

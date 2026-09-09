@@ -12,7 +12,7 @@ Phase 0–1 MVP（schema、決定論 scan、golden fixtures）と Phase 2–3 �
 
 - **TypeScript / JavaScript** — 主要対象言語
 - **Python / Go** — experimental stub（large-file 等の限定シグナルのみ）
-- **LLM semantic 軸** — ACP provider（copilot / cursor / codex / claude）接続済み。CLI 未導入時は `r3-doctor llm inspect` で確認
+- **LLM semantic 軸** — ACP provider（copilot / cursor / codex / claude）接続済み。`r3-doctor llm list` で一覧、`llm inspect` で単体確認
 
 最初の公開リリース境界（Phase 0 + Phase 1）は満たしています。
 
@@ -76,6 +76,8 @@ Node.js 22 以降で動作する TypeScript 製 CLI とし、最初は TypeScrip
 r3-doctor scan . --format markdown
 r3-doctor diff . --base origin/main --format json
 r3-doctor scan . --locale ja --format markdown
+r3-doctor llm list --format json
+r3-doctor llm list --inspect --provider codex
 r3-doctor llm inspect --provider codex
 r3-doctor scan . --llm-provider codex --llm-send-scope cluster-context
 r3-doctor scan . --dry-run-semantic --llm-send-scope changed
