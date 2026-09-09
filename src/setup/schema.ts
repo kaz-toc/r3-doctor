@@ -46,6 +46,7 @@ export const setupReportSchema = z
       .object({
         attempted: z.boolean(),
         provider: z.string().optional(),
+        model: z.string().optional(),
         inspectAvailable: z.boolean(),
         profilePath: z.string().optional(),
         profileWritten: z.boolean(),

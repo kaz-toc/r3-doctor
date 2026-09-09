@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-024",
+  "status": "active",
+  "title": "LLM provider catalog and inspect stderr contract",
+  "invariant": "The llm list command enumerates all supported providers with aliases, and llm inspect preserves machine-readable stderr lines.",
+  "incident": "operator-discovery-2026-09-09#llm-provider-list",
+  "productionFiles": [
+    "src/semantic/llm/aliases.ts",
+    "src/semantic/llm/catalog.ts",
+    "src/semantic/llm/format.ts",
+    "src/semantic/llm/inspect.ts",
+    "src/commands/llm-list.ts",
+    "src/commands/llm-inspect.ts",
+    "src/schema/llm-catalog.v1.ts"
+  ],
+  "testFiles": [
+    "tests/semantic/llm-list.test.ts",
+    "tests/semantic/llm-inspect-stderr.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/semantic/llm-list.test.ts tests/semantic/llm-inspect-stderr.test.ts"
+  ]
+}

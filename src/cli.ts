@@ -9,6 +9,7 @@ import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
 import { runDiffDiagnosis } from './commands/diff.js';
 import { registerCheckCommand } from './commands/check.js';
 import { registerLlmInspectCommand } from './commands/llm-inspect.js';
+import { registerLlmListCommand } from './commands/llm-list.js';
 import { registerScanCommand } from './commands/scan.js';
 import { registerSetupCommand } from './commands/setup.js';
 import { loadPolicy, evaluatePolicy } from './operations/policy.js';
@@ -253,6 +254,7 @@ program
 registerCheckCommand(program);
 registerSetupCommand(program);
 registerLlmInspectCommand(program);
+registerLlmListCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

@@ -5,7 +5,7 @@ import { loadConfig } from '../intake/snapshot.js';
 import { defaultLlmConfig } from '../shared/config.js';
 import { ConfigError } from '../shared/errors.js';
 import type { ReportLocale } from '../i18n/locale.js';
-import { runLlmInspect } from '../commands/llm-inspect.js';
+import { runLlmInspect } from '../semantic/llm/inspect.js';
 
 import { configFileExists, countBaselineEntries } from './detect.js';
 import { quoteCliArgument, setupT } from './messages.js';

@@ -1,4 +1,3 @@
-import { runLlmInspect } from '../commands/llm-inspect.js';
 import {
   defaultOperatorProfilePath,
   loadOperatorProfile,
@@ -6,6 +5,9 @@ import {
   type OperatorProfile,
 } from '../operator/profile.js';
 import type { ReportLocale } from '../i18n/locale.js';
+import { resolveLlmRuntimeDirectory } from '../semantic/llm/runtime-directory.js';
+import { runLlmInspect } from '../semantic/llm/inspect.js';
+import type { LlmConfig } from '../shared/config.js';
 import { llmProviderSchema } from '../shared/config.js';
 
 import { setupT } from './messages.js';
@@ -15,6 +17,7 @@ export type LlmSetupOptions = {
   locale: ReportLocale;
   repositoryPath: string;
   provider: SetupLlmProviderId;
+  model?: string;
   saveProfile: boolean;
   profilePath?: string;
 };
@@ -22,43 +25,68 @@ export type LlmSetupOptions = {
 export type LlmSetupReport = {
   attempted: boolean;
   provider?: SetupLlmProviderId;
+  model?: string;
   inspectAvailable: boolean;
   inspectDetail: string;
   profilePath?: string;
   profileWritten: boolean;
 };
 
+export type SaveSetupLlmProfileOptions = {
+  model?: string;
+  profilePath?: string;
+};
+
 function parseSetupProvider(provider: string): SetupLlmProviderId {
   return llmProviderSchema.parse(provider) as SetupLlmProviderId;
 }
 
-function buildProfile(existing: OperatorProfile | null, provider: SetupLlmProviderId): OperatorProfile {
+function buildProfile(
+  existing: OperatorProfile | null,
+  provider: SetupLlmProviderId,
+  model?: string,
+): OperatorProfile {
+  const llm: Partial<LlmConfig> = {
+    ...existing?.llm,
+    provider,
+    sendScope: existing?.llm?.sendScope ?? 'changed',
+  };
+  const trimmedModel = model?.trim();
+  if (trimmedModel) {
+    llm.model = trimmedModel;
+  } else {
+    delete llm.model;
+  }
   return {
     schemaVersion: 1,
     locale: existing?.locale,
-    llm: {
-      ...existing?.llm,
-      provider,
-      sendScope: existing?.llm?.sendScope ?? 'changed',
-    },
+    llm,
   };
 }
 
 export async function saveSetupLlmProfile(
   provider: SetupLlmProviderId,
-  profilePath = defaultOperatorProfilePath(),
+  options: SaveSetupLlmProfileOptions | string = {},
 ): Promise<string> {
+  const normalized = typeof options === 'string'
+    ? { profilePath: options }
+    : options;
+  const profilePath = normalized.profilePath ?? defaultOperatorProfilePath();
   const existing = await loadOperatorProfile(profilePath);
-  return saveOperatorProfile(buildProfile(existing, provider), profilePath);
+  return saveOperatorProfile(buildProfile(existing, provider, normalized.model), profilePath);
 }
 
 export async function configureOperatorLlm(options: LlmSetupOptions): Promise<LlmSetupReport> {
   const provider = parseSetupProvider(options.provider);
-  const inspect = await runLlmInspect({ provider, path: options.repositoryPath });
+  const inspect = await runLlmInspect({
+    provider,
+    path: resolveLlmRuntimeDirectory(),
+  });
   const profilePath = options.profilePath ?? defaultOperatorProfilePath();
   const base: LlmSetupReport = {
     attempted: true,
     provider,
+    model: options.model?.trim() || undefined,
     inspectAvailable: inspect.exitCode === 0,
     inspectDetail: inspect.stderr.trim(),
     profilePath,
@@ -69,7 +97,7 @@ export async function configureOperatorLlm(options: LlmSetupOptions): Promise<Ll
     return base;
   }
 
-  await saveSetupLlmProfile(provider, profilePath);
+  await saveSetupLlmProfile(provider, { model: options.model, profilePath });
   return {
     ...base,
     profileWritten: true,

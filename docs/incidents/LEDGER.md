@@ -34,5 +34,6 @@
 | SEC-2026-009 | Repository-influenced PATH could select Git/provider executables | fixed | Child lookup inherited unsafe PATH and Git inherited secrets | Sanitize lookup path, reject repo executables, allowlist Git env | REG-2026-020 | protected | — |
 | report-quality-improvement#non-actionable-report | Human-readable report hides score meaning and actionable next steps | fixed | Contract v3 lacked strength, contribution points, calibration status, and view boundaries | ADR-0004 contract v4 and report views | REG-2026-021 | protected | none |
 | pr-18-review#baseline-save-consistency | setup/check/scan で baseline 保存可否と dirty 時の remediation が食い違う | fixed | setup 独自の non-Git 拒否、dirty 判定より先の generic state 判定、未展開の path placeholder | persistence 契約へ eligibility とエラー順を揃え、実 repository path を案内 | REG-2026-023 | protected | none |
+| PR #20 | 初回 scan を選ぶ前に LLM provider / model と operator profile を設定できない | fixed | scan prompt が LLM 設定ブロックより前に配置されていた | LLM 設定または defer 通知の完了後へ scan / baseline prompt を移動 | REG-2026-025 | protected | none |
 
 証拠なしに root cause を推測しない。調査で確定するまで `unknown` を使う。

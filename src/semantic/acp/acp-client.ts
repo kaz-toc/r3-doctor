@@ -45,6 +45,10 @@ export const DEFAULT_LLM_PROMPT_POLICY: LlmPromptPolicy = {
 
 export type OneShotAcpClient = {
   inspect(input: { spec: LlmLaunchSpec; signal?: AbortSignal }): Promise<LlmResult<LlmInspection>>;
+  discoverModels(input: {
+    spec: LlmLaunchSpec;
+    signal?: AbortSignal;
+  }): Promise<LlmResult<{ advertised: readonly string[] }>>;
   oneShotPrompt(input: {
     spec: LlmLaunchSpec;
     prompt: string;
@@ -94,6 +98,15 @@ function findModelOption(
   configOptions: readonly SessionConfigOption[] | null | undefined,
 ): SessionConfigOption | undefined {
   return configOptions?.find((option) => option.category === 'model' || option.id === 'model');
+}
+
+/** ACP session configOptions から model select の value 一覧を取り出す。 */
+export function modelOptionValuesFromConfigOptions(
+  configOptions: readonly SessionConfigOption[] | null | undefined,
+): string[] {
+  const modelOption = findModelOption(configOptions);
+  if (!modelOption || modelOption.type !== 'select') return [];
+  return selectOptionValues(modelOption);
 }
 
 function selectOptionValues(option: SessionConfigOption): string[] {
@@ -504,6 +517,24 @@ export function createOneShotAcpClient(input?: {
       return withConnection({ spec, spawn: input?.spawn, signal, setupTimeoutMs }, async (resource) =>
         ok(resource.inspection),
       );
+    },
+
+    async discoverModels({ spec, signal }) {
+      return withConnection({ spec, spawn: input?.spawn, signal, setupTimeoutMs }, async (resource) => {
+        let session: LlmAcpSession | undefined;
+        try {
+          session = await raceWithTimeout(
+            createSession(resource, spec, signal),
+            resource,
+            setupTimeoutMs,
+            'session_setup',
+          );
+          const configOptions = session.activeSession.newSessionResponse.configOptions ?? [];
+          return ok({ advertised: modelOptionValuesFromConfigOptions(configOptions) });
+        } finally {
+          session?.activeSession.dispose();
+        }
+      });
     },
 
     async oneShotPrompt({ spec, prompt, outputMaxBytes, modelIdentifier, signal }) {
