@@ -54,12 +54,12 @@ describe('assessBaselineSaveEligibility', () => {
 
 describe('baseline save errors', () => {
   it('explains dirty worktree rejection with remediation', () => {
-    expect(baselineDirtyWorktreeMessage()).toContain('uncommitted changes');
-    expect(baselineDirtyWorktreeMessage()).toContain('--save-baseline');
+    expect(baselineDirtyWorktreeMessage('/tmp/repository')).toContain('uncommitted changes');
+    expect(baselineDirtyWorktreeMessage('/tmp/repository')).toContain('--save-baseline');
   });
 
   it('uses BaselineSaveError instead of config error prefix', () => {
-    const error = new BaselineSaveError(baselineDirtyWorktreeMessage());
+    const error = new BaselineSaveError(baselineDirtyWorktreeMessage('/tmp/repository'));
     expect(error.message).not.toContain('config error at');
     expect(error.message).toContain('scan may have completed');
   });

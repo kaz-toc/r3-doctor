@@ -30,7 +30,7 @@ export async function assertSnapshotPersistenceIntegrity(
     throw new ConfigError(snapshot.repositoryPath, 'Git commit identity was not captured during intake');
   }
   if (options.requireClean && snapshot.gitDirty) {
-    throw new BaselineSaveError(baselineDirtyWorktreeMessage());
+    throw new BaselineSaveError(baselineDirtyWorktreeMessage(snapshot.repositoryPath));
   }
 
   const currentGit = await new DefaultGitProvider().inspectRepository(snapshot.repositoryPath);
@@ -44,7 +44,7 @@ export async function assertSnapshotPersistenceIntegrity(
     throw new ConfigError(snapshot.repositoryPath, 'Git HEAD changed after repository intake');
   }
   if (options.requireClean && currentGit.dirty) {
-    throw new BaselineSaveError(baselineWorktreeChangedMessage());
+    throw new BaselineSaveError(baselineWorktreeChangedMessage(snapshot.repositoryPath));
   }
   if (currentGit.statusFingerprint !== snapshot.gitStatusFingerprint) {
     throw new ConfigError(snapshot.repositoryPath, 'Git worktree state changed after repository intake');

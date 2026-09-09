@@ -51,6 +51,9 @@ function buildProfile(
     provider,
     sendScope: existing?.llm?.sendScope ?? 'changed',
   };
+  if (existing?.llm?.provider !== provider) {
+    delete llm.executablePath;
+  }
   const trimmedModel = model?.trim();
   if (trimmedModel) {
     llm.model = trimmedModel;

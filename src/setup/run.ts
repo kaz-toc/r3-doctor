@@ -6,7 +6,7 @@ import type { ReportLocale } from '../i18n/locale.js';
 
 import { assessBaselineSaveEligibility } from './baseline-eligibility.js';
 import { configFileExists, countBaselineEntries, detectRepository } from './detect.js';
-import { BASELINE_BLOCKED_MESSAGE_KEYS, setupT } from './messages.js';
+import { BASELINE_BLOCKED_MESSAGE_KEYS, quoteCliArgument, setupT } from './messages.js';
 import { buildNextSteps } from './next-steps.js';
 import { configureOperatorLlm, formatLlmSetupConsole, saveSetupLlmProfile, type LlmSetupReport } from './llm-setup.js';
 import { defaultOperatorProfilePath } from '../operator/profile.js';
@@ -28,6 +28,7 @@ export type RunSetupOptions = {
   configureLlm?: boolean;
   llmProvider?: SetupLlmProviderId;
   llmModel?: string;
+  profilePath?: string;
   saveOperatorProfile?: boolean;
   llmInspectAvailable?: boolean;
 };
@@ -74,10 +75,12 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
           locale: options.locale,
           repositoryPath,
           provider: options.llmProvider,
+          model: options.llmModel,
           saveProfile: Boolean(options.saveOperatorProfile),
+          profilePath: options.profilePath,
         });
       } else {
-        const profilePath = defaultOperatorProfilePath();
+        const profilePath = options.profilePath ?? defaultOperatorProfilePath();
         llmSetup = {
           attempted: true,
           provider: options.llmProvider,
@@ -122,7 +125,9 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
       willWriteConfig: configWritten,
     });
     if (!eligibility.eligible && eligibility.reason) {
-      warnings.push(setupT(options.locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], { path: repositoryPath }));
+      warnings.push(setupT(options.locale, BASELINE_BLOCKED_MESSAGE_KEYS[eligibility.reason], {
+        path: quoteCliArgument(repositoryPath),
+      }));
       saveBaseline = false;
     }
   }
@@ -135,6 +140,8 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
         format: 'json',
         saveBaseline,
         locale: options.locale,
+        llmProvider: llmSetup?.inspectAvailable ? llmSetup.provider : undefined,
+        llmModel: llmSetup?.inspectAvailable ? options.llmModel : undefined,
       });
       scanRan = true;
       baselineSaved = saveBaseline;

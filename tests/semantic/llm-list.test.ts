@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -40,6 +39,26 @@ describe('llm list catalog', () => {
     expect(parsed.providers.find((provider) => provider.id === 'claude')?.aliases).toEqual(['anthropic']);
     for (const provider of parsed.providers) {
       expect(provider.inspect.status).toBe('skipped');
+    }
+  });
+
+  it('REG-2026-027: lists providers when the display-only operator profile is malformed', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-list-profile-'));
+    const profilePath = path.join(tempDir, 'profile.json');
+    try {
+      await writeFile(profilePath, '{ malformed', 'utf8');
+
+      const report = await buildLlmCatalog({ profilePath });
+
+      expect(report.providers.map((provider) => provider.id)).toEqual([
+        'copilot',
+        'cursor',
+        'codex',
+        'claude',
+      ]);
+      expect(report.operatorDefault).toBeUndefined();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 

@@ -361,7 +361,7 @@ describe('commit-bound baseline comparison', () => {
     }
   });
 
-  it('refuses to bind a dirty analyzed snapshot to the clean HEAD commit', async () => {
+  it('REG-2026-023: refuses to bind a dirty analyzed snapshot to the clean HEAD commit', async () => {
     const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
     try {
       await repo.write('src/a.ts', `${'export const value = 1;\n'.repeat(900)}`);
@@ -372,7 +372,8 @@ describe('commit-bound baseline comparison', () => {
       expect(snapshot.gitDirty).toBe(true);
       expect(outcome).toBeInstanceOf(BaselineSaveError);
       expect(String(outcome)).toContain('uncommitted changes');
-      expect(String(outcome)).toContain('--save-baseline');
+      expect(String(outcome)).toContain(`r3-doctor scan '${repo.path}' --save-baseline`);
+      expect(String(outcome)).not.toContain('<path>');
     } finally {
       await repo.cleanup();
     }
@@ -389,7 +390,8 @@ describe('commit-bound baseline comparison', () => {
 
       expect(outcome).toBeInstanceOf(BaselineSaveError);
       expect(String(outcome)).toContain('repository changed during scan');
-      expect(String(outcome)).toContain('--save-baseline');
+      expect(String(outcome)).toContain(`r3-doctor scan '${repo.path}' --save-baseline`);
+      expect(String(outcome)).not.toContain('<path>');
     } finally {
       await repo.cleanup();
     }
