@@ -11,7 +11,7 @@ describe('setup LLM profile', () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-setup-'));
     const profilePath = path.join(tempDir, 'profile.json');
     try {
-      await saveSetupLlmProfile('codex', profilePath);
+      await saveSetupLlmProfile('codex', { profilePath });
       const profile = JSON.parse(await readFile(profilePath, 'utf8')) as Record<string, unknown>;
       expect(profile).toEqual({
         schemaVersion: 1,
@@ -29,7 +29,7 @@ describe('setup LLM profile', () => {
   it('writes profile only when inspect succeeds and saveProfile is true', async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-inspect-'));
     const profilePath = path.join(tempDir, 'profile.json');
-    const inspect = vi.spyOn(await import('../../src/commands/llm-inspect.js'), 'runLlmInspect');
+    const inspect = vi.spyOn(await import('../../src/semantic/llm/inspect.js'), 'runLlmInspect');
     inspect.mockResolvedValueOnce({
       exitCode: 0,
       stderr: 'provider=codex status=available\n',
@@ -55,10 +55,30 @@ describe('setup LLM profile', () => {
     }
   });
 
+  it('saves selected model and clears stale model on provider default', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-model-'));
+    const profilePath = path.join(tempDir, 'profile.json');
+    try {
+      await saveSetupLlmProfile('codex', { model: 'gpt-4.1', profilePath });
+      expect(JSON.parse(await readFile(profilePath, 'utf8'))).toMatchObject({
+        llm: { provider: 'codex', model: 'gpt-4.1', sendScope: 'changed' },
+      });
+
+      await saveSetupLlmProfile('claude', { profilePath });
+      const profile = JSON.parse(await readFile(profilePath, 'utf8')) as Record<string, unknown> & {
+        llm?: Record<string, unknown>;
+      };
+      expect(profile.llm?.provider).toBe('claude');
+      expect(profile.llm).not.toHaveProperty('model');
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not write profile when inspect fails', async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-fail-'));
     const profilePath = path.join(tempDir, 'profile.json');
-    const inspect = vi.spyOn(await import('../../src/commands/llm-inspect.js'), 'runLlmInspect');
+    const inspect = vi.spyOn(await import('../../src/semantic/llm/inspect.js'), 'runLlmInspect');
     inspect.mockResolvedValueOnce({
       exitCode: 1,
       stderr: 'provider=codex status=unavailable reason=executable_missing\n',

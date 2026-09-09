@@ -1,6 +1,9 @@
 import path from 'node:path';
 
-import { listLlmProviderDefinitions } from '../acp/provider-registry.js';
+import {
+  listLlmProviderDefinitions,
+  listSetupOrderedLlmProviderDefinitions,
+} from '../acp/provider-registry.js';
 import { normalizeProviderId } from '../provider-ids.js';
 import {
   defaultOperatorProfilePath,
@@ -22,6 +25,9 @@ export type BuildLlmCatalogOptions = {
   provider?: string;
   path?: string;
   profilePath?: string;
+  inspectTimeoutMs?: number;
+  onInspectProgress?: (info: { providerId: string; displayName: string; current: number; total: number }) => void;
+  setupOrder?: boolean;
 };
 
 function formatAgent(agentInfo?: { name: string; version?: string }): string | undefined {
@@ -32,7 +38,9 @@ function formatAgent(agentInfo?: { name: string; version?: string }): string | u
 }
 
 export async function buildLlmCatalog(options: BuildLlmCatalogOptions = {}): Promise<LlmCatalogReport> {
-  const definitions = listLlmProviderDefinitions();
+  const definitions = options.setupOrder
+    ? listSetupOrderedLlmProviderDefinitions()
+    : listLlmProviderDefinitions();
   let selected = [...definitions];
 
   if (options.provider) {
@@ -48,12 +56,19 @@ export async function buildLlmCatalog(options: BuildLlmCatalogOptions = {}): Pro
   const repositoryPath = path.resolve(options.path ?? process.cwd());
 
   const providers = [];
-  for (const definition of selected) {
+  for (const [index, definition] of selected.entries()) {
     let inspect: LlmCatalogInspect = { status: 'skipped' };
     if (options.inspect) {
+      options.onInspectProgress?.({
+        providerId: definition.id,
+        displayName: definition.displayName,
+        current: index + 1,
+        total: selected.length,
+      });
       const result = await inspectLlmProvider({
         provider: definition.id,
         path: repositoryPath,
+        setupTimeoutMs: options.inspectTimeoutMs,
       });
       inspect = result.row.status === 'available'
         ? {

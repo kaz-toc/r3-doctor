@@ -27,6 +27,7 @@ export type RunSetupOptions = {
   proposedConfig?: RepositoryConfig;
   configureLlm?: boolean;
   llmProvider?: SetupLlmProviderId;
+  llmModel?: string;
   saveOperatorProfile?: boolean;
   llmInspectAvailable?: boolean;
 };
@@ -86,8 +87,15 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
           profileWritten: false,
         };
         if (options.saveOperatorProfile && options.llmInspectAvailable) {
-          await saveSetupLlmProfile(options.llmProvider, profilePath);
-          llmSetup.profileWritten = true;
+          await saveSetupLlmProfile(options.llmProvider, {
+            model: options.llmModel,
+            profilePath,
+          });
+          llmSetup = {
+            ...llmSetup,
+            model: options.llmModel,
+            profileWritten: true,
+          };
         }
       }
       if (llmSetup && !llmSetup.inspectAvailable) {
@@ -150,6 +158,7 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
       ? {
           attempted: llmSetup.attempted,
           provider: llmSetup.provider,
+          model: llmSetup.model,
           inspectAvailable: llmSetup.inspectAvailable,
           profilePath: llmSetup.profilePath,
           profileWritten: llmSetup.profileWritten,

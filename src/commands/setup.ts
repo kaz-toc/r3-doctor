@@ -71,6 +71,7 @@ export function registerSetupCommand(program: Command): void {
       let configureLlm = false;
       let llmProvider: SetupLlmProviderId | undefined;
       let saveOperatorProfile = false;
+      let llmModel: string | undefined;
       let llmInspectAvailable: boolean | undefined;
 
       if (isInteractive(options)) {
@@ -89,6 +90,7 @@ export function registerSetupCommand(program: Command): void {
         saveBaseline = choices.saveBaseline;
         configureLlm = choices.configureLlm;
         llmProvider = choices.llmProvider;
+        llmModel = choices.llmModel;
         saveOperatorProfile = choices.saveOperatorProfile;
         llmInspectAvailable = choices.configureLlm ? choices.llmInspectAvailable : undefined;
       } else if (!options.yes) {
@@ -111,6 +113,7 @@ export function registerSetupCommand(program: Command): void {
         saveBaseline,
         configureLlm,
         llmProvider,
+        llmModel,
         saveOperatorProfile,
         llmInspectAvailable,
       });
