@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
+import { resolveProviderAlias } from '../semantic/llm/aliases.js';
+
 export function normalizeProviderAlias(value: unknown): unknown {
   if (typeof value !== 'string') return value;
-  if (value === 'openai') return 'codex';
-  if (value === 'anthropic') return 'claude';
-  return value;
+  return resolveProviderAlias(value);
 }
 
 export const llmProviderSchema = z.preprocess(

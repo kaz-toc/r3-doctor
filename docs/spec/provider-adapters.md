@@ -43,7 +43,18 @@ r3-doctor scan . \
 
 ### CLI utilities
 
-- `r3-doctor llm inspect [--provider codex]` — spawn + initialize のみ。失敗時は install hint を stderr に出力。
+- `r3-doctor llm list [--format console|json]` — enumerate supported providers (catalog only; no ACP spawn).
+- `r3-doctor llm list --inspect [--provider <id>] [--path <repo>]` — catalog plus sequential ACP availability probes (always exit 0).
+- `r3-doctor llm inspect [--provider codex]` — spawn + initialize for one provider. Machine-readable stderr contract (exit 0/1/2):
+
+```text
+provider=<id> status=available|unavailable
+agent=<name>@<version>            # available only
+authMethods=<id>,<id>|none        # available only
+reason=<LlmFailureReason>         # unavailable only
+installHint=<hint>                # unavailable only
+```
+
 - `r3-doctor scan . --dry-run-semantic [--llm-send-scope changed]` — ACP を呼ばずプロンプトを stdout に出力。
 
 ## Git Provider (`src/adapters/git-provider.ts`)
