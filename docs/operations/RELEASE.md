@@ -73,7 +73,7 @@ npx r3-doctor@X.Y.Z scan . --format json
 | 種別 | 名前 | 用途 |
 |------|------|------|
 | Repository variable | `R3_DOCTOR_LLM_INTEGRATION=1` | LLM integration workflow を有効化 |
-| Secret | `OPENAI_API_KEY` | codex-acp smoke test |
+| Secret | `OPENAI_API_KEY` | codex-acp probe (`llm list --inspect --provider codex`) と smoke test |
 | Secret | `NPM_TOKEN` | CI npm publish |
 
 ## リリース境界

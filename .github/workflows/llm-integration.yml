@@ -28,5 +28,25 @@ jobs:
       - run: npm run build
       - name: Install codex-acp CLI
         run: npm install -g @agentclientprotocol/codex-acp
+      - name: Probe codex via llm list --inspect
+        run: |
+          node dist/cli.js llm list --inspect --provider codex --format json \
+            | tee "$RUNNER_TEMP/llm-catalog.json"
+          node scripts/verify-llm-catalog.mjs --probe codex "$RUNNER_TEMP/llm-catalog.json"
+      - name: Publish LLM provider summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/llm-catalog.json" ]; then
+            echo "### LLM provider probe" >> "$GITHUB_STEP_SUMMARY"
+            node -e "
+              const report = JSON.parse(require('fs').readFileSync('$RUNNER_TEMP/llm-catalog.json', 'utf8'));
+              for (const provider of report.providers) {
+                const suffix = provider.inspect.status === 'available'
+                  ? 'status=available'
+                  : 'status=' + provider.inspect.status + (provider.inspect.reason ? ' reason=' + provider.inspect.reason : '');
+                console.log('- ' + provider.id + ' (' + provider.displayName + '): ' + suffix);
+              }
+            " >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Real CLI semantic smoke test
         run: npm run smoke:llm-integration

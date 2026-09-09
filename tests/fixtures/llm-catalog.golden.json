@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "id": "copilot",
+      "displayName": "GitHub Copilot",
+      "aliases": [],
+      "defaultExecutable": "copilot",
+      "installHint": "GitHub Copilot CLI (`copilot`) をインストールし、CLI でログインしてください。",
+      "inspect": {
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "cursor",
+      "displayName": "Cursor",
+      "aliases": [],
+      "defaultExecutable": "agent",
+      "installHint": "Cursor CLI (`agent`) をインストールし、`agent login` または CURSOR_API_KEY を設定してください。",
+      "inspect": {
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "codex",
+      "displayName": "OpenAI Codex",
+      "aliases": [
+        "openai"
+      ],
+      "defaultExecutable": "codex-acp",
+      "installHint": "@agentclientprotocol/codex-acp をグローバルインストールし、advertised 認証 flow でログインしてください。",
+      "inspect": {
+        "status": "skipped"
+      }
+    },
+    {
+      "id": "claude",
+      "displayName": "Claude",
+      "aliases": [
+        "anthropic"
+      ],
+      "defaultExecutable": "claude-agent-acp",
+      "installHint": "@agentclientprotocol/claude-agent-acp をグローバルインストールし、advertised 認証 flow でログインしてください。",
+      "inspect": {
+        "status": "skipped"
+      }
+    }
+  ]
+}

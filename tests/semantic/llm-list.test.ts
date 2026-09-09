@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +12,17 @@ import * as inspectModule from '../../src/semantic/llm/inspect.js';
 describe('llm list catalog', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('matches the catalog golden fixture without operator profile fields', async () => {
+    const inspectSpy = vi.spyOn(inspectModule, 'inspectLlmProvider');
+    const report = await buildLlmCatalog();
+    expect(inspectSpy).not.toHaveBeenCalled();
+    const golden = JSON.parse(
+      await readFile(path.join(process.cwd(), 'tests/fixtures/llm-catalog.golden.json'), 'utf8'),
+    );
+    const { operatorDefault: _ignored, ...catalog } = report;
+    expect(catalog).toEqual(golden);
   });
 
   it('REG-2026-024: lists four providers with aliases without spawning', async () => {

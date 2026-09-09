@@ -5,6 +5,7 @@ import { Command } from 'commander';
 import { R3DoctorError } from '../shared/errors.js';
 import { buildLlmCatalog } from '../semantic/llm/catalog.js';
 import { formatLlmCatalogConsole, formatLlmCatalogJson } from '../semantic/llm/format.js';
+import { getOrCreateLlmCommand } from './llm-command.js';
 
 const VALID_FORMATS = new Set(['console', 'json']);
 
@@ -15,16 +16,8 @@ function parseFormat(value: string): 'console' | 'json' {
   return value as 'console' | 'json';
 }
 
-function getLlmCommand(program: Command): Command {
-  const existing = program.commands.find((command) => command.name() === 'llm');
-  if (existing) {
-    return existing;
-  }
-  return program.command('llm').description('LLM provider utilities');
-}
-
 export function registerLlmListCommand(program: Command): void {
-  getLlmCommand(program)
+  getOrCreateLlmCommand(program)
     .command('list')
     .description('list supported LLM providers')
     .option('--format <format>', 'console|json', 'console')

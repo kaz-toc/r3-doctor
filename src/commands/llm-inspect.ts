@@ -2,8 +2,8 @@ import path from 'node:path';
 
 import { Command } from 'commander';
 
-import { R3DoctorError } from '../shared/errors.js';
 import { inspectLlmProvider, runLlmInspect } from '../semantic/llm/inspect.js';
+import { getOrCreateLlmCommand } from './llm-command.js';
 
 export type LlmInspectOptions = {
   provider?: string;
@@ -19,9 +19,7 @@ export type LlmInspectResult = {
 export { runLlmInspect };
 
 export function registerLlmInspectCommand(program: Command): void {
-  const llm = program.command('llm').description('LLM provider utilities');
-
-  llm
+  getOrCreateLlmCommand(program)
     .command('inspect')
     .description('inspect configured LLM provider availability')
     .option('--provider <id>', 'provider id (copilot|cursor|codex|claude|openai|anthropic)')
