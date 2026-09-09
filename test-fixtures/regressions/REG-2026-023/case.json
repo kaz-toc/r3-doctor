@@ -7,7 +7,9 @@
   "incident": "pr-18-review#baseline-save-consistency",
   "productionFiles": [
     "src/i18n/catalog.ts",
+    "src/persistence/baseline-messages.ts",
     "src/persistence/snapshot-integrity.ts",
+    "src/shared/cli-argument.ts",
     "src/setup/baseline-eligibility.ts",
     "src/setup/messages.ts",
     "src/setup/readiness.ts"

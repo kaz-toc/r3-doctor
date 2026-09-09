@@ -52,7 +52,12 @@ export async function buildLlmCatalog(options: BuildLlmCatalogOptions = {}): Pro
   }
 
   const profilePath = options.profilePath ?? defaultOperatorProfilePath();
-  const profile = await loadOperatorProfile(profilePath);
+  let profile = null;
+  try {
+    profile = await loadOperatorProfile(profilePath);
+  } catch {
+    // Operator defaults are display-only metadata; catalog availability must remain informational.
+  }
   const repositoryPath = path.resolve(options.path ?? process.cwd());
 
   const providers = [];

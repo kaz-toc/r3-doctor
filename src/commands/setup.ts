@@ -28,6 +28,7 @@ export function registerSetupCommand(program: Command): void {
     .option('--save-baseline', 'with --scan, save baseline after scan', false)
     .option('--skip-llm', 'skip LLM provider setup', false)
     .option('--skip-baseline', 'omit baseline next-step guidance', false)
+    .option('--profile <path>', 'operator profile JSON (defaults to ~/.config/r3-doctor/profile.json)')
     .action(async (
       repoPath: string,
       options: {
@@ -40,6 +41,7 @@ export function registerSetupCommand(program: Command): void {
         saveBaseline?: boolean;
         skipLlm?: boolean;
         skipBaseline?: boolean;
+        profile?: string;
       },
     ) => {
       if (options.saveBaseline && !options.scan) {
@@ -73,6 +75,7 @@ export function registerSetupCommand(program: Command): void {
       let saveOperatorProfile = false;
       let llmModel: string | undefined;
       let llmInspectAvailable: boolean | undefined;
+      const profilePath = options.profile ? path.resolve(options.profile) : undefined;
 
       if (isInteractive(options)) {
         const choices = await runInteractiveSetupChoices(repositoryPath, {
@@ -80,6 +83,7 @@ export function registerSetupCommand(program: Command): void {
           force: options.force,
           skipLlm: options.skipLlm,
           skipBaseline: options.skipBaseline,
+          profilePath,
         });
         locale = choices.locale;
         dryRun = choices.dryRun;
@@ -114,6 +118,7 @@ export function registerSetupCommand(program: Command): void {
         configureLlm,
         llmProvider,
         llmModel,
+        profilePath,
         saveOperatorProfile,
         llmInspectAvailable,
       });

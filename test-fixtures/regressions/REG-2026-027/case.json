@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-027",
+  "status": "active",
+  "title": "LLM catalog ignores malformed display-only profiles",
+  "invariant": "The informational llm list catalog remains available with exit code zero when operator-default metadata cannot be loaded.",
+  "incident": "recent-pr-review-2026-09-09#catalog-profile-isolation",
+  "productionFiles": [
+    "scripts/verify-llm-catalog.mjs",
+    "src/semantic/llm/catalog.ts"
+  ],
+  "testFiles": [
+    "tests/semantic/llm-list.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/semantic/llm-list.test.ts -t REG-2026-027",
+    "npm run verify:llm-catalog"
+  ]
+}

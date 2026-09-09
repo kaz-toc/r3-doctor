@@ -1,5 +1,6 @@
 import { t, type MessageKey } from '../i18n/messages.js';
 import type { ReportLocale } from '../i18n/locale.js';
+import { quoteCliArgument } from '../shared/cli-argument.js';
 
 import type { BaselineSaveBlockReason } from './baseline-eligibility.js';
 
@@ -16,9 +17,7 @@ export const BASELINE_BLOCKED_MESSAGE_KEYS: Record<
   dirtyWorktree: 'setup.warn.baselineBlocked.dirtyWorktree',
 };
 
-export function quoteCliArgument(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
+export { quoteCliArgument };
 
 export function setupT(locale: ReportLocale, key: SetupMessageKey, params?: Record<string, string | number>): string {
   return t(locale, key, params);

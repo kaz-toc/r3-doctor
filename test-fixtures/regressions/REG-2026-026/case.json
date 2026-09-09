@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-026",
+  "status": "active",
+  "title": "Setup keeps operator LLM choices coherent",
+  "invariant": "Setup uses the selected provider and model for its first scan, writes only the requested profile, and never carries a provider-specific executable across providers.",
+  "incident": "recent-pr-review-2026-09-09#setup-llm-coherence",
+  "productionFiles": [
+    "src/commands/setup.ts",
+    "src/i18n/catalog.ts",
+    "src/setup/interactive.ts",
+    "src/setup/llm-setup.ts",
+    "src/setup/run.ts"
+  ],
+  "testFiles": [
+    "tests/setup/interactive-llm.test.ts",
+    "tests/setup/llm-setup.test.ts",
+    "tests/setup/setup-noninteractive-compat.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/setup/interactive-llm.test.ts tests/setup/llm-setup.test.ts tests/setup/setup-noninteractive-compat.test.ts -t REG-2026-026"
+  ]
+}

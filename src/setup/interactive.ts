@@ -1,5 +1,6 @@
 import type { ReportLocale } from '../i18n/locale.js';
 import type { RepositoryConfig } from '../shared/config.js';
+import { defaultOperatorProfilePath } from '../operator/profile.js';
 import {
   discoverLlmModels,
   knownLlmModelChoices,
@@ -65,7 +66,13 @@ async function probeProvidersWithProgress(locale: ReportLocale): Promise<Awaited
 
 export async function runInteractiveSetupChoices(
   repositoryPath: string,
-  options: { dryRun?: boolean; force?: boolean; skipLlm?: boolean; skipBaseline?: boolean },
+  options: {
+    dryRun?: boolean;
+    force?: boolean;
+    skipLlm?: boolean;
+    skipBaseline?: boolean;
+    profilePath?: string;
+  },
 ): Promise<InteractiveSetupChoices> {
   const prompts = await createSetupPrompts();
   try {
@@ -127,7 +134,11 @@ export async function runInteractiveSetupChoices(
           );
           llmModel = selectedModel.trim() || undefined;
 
-          saveOperatorProfile = await prompts.confirm(setupT(locale, 'setup.prompt.saveOperatorProfile'), true);
+          saveOperatorProfile = await prompts.confirm(setupT(
+            locale,
+            'setup.prompt.saveOperatorProfile',
+            { path: options.profilePath ?? defaultOperatorProfilePath() },
+          ), true);
         }
       }
     }

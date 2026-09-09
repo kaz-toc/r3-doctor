@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -70,6 +70,31 @@ describe('setup LLM profile', () => {
       };
       expect(profile.llm?.provider).toBe('claude');
       expect(profile.llm).not.toHaveProperty('model');
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('REG-2026-026: clears a provider-specific executable when switching providers', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-llm-provider-switch-'));
+    const profilePath = path.join(tempDir, 'profile.json');
+    try {
+      await writeFile(profilePath, `${JSON.stringify({
+        schemaVersion: 1,
+        llm: {
+          provider: 'codex',
+          executablePath: '/opt/custom/codex-acp',
+          sendScope: 'all',
+        },
+      })}\n`, 'utf8');
+
+      await saveSetupLlmProfile('claude', { profilePath });
+
+      const profile = JSON.parse(await readFile(profilePath, 'utf8')) as {
+        llm?: Record<string, unknown>;
+      };
+      expect(profile.llm).toMatchObject({ provider: 'claude', sendScope: 'all' });
+      expect(profile.llm).not.toHaveProperty('executablePath');
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

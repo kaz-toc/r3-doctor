@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -64,10 +65,17 @@ function verifyCatalog() {
     fail(`golden fixture not found: ${goldenPath}`);
   }
 
-  const result = spawnSync(process.execPath, [cli, 'llm', 'list', '--format', 'json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const configHome = mkdtempSync(path.join(os.tmpdir(), 'r3-doctor-catalog-verify-'));
+  let result;
+  try {
+    result = spawnSync(process.execPath, [cli, 'llm', 'list', '--format', 'json'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, XDG_CONFIG_HOME: configHome },
+    });
+  } finally {
+    rmSync(configHome, { recursive: true, force: true });
+  }
   if (result.status !== 0) {
     process.stderr.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
     fail(`llm list failed with exit code ${result.status ?? 'unknown'}`);

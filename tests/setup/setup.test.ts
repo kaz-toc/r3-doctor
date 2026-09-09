@@ -190,6 +190,30 @@ describe('setup command', () => {
     }
   });
 
+  it('REG-2026-023: quotes the resolved baseline command when setup defers baseline save', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
+    const repositoryPath = `${repo.path} with spaces & 'quoted'`;
+    await rename(repo.path, repositoryPath);
+    try {
+      const { stdout } = await runCli([
+        'setup',
+        repositoryPath,
+        '--yes',
+        '--scan',
+        '--save-baseline',
+        '--locale',
+        'en',
+      ]);
+      const expectedCommand = `r3-doctor scan '${repo.path} with spaces & `
+        + "'\\''quoted'\\''"
+        + `' --save-baseline`;
+
+      expect(stdout).toContain(expectedCommand);
+    } finally {
+      await rm(repositoryPath, { recursive: true, force: true });
+    }
+  });
+
   it('marks baselineSaved false when baseline is deferred during setup run', async () => {
     const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
     try {
