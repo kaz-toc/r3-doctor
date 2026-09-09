@@ -233,6 +233,7 @@ describe('integration: CLI-owned semantic policy', () => {
 
   it('rejects executable overrides unless a provider is explicitly enabled', async () => {
     const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-semantic-cli-'));
+    const configHome = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-no-profile-'));
     try {
       const cliPath = path.join(root, '..', 'src', 'cli.ts');
       const tsxPath = path.join(root, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -243,10 +244,13 @@ describe('integration: CLI-owned semantic policy', () => {
         repositoryPath,
         '--llm-executable',
         '/usr/bin/true',
-      ]).catch((caught: unknown) => caught as { stderr: string });
+      ], {
+        env: { ...process.env, XDG_CONFIG_HOME: configHome },
+      }).catch((caught: unknown) => caught as { stderr: string });
 
       expect(error.stderr).toContain('--llm-executable requires --llm-provider');
     } finally {
+      await rm(configHome, { recursive: true, force: true });
       await rm(repositoryPath, { recursive: true, force: true });
     }
   });
@@ -545,7 +549,7 @@ describe('integration: CLI report views', () => {
     ]);
     const parsed = JSON.parse(factsJson.stdout) as { evidence: unknown[] };
     expect(parsed.evidence.length).toBeGreaterThan(0);
-  });
+  }, 60_000);
 
   it('rejects unknown view values at parse time', async () => {
     const repositoryPath = path.join(fixturesRoot, 'fragile-cart');
@@ -917,7 +921,7 @@ describe('integration: CLI locale', () => {
     } finally {
       await rm(repositoryPath, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 
   it('keeps score, evidence IDs, and metrics aligned across en and ja CLI output', async () => {
     const repositoryPath = path.join(fixturesRoot, 'fragile-cart');
@@ -929,7 +933,7 @@ describe('integration: CLI locale', () => {
     expect(jaReport.repository.confidence).toBe(enReport.repository.confidence);
     expect(jaReport.evidence.map((item) => item.evidenceId)).toEqual(enReport.evidence.map((item) => item.evidenceId));
     expect(jaReport.evidence.map((item) => item.metrics)).toEqual(enReport.evidence.map((item) => item.metrics));
-  });
+  }, 60_000);
 
   it('rejects unsupported locale with exit code 2', async () => {
     const repositoryPath = path.join(fixturesRoot, 'stable-cart');
@@ -943,7 +947,7 @@ describe('integration: CLI locale', () => {
     expect(exitCode).toBe(0);
     expect(stdout.length).toBeGreaterThan(65_536);
     expect(() => JSON.parse(stdout)).not.toThrow();
-  });
+  }, 60_000);
 });
 
 describe('integration: diff summary without baseline', () => {

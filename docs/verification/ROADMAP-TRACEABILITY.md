@@ -33,7 +33,8 @@
 | runtime capability | `npm test -- tests/phases.test.ts -t "marks git churn unevaluated when a TypeScript snapshot has no Git history"`; `npm test -- tests/assessment.test.ts -t "does not let unsupported git churn evidence override capability negotiation"`; `npm test -- tests/integration.test.ts -t "marks change volatility unevaluated for a non-Git repository snapshot"` |
 | custom calibration conditions | `npm test -- tests/phases.test.ts -t "requires each policy-defined calibration condition for gate eligibility"`; `npm test -- tests/calibration.test.ts -t "rejects blank or duplicate persisted calibration conditions"` |
 | shallow-checkout independence | `npm test -- tests/review-fixes.test.ts -t "creates two commits without seed files"`; a local `file://` depth-1 clone followed by `npm ci` and `npm run validate` |
-| real codex-acp semantic smoke | `R3_DOCTOR_LLM_INTEGRATION=1 OPENAI_API_KEY=... npm run smoke:llm-integration`; CI: `.github/workflows/llm-integration.yml` (`workflow_dispatch`, requires repo var `R3_DOCTOR_LLM_INTEGRATION=1`) |
+| llm provider catalog CLI smoke | `npm run verify:llm-catalog`; runs after build inside `npm run validate` |
+| real codex-acp semantic smoke | `R3_DOCTOR_LLM_INTEGRATION=1 OPENAI_API_KEY=... npm run smoke:llm-integration`; CI: `.github/workflows/llm-integration.yml` (`workflow_dispatch`, requires repo var `R3_DOCTOR_LLM_INTEGRATION=1`, runs `llm list --inspect --provider codex` before smoke) |
 
 ## Persistence rollback procedure
 
