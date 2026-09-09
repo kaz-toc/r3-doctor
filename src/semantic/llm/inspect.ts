@@ -11,6 +11,7 @@ import type { LlmInspectExitCode, LlmProviderInspectRow } from './types.js';
 export type InspectLlmProviderOptions = {
   provider?: string;
   path: string;
+  setupTimeoutMs?: number;
 };
 
 export type InspectLlmProviderResult = {
@@ -44,7 +45,7 @@ export async function inspectLlmProvider(
     inheritedEnv: process.env,
   });
 
-  const client = createOneShotAcpClient();
+  const client = createOneShotAcpClient({ setupTimeoutMs: options.setupTimeoutMs });
   const result = await client.inspect({ spec });
 
   const row: LlmProviderInspectRow = result.ok

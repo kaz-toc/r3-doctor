@@ -50,6 +50,7 @@ const PROVIDER_ENV = {
 export type LlmProviderDefinition = {
   id: LlmProviderId;
   displayName: string;
+  setupOrder: number;
   defaultExecutablePath: string;
   preferredAuthMethodId?: string;
   preferredModeValues: readonly string[];
@@ -98,6 +99,7 @@ const PROVIDER_DEFINITIONS: Record<LlmProviderId, LlmProviderDefinition> = {
   copilot: {
     id: 'copilot',
     displayName: 'GitHub Copilot',
+    setupOrder: 4,
     defaultExecutablePath: 'copilot',
     preferredModeValues: [],
     installHint: 'GitHub Copilot CLI (`copilot`) をインストールし、CLI でログインしてください。',
@@ -115,6 +117,7 @@ const PROVIDER_DEFINITIONS: Record<LlmProviderId, LlmProviderDefinition> = {
   cursor: {
     id: 'cursor',
     displayName: 'Cursor',
+    setupOrder: 3,
     defaultExecutablePath: 'agent',
     preferredAuthMethodId: 'cursor_login',
     preferredModeValues: ['ask'],
@@ -126,6 +129,7 @@ const PROVIDER_DEFINITIONS: Record<LlmProviderId, LlmProviderDefinition> = {
   codex: {
     id: 'codex',
     displayName: 'OpenAI Codex',
+    setupOrder: 1,
     defaultExecutablePath: 'codex-acp',
     preferredModeValues: ['read-only'],
     installHint:
@@ -137,6 +141,7 @@ const PROVIDER_DEFINITIONS: Record<LlmProviderId, LlmProviderDefinition> = {
   claude: {
     id: 'claude',
     displayName: 'Claude',
+    setupOrder: 2,
     defaultExecutablePath: 'claude-agent-acp',
     preferredModeValues: ['plan'],
     installHint:
@@ -153,6 +158,17 @@ export function getLlmProviderDefinition(id: LlmProviderId): LlmProviderDefiniti
 
 export function listLlmProviderDefinitions(): readonly LlmProviderDefinition[] {
   return Object.values(PROVIDER_DEFINITIONS);
+}
+
+export function listSetupOrderedLlmProviderDefinitions(): readonly LlmProviderDefinition[] {
+  return [...listLlmProviderDefinitions()].sort((left, right) => left.setupOrder - right.setupOrder);
+}
+
+export function listSetupLlmProviderOptions(): ReadonlyArray<{ value: LlmProviderId; label: string }> {
+  return listSetupOrderedLlmProviderDefinitions().map((definition) => ({
+    value: definition.id,
+    label: definition.displayName,
+  }));
 }
 
 export function buildLlmLaunchSpec(providerId: LlmProviderId, input: LlmLaunchInput): LlmLaunchSpec {

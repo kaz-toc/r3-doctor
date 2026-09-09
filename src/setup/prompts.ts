@@ -7,6 +7,7 @@ import { DEFAULT_LOCALE, parseReportLocale } from '../i18n/locale.js';
 export type SetupPromptAdapter = {
   selectLocale(suggested: ReportLocale): Promise<ReportLocale>;
   selectProvider<T extends string>(message: string, options: ReadonlyArray<{ value: T; label: string }>): Promise<T>;
+  selectModel<T extends string>(message: string, options: ReadonlyArray<{ value: T; label: string }>): Promise<T>;
   confirm(message: string, initial?: boolean): Promise<boolean>;
   close(): Promise<void>;
 };
@@ -77,6 +78,13 @@ export function createReadlinePrompts(): SetupPromptAdapter {
       }
     },
 
+    async selectModel<T extends string>(
+      message: string,
+      options: ReadonlyArray<{ value: T; label: string }>,
+    ): Promise<T> {
+      return this.selectProvider(message, options);
+    },
+
     async close(): Promise<void> {
       rl.close();
     },
@@ -126,6 +134,22 @@ export async function createSetupPrompts(): Promise<SetupPromptAdapter> {
         const value = await clack.select({
           message,
           options: options.map((option) => ({ value: option.value, label: `${option.label} (${option.value})` })),
+        } as Parameters<typeof clack.select>[0]);
+        if (clack.isCancel(value)) {
+          throw new Error('setup cancelled');
+        }
+        return value as T;
+      },
+      async selectModel<T extends string>(
+        message: string,
+        options: ReadonlyArray<{ value: T; label: string }>,
+      ): Promise<T> {
+        const value = await clack.select({
+          message,
+          options: options.map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
         } as Parameters<typeof clack.select>[0]);
         if (clack.isCancel(value)) {
           throw new Error('setup cancelled');
