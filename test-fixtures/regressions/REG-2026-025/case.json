@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-025",
+  "status": "active",
+  "title": "First scan prompt follows LLM configuration",
+  "invariant": "Interactive setup asks whether to run the first scan only after the operator has completed or declined LLM configuration.",
+  "incident": "https://github.com/kaz-toc/r3-doctor/pull/20",
+  "productionFiles": [
+    "src/setup/interactive.ts"
+  ],
+  "testFiles": [
+    "tests/setup/interactive-order.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/setup/interactive-order.test.ts"
+  ]
+}
