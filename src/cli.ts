@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import path from 'node:path';
 
-import { createRepositorySnapshot } from './intake/snapshot.js';
+import { createRepositorySnapshot, loadConfig } from './intake/snapshot.js';
 import { runDiagnosis } from './pipeline/diagnose.js';
 import { saveBaseline } from './persistence/baseline-store.js';
 import { appendTrend, loadTrendHistory } from './persistence/trend-store.js';
@@ -15,7 +15,7 @@ import { registerSetupCommand } from './commands/setup.js';
 import { loadPolicy, evaluatePolicy } from './operations/policy.js';
 import { loadCalibration, summarizeCalibration } from './calibration/dataset.js';
 import { summarizeCalibrationQuality } from './calibration/quality.js';
-import { runGoldenAssessmentRegression } from './calibration/golden-regression.js';
+import { runGoldenAssessmentRegression, runShadowGoldenAssessmentRegression } from './calibration/golden-regression.js';
 import { DefaultReporterAdapter } from './adapters/reporter.js';
 import { analyzeTrend, rankInvestmentPriorities } from './operations/trend.js';
 import {
@@ -33,6 +33,11 @@ import type { RetentionAudit } from './persistence/retention.js';
 import { resolveSafeStorageDir } from './persistence/storage-boundary.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from './semantic/execution-policy.js';
 import { loadOperatorProfile } from './operator/profile.js';
+import { saveValidationOutcome, loadValidationOutcomes } from './validation/outcome.js';
+import { compareValidationModels } from './validation/evaluate.js';
+import { formatValidationComparison, formatValidationStatus, parseValidationFormat } from './validation/format.js';
+import { buildValidationStatus } from './validation/status.js';
+import { loadValidationSnapshots } from './validation/storage.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const VALID_VIEWS = new Set(['facts', 'summary', 'actions', 'all']);
@@ -211,9 +216,31 @@ program
 
 program
   .command('calibration')
-  .argument('<path>', 'repository path')
+  .argument('<path-or-command>', 'repository path or compare')
+  .argument('[path]', 'repository path for compare')
   .option('--golden', 'run golden assessment regression check')
-  .action(async (repoPath: string, options: { golden?: boolean }) => {
+  .option('--format <format>', 'console|json', 'console')
+  .option('--repository-validation-passed', 'attest that npm run validate passed', false)
+  .action(async (pathOrCommand: string, repositoryPath: string | undefined, options: {
+    golden?: boolean;
+    format: string;
+    repositoryValidationPassed: boolean;
+  }) => {
+    if (pathOrCommand === 'compare') {
+      if (!repositoryPath || options.golden) {
+        throw new R3DoctorError('calibration compare requires a repository path and does not accept --golden');
+      }
+      const resolved = path.resolve(repositoryPath);
+      const comparison = compareValidationModels({
+        snapshots: await loadValidationSnapshots(resolved),
+        outcomes: await loadValidationOutcomes(resolved),
+        goldenOrdering: await runShadowGoldenAssessmentRegression(),
+        repositoryValidationPassed: options.repositoryValidationPassed,
+      });
+      process.stdout.write(formatValidationComparison(comparison, parseValidationFormat(options.format)));
+      return;
+    }
+    if (repositoryPath) throw new R3DoctorError('calibration accepts one repository path');
     if (options.golden) {
       const report = await runGoldenAssessmentRegression();
       process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -222,7 +249,7 @@ program
       }
       return;
     }
-    const snapshot = await createRepositorySnapshot(path.resolve(repoPath));
+    const snapshot = await createRepositorySnapshot(path.resolve(pathOrCommand));
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
     const golden = await runGoldenAssessmentRegression();
     const calibration = await loadCalibration(
@@ -234,6 +261,47 @@ program
     process.stdout.write(
       `${summarizeCalibration(calibration)}\nQuality status: ${quality.status}\n`,
     );
+  });
+
+const validation = program.command('validation').description('prospective shadow score validation');
+
+validation
+  .command('status')
+  .argument('<path>', 'repository path')
+  .option('--format <format>', 'console|json', 'console')
+  .action(async (repositoryPath: string, options: { format: string }) => {
+    const resolved = path.resolve(repositoryPath);
+    const config = await loadConfig(resolved);
+    const policy = await loadPolicy(resolved, config.policyFile);
+    const status = buildValidationStatus(
+      await loadValidationSnapshots(resolved),
+      await loadValidationOutcomes(resolved),
+      new Date(),
+      policy.retentionDays,
+    );
+    process.stdout.write(formatValidationStatus(status, parseValidationFormat(options.format)));
+  });
+
+validation
+  .command('outcome')
+  .argument('<path>', 'repository path')
+  .requiredOption('--sample <id>', 'validation sample ID')
+  .requiredOption('--outcome <kind>', 'regression|revert|hotfix|no-regression')
+  .option('--occurred-at <ISO-8601>', 'when a positive outcome occurred')
+  .option('--incident <opaque-id>', 'opaque incident identifier')
+  .action(async (repositoryPath: string, options: {
+    sample: string;
+    outcome: 'regression' | 'revert' | 'hotfix' | 'no-regression';
+    occurredAt?: string;
+    incident?: string;
+  }) => {
+    const result = await saveValidationOutcome(path.resolve(repositoryPath), {
+      sampleId: options.sample,
+      outcome: options.outcome,
+      occurredAt: options.occurredAt,
+      incidentId: options.incident,
+    });
+    process.stderr.write(`validation outcome=${result.outcome.outcome} sample=${result.outcome.sampleId} status=${result.status}\n`);
   });
 
 program
