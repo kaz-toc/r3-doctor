@@ -25,6 +25,11 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function withoutObservedAt(outcome: ValidationOutcomeV1): Record<string, unknown> {
+  const { observedAt: _observedAt, ...rest } = outcome;
+  return rest;
+}
+
 async function resolveOutcomes(repositoryPath: string, create: boolean): Promise<SafeStorageDirectory> {
   return resolveSafeStorageDir(repositoryPath, `${VALIDATION_DIRECTORY}/outcomes`, 'validation outcomes', create);
 }
@@ -91,7 +96,10 @@ export async function saveValidationOutcome(
   });
   if (existing) {
     const stored = await readOutcome(targetPath, path.basename(targetPath));
-    if (canonicalJson(stored) !== canonicalJson(outcome)) {
+    const same = input.observedAt === undefined
+      ? canonicalJson(withoutObservedAt(stored)) === canonicalJson(withoutObservedAt(outcome))
+      : canonicalJson(stored) === canonicalJson(outcome);
+    if (!same) {
       throw new ConfigError(`outcomes/${path.basename(targetPath)}`, 'validation outcome already exists with different content');
     }
     return { status: 'unchanged', outcome: stored };

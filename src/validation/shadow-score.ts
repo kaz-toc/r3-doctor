@@ -8,6 +8,7 @@ import { scoreAxis } from '../assessment/score.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { DiagnosisReport, Evidence, RiskAxisId, RiskCluster } from '../schema/report.v1.js';
 import { riskAxisIdSchema, severityForStrength } from '../schema/report.v1.js';
+import { isScoreEligibleSemanticFinding } from '../semantic/semantic-response.js';
 
 export const SHADOW_REGISTRY_VERSION = 1;
 export const SHADOW_CANDIDATE_IDS = [
@@ -78,6 +79,9 @@ function axesAndClusters(
   const productPathCount = countProductPaths(snapshot);
   const snapshotPaths = new Set(snapshot.files.map((file) => file.relativePath.replaceAll('\\', '/')));
   const evidenceById = new Map(evidence.map((item) => [item.evidenceId, item]));
+  const scoreEligibleSemanticFindings = report.semanticFindings.filter((finding) =>
+    isScoreEligibleSemanticFinding(finding, snapshotPaths, evidenceById),
+  );
   const axisScores = Object.fromEntries(riskAxisIdSchema.options.map((axisId) => {
     const reportAxis = report.axes.find((axis) => axis.axisId === axisId);
     if (!reportAxis || reportAxis.unevaluated) {
@@ -96,7 +100,7 @@ function axesAndClusters(
   })) as Record<RiskAxisId, number | null>;
   return {
     axisScores,
-    clusters: buildMechanismClusters(evidence, report.semanticFindings, 'en'),
+    clusters: buildMechanismClusters(evidence, scoreEligibleSemanticFindings, 'en'),
   };
 }
 
