@@ -18,6 +18,8 @@ import { selectLlmCandidateFiles } from '../semantic/provider.js';
 import { buildBudgetedSemanticPrompt } from '../semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from '../semantic/execution-policy.js';
 import type { OperatorProfile } from '../operator/profile.js';
+import { computeShadowScores } from '../validation/shadow-score.js';
+import { saveValidationSnapshot } from '../validation/storage.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const VALID_VIEWS = new Set(['facts', 'summary', 'actions', 'all']);
@@ -29,6 +31,8 @@ export type ScanActionOptions = {
   view?: string;
   saveBaseline?: boolean;
   recordTrend?: boolean;
+  recordValidation?: boolean;
+  validationHorizonDays?: string;
   dryRunSemantic?: boolean;
   unit?: string;
   locale?: string;
@@ -47,6 +51,17 @@ function parseView(value: string): 'facts' | 'summary' | 'actions' | 'all' {
     throw new R3DoctorError('expected one of: facts, summary, actions, all');
   }
   return value as 'facts' | 'summary' | 'actions' | 'all';
+}
+
+function parseValidationHorizon(value: string | undefined, recording: boolean): number {
+  if (value !== undefined && !recording) {
+    throw new R3DoctorError('--validation-horizon-days requires --record-validation');
+  }
+  const parsed = Number(value ?? '30');
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new R3DoctorError('validation horizon days must be a positive integer');
+  }
+  return parsed;
 }
 
 function applyLocaleOverride(snapshot: RepositorySnapshot, locale?: string): RepositorySnapshot {
@@ -93,10 +108,21 @@ export async function runScanAction(options: ScanActionOptions): Promise<void> {
 
   const format = parseFormat(options.format ?? 'console');
   const view = parseView(options.view ?? 'all');
+  const validationHorizonDays = parseValidationHorizon(options.validationHorizonDays, Boolean(options.recordValidation));
   const report = await runDiagnosis(snapshot);
   const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
   const output = reporter.format(redactReport(report, policy.redactPaths), format, { view });
 
+  if (options.recordValidation) {
+    const recorded = await saveValidationSnapshot({
+      snapshot,
+      report,
+      shadow: computeShadowScores(snapshot, report),
+      policyThresholds: { advisory: policy.advisoryThreshold, gate: policy.gateThreshold },
+      horizonDays: validationHorizonDays,
+    });
+    process.stderr.write(`validation sample=${recorded.sample.sampleId} status=${recorded.status}\n`);
+  }
   if (options.saveBaseline) {
     const baseline = await saveBaseline(snapshot, report);
     process.stderr.write(`baseline saved: ${baseline.path}\n`);
@@ -129,6 +155,8 @@ export function registerScanCommand(program: Command): void {
     .option('--view <view>', 'facts|summary|actions|all (console/markdown projection; json always returns full report)', 'all')
     .option('--save-baseline', 'save report as baseline', false)
     .option('--record-trend', 'append score to trend history', false)
+    .option('--record-validation', 'record privacy-safe prospective validation sample', false)
+    .option('--validation-horizon-days <days>', 'outcome observation horizon (requires --record-validation)')
     .option('--dry-run-semantic', 'print semantic prompt without calling the LLM', false)
     .option('--unit <id>', 'monorepo unit id from r3-doctor.config.json')
     .option('--locale <en|ja>', 'report narrative locale (overrides config)'))
@@ -139,6 +167,8 @@ export function registerScanCommand(program: Command): void {
         view: string;
         saveBaseline: boolean;
         recordTrend: boolean;
+        recordValidation: boolean;
+        validationHorizonDays?: string;
         dryRunSemantic: boolean;
         unit?: string;
         locale?: string;
@@ -153,6 +183,8 @@ export function registerScanCommand(program: Command): void {
         view: options.view,
         saveBaseline: options.saveBaseline,
         recordTrend: options.recordTrend,
+        recordValidation: options.recordValidation,
+        validationHorizonDays: options.validationHorizonDays,
         dryRunSemantic: options.dryRunSemantic,
         unit: options.unit,
         locale: options.locale,

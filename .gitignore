@@ -6,3 +6,11 @@ build/
 *.log
 *.tgz
 .r3-doctor/baselines/
+
+# Local Belay install (operator-specific Cursor hooks)
+.cursor/belay/
+.cursor/belay.config.json
+.cursor/commands/belay-*.md
+.cursor/hooks.json
+.cursor/hooks/belay-*
+.cursor/skills/belay/
