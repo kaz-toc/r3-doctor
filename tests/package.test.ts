@@ -41,6 +41,7 @@ describe('package build artifacts', () => {
       await expect(lstat(stalePath)).rejects.toMatchObject({ code: 'ENOENT' });
       expect(packedPaths).toContain('dist/cli.js');
       expect(packedPaths).toContain('dist/intake/analysis-context.js');
+      expect(packedPaths).toContain('dist/validation/shadow-score.js');
       expect(packedPaths).not.toContain('dist/shared/storage-paths.js');
       expect(packedPaths).toContain('LICENSE');
       expect(packedPaths).toContain('README.md');
@@ -86,9 +87,11 @@ describe('package build artifacts', () => {
 
         const golden = await execFileAsync(process.execPath, [cliPath, 'calibration', extractedRoot, '--golden']);
         const policy = await execFileAsync(process.execPath, [cliPath, 'policy', extractedRoot, '--evaluate']);
+        const validationHelp = await execFileAsync(process.execPath, [cliPath, 'validation', '--help']);
 
         expect(JSON.parse(golden.stdout).passed).toBe(true);
         expect(JSON.parse(policy.stdout)).toHaveProperty('gateWouldFail');
+        expect(validationHelp.stdout).toContain('status');
       } finally {
         await rm(packageDir, { recursive: true, force: true });
         await rm(cachePath, { recursive: true, force: true });

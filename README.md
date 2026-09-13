@@ -94,6 +94,20 @@ r3-doctor scan . --dry-run-semantic --llm-send-scope changed
 
 `locale: ja` では disclaimer・mechanism・evidence.message・intervention が日本語になります。Regression Risk Score / Confidence / Calibration などのメトリクスラベルとセクション見出しは英語固定です。CLI の `--locale ja` は config を上書きします。
 
+## Shadow score validation
+
+通常の v4 score と CI gate を変更せず、将来の outcome を使って4つの shadow candidate を比較できます。これは障害発生確率ではなく、候補式の prospective validation です。
+
+```bash
+r3-doctor scan . --record-validation
+r3-doctor validation status .
+r3-doctor validation outcome . --sample <id> --outcome no-regression
+npm run validate
+r3-doctor calibration compare . --repository-validation-passed
+```
+
+`no-regression` は sample の dueAt 以降でのみ記録できます。明示フラグのない scan は validation artifact を作成しません。詳細は [Shadow Score Validation](docs/spec/shadow-score-validation.md) を参照してください。
+
 ## LLM integration smoke test（開発者向け、課金あり）
 
 codex-acp で `semantic-ambiguity` が evaluated になることを確認します。

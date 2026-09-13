@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { createRepositorySnapshot } from '../intake/snapshot.js';
 import { runDiagnosis } from '../pipeline/diagnose.js';
 import type { SignalId } from '../schema/report.v1.js';
+import { computeShadowScores, SHADOW_CANDIDATE_IDS } from '../validation/shadow-score.js';
+import type { ModelId } from '../validation/evaluate.js';
 
 export type GoldenSpec = {
   description: string;
@@ -97,4 +99,28 @@ export async function runGoldenAssessmentRegression(fixturesRoot?: string): Prom
     passed: results.every((result) => result.passed),
     results,
   };
+}
+
+export async function runShadowGoldenAssessmentRegression(): Promise<Record<ModelId, boolean>> {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'tests', 'fixtures');
+  const fixtureNames = ['fragile-cart', 'fragile-cart-improved', 'stable-cart'] as const;
+  const scores = new Map<ModelId, Map<string, number>>();
+  scores.set('v4', new Map());
+  for (const candidateId of SHADOW_CANDIDATE_IDS) scores.set(candidateId, new Map());
+
+  for (const fixture of fixtureNames) {
+    const snapshot = await createRepositorySnapshot(path.join(root, fixture));
+    const report = await runDiagnosis(snapshot, { skipCalibrationResolution: true });
+    scores.get('v4')?.set(fixture, report.repository.regressionRiskScore);
+    for (const candidate of computeShadowScores(snapshot, report)) {
+      scores.get(candidate.candidateId)?.set(fixture, candidate.score);
+    }
+  }
+
+  return Object.fromEntries([...scores.entries()].map(([modelId, values]) => {
+    const fragile = values.get('fragile-cart');
+    const improved = values.get('fragile-cart-improved');
+    const stable = values.get('stable-cart');
+    return [modelId, fragile !== undefined && improved !== undefined && stable !== undefined && fragile > improved && improved >= stable];
+  })) as Record<ModelId, boolean>;
 }

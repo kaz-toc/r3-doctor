@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createRepositorySnapshot } from '../src/intake/snapshot.js';
 import { runDiagnosis } from '../src/pipeline/diagnose.js';
+import { runShadowGoldenAssessmentRegression } from '../src/calibration/golden-regression.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const goldenPath = path.join(root, 'fixtures', 'golden', 'assessments.json');
@@ -56,5 +57,9 @@ describe('golden assessments', () => {
     expect(stable).toBeDefined();
     expect(fragile!).toBeGreaterThan(improved!);
     expect(improved!).toBeGreaterThanOrEqual(stable!);
+  });
+
+  it('keeps v4 and every shadow candidate in golden order', async () => {
+    expect(Object.values(await runShadowGoldenAssessmentRegression()).every(Boolean)).toBe(true);
   });
 });
