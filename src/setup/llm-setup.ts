@@ -82,6 +82,7 @@ export async function configureOperatorLlm(options: LlmSetupOptions): Promise<Ll
   const provider = parseSetupProvider(options.provider);
   const inspect = await runLlmInspect({
     provider,
+    path: options.repositoryPath,
   });
   const profilePath = options.profilePath ?? defaultOperatorProfilePath();
   const base: LlmSetupReport = {

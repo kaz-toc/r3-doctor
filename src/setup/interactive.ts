@@ -33,7 +33,10 @@ export type InteractiveSetupChoices = {
   llmInspectAvailable: boolean;
 };
 
-async function probeProvidersWithProgress(locale: ReportLocale): Promise<Awaited<ReturnType<typeof probeSetupLlmProviders>>> {
+async function probeProvidersWithProgress(
+  locale: ReportLocale,
+  repositoryPath: string,
+): Promise<Awaited<ReturnType<typeof probeSetupLlmProviders>>> {
   let spinner: { start: (message?: string) => void; message: (message: string) => void; stop: (message?: string) => void } | undefined;
   try {
     const clack = await import('@clack/prompts');
@@ -46,6 +49,7 @@ async function probeProvidersWithProgress(locale: ReportLocale): Promise<Awaited
   }
 
   const catalog = await probeSetupLlmProviders({
+    repositoryPath,
     onProgress: ({ displayName, current, total }) => {
       const message = setupT(locale, 'setup.prompt.probingProvider', {
         provider: displayName,
@@ -98,7 +102,7 @@ export async function runInteractiveSetupChoices(
     if (!options.skipLlm) {
       configureLlm = await prompts.confirm(setupT(locale, 'setup.prompt.configureLlm'), true);
       if (configureLlm) {
-        const catalog = await probeProvidersWithProgress(locale);
+        const catalog = await probeProvidersWithProgress(locale, repositoryPath);
         const availableProviders = toAvailableSetupProviderOptions(catalog);
         if (availableProviders.length === 0) {
           process.stdout.write(`\n${setupT(locale, 'setup.llm.noProvidersAvailable')}\n`);
@@ -114,7 +118,7 @@ export async function runInteractiveSetupChoices(
             process.stdout.write(`\n${setupT(locale, 'setup.llm.authHint', { provider: selectedCatalog.displayName })}\n`);
           }
 
-          const discovered = await discoverLlmModels({ provider: llmProvider });
+          const discovered = await discoverLlmModels({ provider: llmProvider, path: repositoryPath });
           const modelCatalog = discovered.ok
             ? discovered.value
             : knownLlmModelChoices(llmProvider);

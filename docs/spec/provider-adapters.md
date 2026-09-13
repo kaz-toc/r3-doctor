@@ -43,6 +43,8 @@ r3-doctor scan . \
 
 ### CLI utilities
 
+setup の provider inspect、対話式 catalog probe、model discovery は、起動元の cwd に関わらず実際の対象 repository path を executable／PATH 排除境界へ渡す。operator のホームにインストールされた CLI は探索対象として維持し、対象 repository 配下の executable／PATH は排除する。provider process と ACP session の cwd は引き続き毎回新しい空の一時ディレクトリとする。
+
 - `r3-doctor llm list [--format console|json]` — enumerate supported providers (catalog only; no ACP spawn).
 - `r3-doctor llm list --inspect [--provider <id>] [--path <repo>]` — catalog plus sequential ACP availability probes (always exit 0).
 - `r3-doctor llm inspect [--provider codex]` — spawn + initialize for one provider. Machine-readable stderr contract (exit 0/1/2):

@@ -84,4 +84,6 @@ repositoryScore = round(axisBase + 0.30 * max(0, maxClusterScore - axisBase))
 
 ## analysisContext fingerprint と locale
 
+`analysisContextFingerprint` は全言語共通の `intakeImplementationVersion`（現行 `1.0.0`）を含む。source の収集範囲、byte 上限、入力完全性を変え得る共通 intake の変更時は、この実装バージョンを更新する。1 ファイル 1 MiB・収集全体 64 MiB の上限導入前に保存した baseline は、Python／Go を含め `analysis context mismatch` として score／signal 比較を抑止する。Assessment Contract v4 の重み・strength 契約は変更せず、旧 baseline は移行せずに再取得する。
+
 `analysisContextFingerprint` には **locale を含めない**。locale 変更は score / evidence ID に影響せず、同一リポジトリで `en` / `ja` を切り替えても baseline score 比較は可能。文言差分は `metadata.reportLocale` と各 message フィールドで追跡する。

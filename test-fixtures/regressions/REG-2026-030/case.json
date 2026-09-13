@@ -3,13 +3,16 @@
   "id": "REG-2026-030",
   "status": "active",
   "title": "Semantic execution obeys operator scope and repository isolation",
-  "invariant": "Providers start outside repository configuration and receive the operator-selected source scope while partial profiles remain inactive.",
+  "invariant": "Providers start outside repository configuration, exclude the actual target from executable search, and receive the operator-selected source scope while partial profiles remain inactive.",
   "incident": "codebase-review-2026-09-13#REG-2026-030",
   "productionFiles": [
     "src/semantic/provider.ts",
     "src/semantic/llm/runtime-directory.ts",
     "src/semantic/acp/provider-registry.ts",
     "src/semantic/execution-policy.ts",
+    "src/setup/llm-setup.ts",
+    "src/setup/llm-probe.ts",
+    "src/setup/interactive.ts",
     "src/commands/diff.ts",
     "src/commands/scan.ts"
   ],
@@ -17,9 +20,10 @@
     "tests/semantic/runtime-isolation.test.ts",
     "tests/semantic/send-scope.test.ts",
     "tests/semantic/execution-policy.test.ts",
+    "tests/setup/llm-target-path.test.ts",
     "tests/git-provider.test.ts"
   ],
   "verificationCommands": [
-    "npm test -- tests/semantic/runtime-isolation.test.ts tests/semantic/send-scope.test.ts tests/semantic/execution-policy.test.ts tests/git-provider.test.ts -t REG-2026-030"
+    "npm test -- tests/semantic/runtime-isolation.test.ts tests/semantic/send-scope.test.ts tests/semantic/execution-policy.test.ts tests/setup/llm-target-path.test.ts tests/git-provider.test.ts -t REG-2026-030"
   ]
 }

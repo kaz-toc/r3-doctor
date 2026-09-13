@@ -10,7 +10,8 @@
   ],
   "testFiles": [
     "tests/codebase-review.test.ts",
-    "tests/integration.test.ts"
+    "tests/integration.test.ts",
+    "scripts/smoke-llm-integration.mjs"
   ],
   "verificationCommands": [
     "npm test -- tests/codebase-review.test.ts tests/integration.test.ts -t REG-2026-033"

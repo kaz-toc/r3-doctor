@@ -6,15 +6,17 @@ import type { LlmCatalogReport } from '../schema/llm-catalog.v1.js';
 import type { SetupLlmProviderId } from './llm-providers.js';
 
 export type ProbeSetupLlmProvidersOptions = {
+  repositoryPath: string;
   inspectTimeoutMs?: number;
   onProgress?: (info: { provider: string; displayName: string; current: number; total: number }) => void;
 };
 
 export async function probeSetupLlmProviders(
-  options: ProbeSetupLlmProvidersOptions = {},
+  options: ProbeSetupLlmProvidersOptions,
 ): Promise<LlmCatalogReport> {
   return buildLlmCatalog({
     inspect: true,
+    path: options.repositoryPath,
     setupOrder: true,
     inspectTimeoutMs: options.inspectTimeoutMs ?? SETUP_LLM_PROBE_TIMEOUT_MS,
     onInspectProgress: options.onProgress

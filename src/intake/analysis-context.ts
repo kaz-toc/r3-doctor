@@ -4,8 +4,12 @@ import { ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import type { DiagnosisReport } from '../schema/report.v1.js';
 import type { R3DoctorConfig } from '../shared/config.js';
 
+/** Bump when shared intake behavior can change analyzed input or its completeness. */
+export const INTAKE_IMPLEMENTATION_VERSION = '1.0.0';
+
 export type AnalysisContext = {
   version: 1;
+  intakeImplementationVersion: string;
   assessmentContractVersion: number;
   scope: {
     unitId: string | null;
@@ -31,6 +35,7 @@ export function analysisContext(config: R3DoctorConfig, unitId: string | undefin
   const unit = unitId ? config.units.find((candidate) => candidate.id === unitId) : undefined;
   return {
     version: 1,
+    intakeImplementationVersion: INTAKE_IMPLEMENTATION_VERSION,
     assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
     scope: {
       unitId: unitId ?? null,

@@ -52,7 +52,7 @@ const scan = spawnSync(process.execPath, [
   '--llm-provider',
   'codex',
   '--llm-model',
-  'gpt-5-mini',
+  process.env.R3_DOCTOR_LLM_MODEL ?? 'gpt-5-mini',
   '--llm-send-scope',
   'all',
   '--llm-max-files',
@@ -76,17 +76,25 @@ try {
 }
 
 const axis = report.axes?.find((entry) => entry.axisId === 'semantic-ambiguity');
-if (!axis || axis.unevaluated !== false) {
+if (report.metadata?.semanticProviderStatus !== 'available') {
   console.error(JSON.stringify({
     semanticProviderStatus: report.metadata?.semanticProviderStatus,
     semanticProviderReason: report.metadata?.semanticProviderReason,
-    axisUnevaluated: axis?.unevaluated,
   }, null, 2));
-  fail('semantic-ambiguity axis was not evaluated');
+  fail('semantic provider did not complete successfully');
 }
 
 if (!Array.isArray(report.semanticFindings) || report.semanticFindings.length < 1) {
   fail('expected at least one semantic finding from codex-acp');
+}
+
+// REG-2026-033: this low-risk fixture has no deterministic scoring evidence.
+// A successful provider response must not make unsupported findings dilute risk.
+if (!Array.isArray(report.evidence) || report.evidence.length !== 0) {
+  fail('expected the low-risk fixture to have no deterministic evidence');
+}
+if (!axis || axis.unevaluated !== true || axis.score !== 0 || axis.contributionPoints !== 0) {
+  fail('unsupported semantic findings must leave the axis unevaluated with no contribution');
 }
 
 console.log(JSON.stringify({
@@ -94,5 +102,6 @@ console.log(JSON.stringify({
   semanticProviderStatus: report.metadata.semanticProviderStatus,
   semanticFindingsCount: report.semanticFindings.length,
   axisScore: axis.score,
+  axisUnevaluated: axis.unevaluated,
   llmProvider: report.metadata.llmProvider,
 }, null, 2));

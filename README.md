@@ -110,13 +110,15 @@ r3-doctor calibration compare . --repository-validation-passed
 
 ## LLM integration smoke test（開発者向け、課金あり）
 
-codex-acp で `semantic-ambiguity` が evaluated になることを確認します。
+codex-acp が正常に所見を返し、決定的な根拠のない低リスク fixture では `semantic-ambiguity` が未評価のままになることを確認します。
 
 ```bash
 npm run build
 npm install -g @agentclientprotocol/codex-acp
 R3_DOCTOR_LLM_INTEGRATION=1 OPENAI_API_KEY=... npm run smoke:llm-integration
 ```
+
+既定モデルは `gpt-5-mini`。認証環境で別のモデルを使う場合は `R3_DOCTOR_LLM_MODEL` に provider が提示するモデル ID を指定します。
 
 CI では Actions → **LLM integration** を手動実行。repository variable `R3_DOCTOR_LLM_INTEGRATION=1` と secret `OPENAI_API_KEY` が必要。
 
