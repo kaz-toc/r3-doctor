@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-028",
+  "status": "active",
+  "title": "Trusted profile loading rejects FIFOs without waiting for a writer",
+  "invariant": "A FIFO profile, including a regular file replaced with a FIFO between lstat and open, is rejected without waiting for a writer.",
+  "incident": "pr-27-review#profile-fifo",
+  "productionFiles": [
+    "src/operator/trusted-profile.ts"
+  ],
+  "testFiles": [
+    "tests/security/trusted-profile.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/trusted-profile.test.ts -t REG-2026-028"
+  ]
+}

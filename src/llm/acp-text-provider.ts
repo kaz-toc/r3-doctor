@@ -135,6 +135,8 @@ export function createSecurityTextProvider(input: SecurityTextProviderInput): Ll
       }, budgetMs);
 
       try {
+        // Abort events during filesystem preparation predate the listener above.
+        if (request.signal.aborted) return failure('cancelled');
         if (untrustedRoots.some((root) => isWithinOrSame(root, cwd))) {
           return failure('untrusted-runtime-directory');
         }
