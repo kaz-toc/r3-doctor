@@ -64,6 +64,7 @@ function buildProfile(
     schemaVersion: 1,
     locale: existing?.locale,
     llm,
+    addons: existing?.addons,
   };
 }
 
