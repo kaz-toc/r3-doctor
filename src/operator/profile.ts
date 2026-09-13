@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { operatorAddonSettingsSchema } from '../addons/security/config.js';
 import { llmConfigSchema, reportLocaleSchema, type LlmConfig } from '../shared/config.js';
 import { R3DoctorError } from '../shared/errors.js';
 
@@ -12,6 +13,7 @@ export const operatorProfileSchema = z
     schemaVersion: z.literal(1),
     locale: reportLocaleSchema.optional(),
     llm: llmConfigSchema.partial().optional(),
+    addons: operatorAddonSettingsSchema.optional(),
   })
   .strict();
 

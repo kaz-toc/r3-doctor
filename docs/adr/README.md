@@ -14,3 +14,7 @@
 - [ADR-0001: Lightweight governance core](0001-lightweight-governance-core.md)
 - [ADR-0002: Semantic providers via ACP over stdio](0002-semantic-acp-providers.md)
 - [ADR-0003: Untrusted repositories cannot own execution policy](0003-untrusted-repository-execution-policy.md)
+
+提案中の決定:
+
+- [ADR-0006: Security checks as an operator-consented add-on](0006-security-addon.md)

@@ -12,6 +12,7 @@
 | Risk Assessment | リスクシグナルと意味所見を評価軸、リスククラスター、スコア、確信度へ変換する | Risk Assessment |
 | Recommendation | 発生メカニズムに対応した優先順位付きの打ち手と確認方法を作る | Intervention Set |
 | Reporting | 同じ診断結果を CLI、Markdown、JSON、CI 向けに表現する | Versioned Report Schema |
+| Security Add-on | operator が許可した対象で LLM によるセキュリティ候補を評価し、評価範囲と完了状態を示す | Security Assessment（[契約 v1](docs/spec/security-addon.md)） |
 
 ガバナンスハーネスはプロダクトコードから独立し、リポジトリ自身の変更規律を検証します。
 
@@ -22,6 +23,7 @@
 - Risk Assessment がスコア、評価軸、確信度、リスククラスターを唯一確定する。
 - Recommendation は Risk Assessment を変更せず、各打ち手を根拠となる発生メカニズムへ結び付ける。
 - Reporting は診断内容を変更せず、公開形式だけを所有する。
+- Security Add-on は Security Assessment を所有するが、Regression Risk Score、評価軸、確信度、calibration、core baseline へ加算しない（[ADR 0006](docs/adr/0006-security-addon.md)、Proposed）。
 
 ## 依存方向
 
@@ -35,6 +37,7 @@ Repository Intake ─┬─> Evidence Extraction ─┐
 - LLM プロバイダーとプログラミング言語固有解析は adapter の背後に置く。
 - Reporting はスコアを再計算せず、versioned report schema を解釈する。
 - 意味所見は対象ファイルまたはリスクシグナルを参照し、根拠のない自由記述を許可しない。
+- Security Add-on は Repository Snapshot と LLM text port に依存し、Risk Assessment に依存させない。repository の宣言だけでは provider 起動・外部送信を許可しない。
 
 ## DDD
 

@@ -6,6 +6,8 @@ import type {
   ClientCapabilities,
   InitializeResponse,
   PromptRequest,
+  SessionModeState,
+  Usage,
 } from '@agentclientprotocol/sdk';
 
 import type { LlmProcess, LlmSpawn } from '../../src/semantic/acp/process-port.js';
@@ -17,11 +19,14 @@ export type FakeAcpAgentScript = {
   protocolVersionMismatch?: boolean;
   promptChunks?: readonly string[];
   promptToolCall?: boolean;
+  promptUsage?: Usage;
+  sessionModes?: SessionModeState;
 };
 
 export type FakeAcpAgentHandle = {
   spawn: LlmSpawn;
   initializeRequests: Array<{ clientCapabilities: ClientCapabilities }>;
+  sessionNewRequests: Array<{ cwd: string; mcpServers: unknown[] }>;
   promptRequests: PromptRequest[];
   killCount: number;
   spawnCount: number;
@@ -33,6 +38,7 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
       throw new Error('fakeAcpAgent spawn not initialized');
     },
     initializeRequests: [],
+    sessionNewRequests: [],
     promptRequests: [],
     killCount: 0,
     spawnCount: 0,
@@ -65,11 +71,14 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
         }
         return script.initialize;
       })
-      .onRequest(acp.methods.agent.session.new, () => {
+      .onRequest(acp.methods.agent.session.new, ({ params }) => {
+        handle.sessionNewRequests.push({ cwd: params.cwd, mcpServers: [...params.mcpServers] });
         if (script.hangSessionSetup) {
           return new Promise<{ sessionId: string }>(() => undefined);
         }
-        return { sessionId: 'session-default' };
+        return script.sessionModes
+          ? { sessionId: 'session-default', modes: script.sessionModes }
+          : { sessionId: 'session-default' };
       })
       .onRequest(acp.methods.agent.session.prompt, async ({ params, client }) => {
         handle.promptRequests.push(params);
@@ -94,7 +103,9 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
             },
           });
         }
-        return { stopReason: 'end_turn' };
+        return script.promptUsage
+          ? { stopReason: 'end_turn' as const, usage: script.promptUsage }
+          : { stopReason: 'end_turn' as const };
       });
 
     const stream = acp.ndJsonStream(

@@ -11,6 +11,10 @@ import {
   repositoryConfigSchema,
 } from '../shared/config.js';
 import { ConfigError, IntakeError } from '../shared/errors.js';
+import {
+  repositoryAddonDeclarationsSchema,
+  type RepositoryAddonDeclarations,
+} from '../addons/security/config.js';
 import { ASSESSMENT_CONTRACT_VERSION } from '../schema/report.v1.js';
 import { getRegisteredExtensions } from '../plugins/language-extensions.js';
 import { DefaultGitProvider } from '../adapters/git-provider.js';
@@ -253,25 +257,51 @@ export function computeInputId(unitId: string | undefined, files: SourceFile[], 
   return hash.digest('hex').slice(0, 16);
 }
 
-export async function loadConfig(
-  repositoryPath: string,
-  llmConfig: LlmConfig = defaultLlmConfig,
-): Promise<R3DoctorConfig> {
+export type RepositorySettings = {
+  coreConfig: R3DoctorConfig;
+  addonDeclarations: RepositoryAddonDeclarations;
+};
+
+export type RepositoryIntake = {
+  snapshot: RepositorySnapshot;
+  addonDeclarations: RepositoryAddonDeclarations;
+};
+
+const repositoryFileSchema = repositoryConfigSchema
+  .extend({ addons: repositoryAddonDeclarationsSchema.optional() })
+  .strict();
+
+/** Splits add-on declarations from core config so they never reach inputId or analysis fingerprints. */
+export function parseRepositorySettings(raw: unknown, llm: LlmConfig): RepositorySettings {
+  const { addons, ...core } = repositoryFileSchema.parse(raw);
+  return {
+    coreConfig: configSchema.parse({ ...core, llm }),
+    addonDeclarations: addons ?? {},
+  };
+}
+
+async function loadRepositorySettings(repositoryPath: string, llmConfig: LlmConfig): Promise<RepositorySettings> {
   const configPath = path.join(repositoryPath, 'r3-doctor.config.json');
   try {
     await access(configPath);
   } catch {
-    return normalizeConfig({ ...defaultConfig, llm: llmConfig });
+    return { coreConfig: normalizeConfig({ ...defaultConfig, llm: llmConfig }), addonDeclarations: {} };
   }
 
   try {
     const raw = await readFileWithinByteLimit(configPath, REPOSITORY_CONFIG_MAX_BYTES, 'repository config');
-    const repositoryConfig = repositoryConfigSchema.parse(JSON.parse(raw));
-    return configSchema.parse({ ...repositoryConfig, llm: llmConfig });
+    return parseRepositorySettings(JSON.parse(raw), llmConfig);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(configPath, reason);
   }
+}
+
+export async function loadConfig(
+  repositoryPath: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<R3DoctorConfig> {
+  return (await loadRepositorySettings(repositoryPath, llmConfig)).coreConfig;
 }
 
 export async function createRepositorySnapshot(
@@ -279,6 +309,15 @@ export async function createRepositorySnapshot(
   unitId?: string,
   llmConfig: LlmConfig = defaultLlmConfig,
 ): Promise<RepositorySnapshot> {
+  return (await createRepositoryIntake(repositoryPath, unitId, llmConfig)).snapshot;
+}
+
+/** Reads the repository config once and returns the core snapshot with separate add-on declarations. */
+export async function createRepositoryIntake(
+  repositoryPath: string,
+  unitId?: string,
+  llmConfig: LlmConfig = defaultLlmConfig,
+): Promise<RepositoryIntake> {
   const resolved = path.resolve(repositoryPath);
   try {
     const rootStat = await stat(resolved);
@@ -292,7 +331,7 @@ export async function createRepositorySnapshot(
     throw new IntakeError(`repository path does not exist: ${resolved}`);
   }
 
-  const config = await loadConfig(resolved, llmConfig);
+  const { coreConfig: config, addonDeclarations } = await loadRepositorySettings(resolved, llmConfig);
   const unit = unitId ? config.units.find((entry) => entry.id === unitId) : undefined;
   if (unitId && !unit) {
     throw new IntakeError(`unknown unit: ${unitId}`);
@@ -351,17 +390,20 @@ export async function createRepositorySnapshot(
   const gitAvailable = gitAfter !== undefined;
 
   return {
-    repositoryPath: resolved,
-    unitId,
-    inputId: computeInputId(unitId, uniqueFiles, config),
-    files: uniqueFiles,
-    gitAvailable,
-    sourceCommitSha: gitAfter?.headSha,
-    gitDirty: gitAfter?.dirty ?? false,
-    gitStatusFingerprint: gitAfter?.statusFingerprint,
-    analysisContextFingerprint: analysisContextFingerprint(config, unitId, gitAvailable),
-    truncated,
-    intakeIssues,
-    config,
+    snapshot: {
+      repositoryPath: resolved,
+      unitId,
+      inputId: computeInputId(unitId, uniqueFiles, config),
+      files: uniqueFiles,
+      gitAvailable,
+      sourceCommitSha: gitAfter?.headSha,
+      gitDirty: gitAfter?.dirty ?? false,
+      gitStatusFingerprint: gitAfter?.statusFingerprint,
+      analysisContextFingerprint: analysisContextFingerprint(config, unitId, gitAvailable),
+      truncated,
+      intakeIssues,
+      config,
+    },
+    addonDeclarations,
   };
 }

@@ -7,7 +7,10 @@ export type LlmProviderId = z.infer<typeof llmProviderIdSchema>;
 export type LlmLaunchInput = {
   executablePath: string;
   modelIdentifier: string;
-  runtimeDirectory: string;
+  /** Working directory of the provider process. */
+  cwd: string;
+  /** Roots whose executables and PATH entries are never used, checked independently from `cwd`. */
+  untrustedRepositoryRoots: readonly string[];
   inheritedEnv: NodeJS.ProcessEnv;
 };
 
@@ -25,6 +28,7 @@ export type LlmFailureReason =
   | 'authentication_required'
   | 'authentication_failed'
   | 'safe_mode_unavailable'
+  | 'confinement_unsupported'
   | 'model_unavailable'
   | 'process_exited'
   | 'timeout'

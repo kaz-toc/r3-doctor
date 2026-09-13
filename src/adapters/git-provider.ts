@@ -23,7 +23,7 @@ function gitEnvironment(repositoryPath: string): NodeJS.ProcessEnv {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
-  env.PATH = sanitizeExecutableSearchPath(env.PATH, repositoryPath);
+  env.PATH = sanitizeExecutableSearchPath(env.PATH, [repositoryPath]);
   return env;
 }
 
