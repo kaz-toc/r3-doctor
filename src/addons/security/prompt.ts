@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { securityCategorySchema } from '../../schema/security-assessment.v1.js';
 import { TEXT_ONLY_ANALYSIS_CONTRACT } from '../../semantic/semantic-prompt.js';
 
+import { securityAttackPrerequisiteSchema, securityImpactClassSchema } from './severity.js';
 import type { SecurityBatch, SecuritySnippet, SecurityUnit } from './types.js';
 
 export const SECURITY_PROMPT_VERSION = '1.0.0';
@@ -26,6 +27,10 @@ const RESPONSE_CONTRACT: readonly string[] = [
   'Return exactly one JSON object and nothing else. Do not use Markdown fences.',
   'Shape: {"schemaVersion":1,"batchId":"<batch id>","units":[{"unitId":"unit:...","status":"evaluated"}],"findings":[<finding>]}',
   '<finding>: {"unitId":"unit:...","category":"<category>","cweIds":["CWE-89"],"impactClass":"sensitive-data-access","attackPrerequisites":"authenticated","severityRationale":"...","confidence":"medium","confidenceRationale":"...","title":"...","primaryLocation":{"path":"...","revision":"current","startLine":1,"endLine":1},"evidenceRefs":[{"snippetId":"snippet:...","path":"...","revision":"current","startLine":1,"endLine":1,"role":"sink"}],"preconditions":["..."],"attackPath":"...","impact":"...","remediation":"...","verification":"...","limitations":["..."]}',
+  `impactClass must be one of: ${securityImpactClassSchema.options.join(', ')}.`,
+  `attackPrerequisites must be one of: ${securityAttackPrerequisiteSchema.options.join(', ')}.`,
+  'confidence must be high, medium, or low. role must be source, sink, guard, or context. Unit status must be evaluated or insufficient-context.',
+  'Do not return findingId, status, or severity for a finding; the host assigns them from impactClass and attackPrerequisites.',
   'Use an empty findings array when the supplied code does not support a candidate.',
 ];
 
