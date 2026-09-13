@@ -97,6 +97,9 @@ export async function loadTrustedOperatorProfile(input: {
   if (leaf.isSymbolicLink()) {
     untrusted(requested, 'must not be a symbolic link');
   }
+  if (!leaf.isFile()) {
+    untrusted(requested, 'must be a regular file');
+  }
 
   let canonicalProfile: string;
   let canonicalRoot: string;
@@ -111,7 +114,8 @@ export async function loadTrustedOperatorProfile(input: {
 
   let handle: FileHandle;
   try {
-    handle = await open(canonicalProfile, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    // Do not wait for a FIFO writer if the leaf is replaced after lstat.
+    handle = await open(canonicalProfile, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
   } catch (error) {
     untrusted(requested, `cannot open profile (${errorCode(error)})`);
   }

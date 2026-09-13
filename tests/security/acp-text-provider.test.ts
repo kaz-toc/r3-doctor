@@ -180,6 +180,26 @@ describe('security text provider', () => {
     await expect(stat(launches[0]!.cwd)).rejects.toThrow();
   });
 
+  it.each(['repository lookup', 'executable resolution'] as const)(
+    'REG-2026-029: cancels during %s without starting a provider or sending a prompt',
+    async (stage) => {
+      const controller = new AbortController();
+      const { agent, port } = provider({ initialize, promptChunks: ['done'] }, {
+        resolveExecutable: () => {
+          if (stage === 'executable resolution') controller.abort();
+          return '/usr/local/bin/codex-acp';
+        },
+      });
+
+      const pending = port.complete(request({ signal: controller.signal }));
+      if (stage === 'repository lookup') controller.abort();
+
+      expect(await pending).toEqual({ ok: false, reason: 'cancelled' });
+      expect(agent.spawnCount).toBe(0);
+      expect(agent.promptRequests).toHaveLength(0);
+    },
+  );
+
   it('aborts on the first tool call', async () => {
     const { port } = provider({ initialize, promptToolCall: true, promptChunks: ['x'] });
     expect(await port.complete(request())).toEqual({ ok: false, reason: 'tool-use-limit' });

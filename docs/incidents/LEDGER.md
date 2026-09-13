@@ -37,5 +37,7 @@
 | PR #20 | 初回 scan を選ぶ前に LLM provider / model と operator profile を設定できない | fixed | scan prompt が LLM 設定ブロックより前に配置されていた | LLM 設定または defer 通知の完了後へ scan / baseline prompt を移動 | REG-2026-025 | protected | none |
 | recent-pr-review-2026-09-09#setup-llm-coherence | setupで選択したLLMが初回scanへ反映されず、profile切替時に旧実行ファイルが残る | fixed | setupのscan境界へoperator選択を渡さず、profile更新時にprovider固有値を保持していた | 選択provider/model/profile pathを一貫して伝播し、provider変更時に旧実行ファイルを削除 | REG-2026-026 | protected | none |
 | recent-pr-review-2026-09-09#catalog-profile-isolation | 壊れたoperator profileにより情報提供用`llm list`とrepository検証が失敗する | fixed | catalog生成が表示用profile metadataを必須入力として読み込んでいた | profile metadataをbest-effortにし、catalog verifierを隔離環境で実行 | REG-2026-027 | protected | none |
+| pr-27-review#profile-fifo | trusted profile に FIFO を指定すると、通常ファイルの検証前に writer 待ちで停止する | fixed | blocking open の後に通常ファイルかどうかを確認していた | lstat で通常ファイル以外を拒否し、検査後の置換にも non-blocking open と descriptor 検証で対応 | REG-2026-028 | protected | none |
+| pr-27-review#security-preparation-cancellation | security provider の準備中にキャンセルしても provider が起動し prompt を送信する | fixed | 最初の abort 確認と listener 登録の間の非同期処理中に発生したイベントを取りこぼしていた | listener 登録後に abort 状態を再確認し、起動前に終了して一時 directory を削除 | REG-2026-029 | protected | none |
 
 証拠なしに root cause を推測しない。調査で確定するまで `unknown` を使う。

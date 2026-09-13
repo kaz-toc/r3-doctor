@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -10,6 +12,7 @@ import { saveSetupLlmProfile } from '../../src/setup/llm-setup.js';
 
 const posix = process.platform !== 'win32';
 const runsAsRoot = posix && process.getuid?.() === 0;
+const execFileAsync = promisify(execFile);
 
 let rawBase: string;
 let base: string;
@@ -110,6 +113,51 @@ describe('trusted operator profile loading', () => {
 
     await writeFile(profilePath, ' '.repeat(1_048_577));
     await expect(loadTrustedOperatorProfile({ repositoryRoot, profilePath })).rejects.toThrow(/byte limit/);
+  });
+
+  it.runIf(posix).each([
+    { scenario: 'already a FIFO', replaceBeforeOpen: false, reason: 'regular file' },
+    { scenario: 'replaced with a FIFO after lstat', replaceBeforeOpen: true, reason: 'changed while loading' },
+  ])('REG-2026-028: rejects a profile $scenario without waiting for a writer', async ({ replaceBeforeOpen, reason }) => {
+    const { repositoryRoot, profilePath } = await layout();
+    if (!replaceBeforeOpen) {
+      await rm(profilePath);
+      await execFileAsync('mkfifo', [profilePath]);
+    }
+
+    // A separate process lets the regression fail on timeout without leaving a blocked filesystem worker.
+    const script = `
+      import fs from 'node:fs/promises';
+      import { execFileSync } from 'node:child_process';
+      import { syncBuiltinESMExports } from 'node:module';
+      const input = ${JSON.stringify({ repositoryRoot, profilePath })};
+      if (${replaceBeforeOpen}) {
+        const realpath = fs.realpath;
+        fs.realpath = async (...args) => {
+          const resolved = await realpath(...args);
+          if (args[0] === input.profilePath) {
+            // Simulate replacement at the real filesystem boundary between lstat and open.
+            await fs.rename(input.profilePath, input.profilePath + '.original');
+            execFileSync('mkfifo', [input.profilePath]);
+          }
+          return resolved;
+        };
+        syncBuiltinESMExports();
+      }
+      const { loadTrustedOperatorProfile } = await import(${JSON.stringify(new URL('../../src/operator/trusted-profile.ts', import.meta.url).href)});
+      try {
+        await loadTrustedOperatorProfile(input);
+        process.exitCode = 1;
+      } catch (error) {
+        process.stdout.write(error.message);
+      }
+    `;
+    const result = await execFileAsync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+      timeout: 10_000,
+      killSignal: 'SIGKILL',
+    });
+    expect(result.stdout).toContain(reason);
+    expect(result.stderr).toBe('');
   });
 
   it.runIf(posix)('rejects group- or world-writable profiles', async () => {
