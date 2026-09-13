@@ -72,7 +72,11 @@ function extractImports(file: SourceFile): string[] {
   return targets;
 }
 
-function resolveRelativeImport(fromFile: SourceFile, target: string, availablePaths: Set<string>): string | null {
+export function resolveRelativeImport(
+  fromFile: Pick<SourceFile, 'relativePath'>,
+  target: string,
+  availablePaths: ReadonlySet<string>,
+): string | null {
   if (!target.startsWith('.')) {
     return null;
   }

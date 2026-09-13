@@ -5,6 +5,8 @@ import type {
   SecurityRevision,
 } from '../../schema/security-assessment.v1.js';
 
+export type SecurityRelevance = NonNullable<SecurityFinding['relevance']>;
+
 export type SecurityMode = 'scan' | 'diff';
 
 export type SecurityScope = 'repository' | 'changed';
@@ -39,7 +41,10 @@ export type SecuritySnippet = {
   startLine: number;
   endLine: number;
   content: string;
+  /** SHA-256 of `content` as sent, which differs from the original text when values were masked. */
   contentHash: string;
+  /** Absolute line numbers whose secret values were masked before sending. */
+  redactedLines?: number[];
 };
 
 export type SecurityUnit = {
@@ -50,7 +55,12 @@ export type SecurityUnit = {
   endLine: number;
   priority: number;
   relatedPaths: string[];
+  /** Directly related units (dependency, caller, guard, or same-file reference), capped per unit. */
+  relatedUnitIds: string[];
   limitations: string[];
+  /** Symbol-based anchor such as `function:getOrder` or `method:Service.remove#window-2`. */
+  anchor: string;
+  relevance?: SecurityRelevance;
 };
 
 /** Internal only: the prompt contains source text. */
@@ -76,4 +86,24 @@ export type SecurityBatchResult = {
   findings: SecurityFinding[];
   reasons: string[];
   invalidFindingCount: number;
+};
+
+export type SecurityLineRange = { startLine: number; endLine: number };
+
+export type SecurityChange = {
+  kind: 'added' | 'modified' | 'deleted' | 'renamed';
+  currentPath: string | null;
+  basePath: string | null;
+  current: SecurityLineRange | null;
+  base: SecurityLineRange | null;
+  /** Internal only: base-revision text used to plan removed code, never serialized. */
+  baseContent: string | null;
+  baseContentHash: string | null;
+};
+
+export type SecurityChangeContext = {
+  status: 'complete' | 'partial' | 'unavailable';
+  baseSha: string | null;
+  changes: SecurityChange[];
+  reasons: string[];
 };
