@@ -142,3 +142,34 @@ security 用の text port（`src/llm/acp-text-provider.ts`）は、呼び出し�
 - token 使用量は provider が返した場合だけ記録する。
 
 confinement 対応表（`SECURITY_CONFINEMENT_SUPPORT`）は現在空であり、すべての provider で security prompt は送られない。2026-09-13 時点で GitHub Copilot CLI 1.0.83 の help には `--available-tools`、`--disable-builtin-mcps`、`--no-custom-instructions`、`--log-level` が存在することを確認したが、ACP 実行時に global MCP、自動 instruction、ログ保持が抑止されることは認証済み canary で未確認のため登録していない。semantic 解析が動くことは security 対応の根拠にしない。
+
+## 調査単位と送信計画
+
+`src/addons/security/context.ts` と `plan.ts` は、immutable snapshot と差分で渡された base 本文だけを読む。
+
+- 対象は TypeScript / JavaScript（`.ts` `.tsx` `.js` `.jsx` `.mjs` `.cjs`）。1 MiB を超えるファイルは解析せず `source-too-large` の未完了にする。
+- 調査単位は、関数、class member、関数引数を持つ top-level 呼び出し（route handler など）、それ以外の連続した top-level 文。import / export 宣言と型宣言は単位にしない。160 行を超える単位は 20 行重複の窓に分ける。
+- 優先度は、HTTP handler、外部入力、SQL / command / code / HTTP / file / HTML の sink、弱い暗号、guard の静的な手掛かりの重みの合計。手掛かりのない単位も列挙し、Regression Evidence や `diagnosticSkipRoots` を除外条件にしない。
+- 関連コードは、static import の binding と同一ファイル内の名前参照から dependency / caller / guard を直接 1 段だけ解決する（1 単位あたり最大 8）。dynamic import、computed call、外部 middleware、解決できない import は limitation に残す。全プログラムの taint analysis ではない。
+- 送信 scope `changed` は変更ファイルの base / current だけを送る。`cluster-context` と `all` はどちらも直接の関連コードまでに限る。分析 scope または送信 scope が `changed` で差分がなければ `base-required` とする。
+- batch は priority 降順 → path → revision → 行の順に first-fit で詰める。1 request の UTF-8 bytes（指示を含む）、全 request の合計 bytes（再送した snippet を含む）、送信する一意 path 数（`llm.maxFiles`）、batch あたり 8 unit、batch 数を満たす場合だけ採用する。入らない unit は `budget-exhausted`、単独でも入らない unit は `prompt-too-large` とし、1 件も送れなければ reason `budget-insufficient` を記録する。
+- prompt は固定指示の後に、送信内容から導いた nonce の fence で untrusted data を囲む。source の各行は `行番号| ` で始まり、fence 行を偽装できない。
+
+## 送信フィルタ
+
+`src/addons/security/outbound-filter.ts` は snippet ごとに次を適用する。
+
+- 送信しない: `.env*`、秘密鍵ファイル（`id_rsa` など、`.pem` `.key` `.p12` `.pfx` `.jks` `.keystore`）、名前に credential(s) / secret(s) を含むファイル、生成物（`dist` `build` `coverage` `node_modules` `vendor` `generated` 配下、`.d.ts` `.min.js` `.bundle.js` `.map`）、NUL を含む本文、制御文字・バックスラッシュ・絶対 path・`..` を含む path。
+- マスクする: PEM 秘密鍵ブロック、既知の token 形式（AWS、GitHub、Slack、OpenAI / Anthropic、Google、Stripe、JWT）、password / secret / token / API key などの名前に代入された文字列リテラル。行数を保ち、prompt には `redacted-lines` として位置だけを示す。送信する本文の hash は元本文の hash と区別する。
+- マスク後にコードが残らない snippet は `masked-unanalyzable` として送らない。パターン検出は未知の秘密情報を完全には除去しない。
+
+## 応答検証と severity
+
+`src/addons/security/response.ts` と `severity.ts` の規則。
+
+- 応答は 256 KiB 以下の単一 JSON object に限る。前後の文章、Markdown fence、複数の値、未知フィールドは batch 失敗。finding は batch あたり最大 64 件。
+- batchId の不一致、送っていない unit や重複した unit は batch 失敗。応答にない unit は `unit-missing`、`insufficient-context` の unit は未完了とする。
+- モデルが返す `findingId` / `status` / `severity` は受け付けない。evidence は同じ batch で送った snippet の path・revision・行範囲の内側、`primaryLocation` はいずれかの evidence の内側に限る。不正な finding は捨て、その unit を `invalid-finding` で未完了にする。unit を特定できない不正 finding は batch 全体を未完了にする。
+- severity rubric v1: `arbitrary-execution` / `cross-tenant-access` は前提 `none` で critical、それ以外は high。`sensitive-data-access` は high、`limited-data-access` は medium、`defense-in-depth` は low。前提 `unknown` は最大 medium、evidence が `context` だけなら info。`severityRationale` にはモデル由来の分類であることを明記する。
+- confidence は、前提 `unknown`、`insufficient-context`、未解決の関連（dynamic import など）、同じ箇所への食い違う報告のいずれかがあれば low に制限する。
+- `findingId` は category と unit の path・revision・anchor の SHA-256。同じ ID の報告は統合し、severity は高い方、evidence は和集合（最大 16 件）とし、統合したことを limitations に残す。
