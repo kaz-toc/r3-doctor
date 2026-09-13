@@ -6,10 +6,11 @@ import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { DiagnosisReport } from '../schema/report.v1.js';
 import { atomicWriteFile } from '../shared/atomic-write.js';
 import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+import { canonicalJson } from '../shared/canonical-json.js';
 import { ConfigError } from '../shared/errors.js';
-import { assertSnapshotPersistenceIntegrity } from '../persistence/snapshot-integrity.js';
 import { assertSafeStorageDir, resolveSafeStorageDir, type SafeStorageDirectory } from '../persistence/storage-boundary.js';
 import type { ShadowScore } from './shadow-score.js';
+import { assertValidationRecordingAllowed } from './preflight.js';
 import { repositoryIdSchema, validationSnapshotV1Schema, type ValidationSnapshotV1 } from './schema.js';
 import { buildValidationSnapshot } from './snapshot.js';
 
@@ -25,17 +26,12 @@ function isMissing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
 
-function artifactPath(directory: SafeStorageDirectory, sampleId: string): string {
-  return path.join(directory.path, `${sampleId}.json`);
+function isJsonArtifactName(name: string): boolean {
+  return name.endsWith('.json') && !name.startsWith('.');
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const object = value as Record<string, unknown>;
-    return `{${Object.keys(object).filter((key) => object[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
+function artifactPath(directory: SafeStorageDirectory, sampleId: string): string {
+  return path.join(directory.path, `${sampleId}.json`);
 }
 
 function withoutRecordTimes(sample: ValidationSnapshotV1): Record<string, unknown> {
@@ -99,7 +95,7 @@ export async function saveValidationSnapshot(input: {
   horizonDays: number;
   recordedAt?: Date;
 }): Promise<SaveValidationSnapshotResult> {
-  await assertSnapshotPersistenceIntegrity(input.snapshot, input.report, { requireClean: true });
+  await assertValidationRecordingAllowed(input.snapshot, input.report);
   const validation = await resolveSafeStorageDir(input.snapshot.repositoryPath, VALIDATION_DIRECTORY, 'validation', true);
   const repositoryId = await loadRepositoryId(validation, true);
   if (!repositoryId) throw new ConfigError('repository-id', 'repository identity could not be created');
@@ -145,9 +141,7 @@ export async function loadValidationSnapshots(repositoryPath: string): Promise<V
   const names = (await readdir(snapshots.path)).sort();
   const values: ValidationSnapshotV1[] = [];
   for (const name of names) {
-    if (!name.endsWith('.json')) {
-      throw new ConfigError(`snapshots/${name}`, 'validation snapshots must use .json filenames');
-    }
+    if (!isJsonArtifactName(name)) continue;
     const value = await readStrictJson(path.join(snapshots.path, name), `snapshots/${name}`, validationSnapshotV1Schema);
     if (name !== `${value.sampleId}.json`) {
       throw new ConfigError(`snapshots/${name}`, 'snapshot filename does not match sample ID');

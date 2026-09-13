@@ -1,11 +1,16 @@
 import { createHash } from 'node:crypto';
 
 import { countProductPaths } from '../assessment/capability.js';
+import { diagnosisContextFingerprint } from '../intake/analysis-context.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { DiagnosisReport, RiskAxisId } from '../schema/report.v1.js';
 import { riskAxisIdSchema } from '../schema/report.v1.js';
+import { canonicalJson } from '../shared/canonical-json.js';
+import { ConfigError } from '../shared/errors.js';
 import { SHADOW_REGISTRY_VERSION, type ShadowScore } from './shadow-score.js';
 import { validationSnapshotV1Schema, type ValidationSnapshotV1 } from './schema.js';
+
+export const VALIDATION_HORIZON_DAYS_MAX = 365;
 
 export type BuildValidationSnapshotInput = {
   snapshot: RepositorySnapshot;
@@ -17,24 +22,17 @@ export type BuildValidationSnapshotInput = {
   recordedAt: Date;
 };
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().map((key) =>
-      `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`,
-    ).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
 function sampleId(input: BuildValidationSnapshotInput, headSha: string): string {
   return createHash('sha256').update(canonicalJson({
     repositoryId: input.repositoryId,
     reportInputId: input.report.metadata.inputId,
     headSha,
     analysisContextFingerprint: input.snapshot.analysisContextFingerprint,
+    diagnosisContextFingerprint: diagnosisContextFingerprint(
+      input.snapshot.analysisContextFingerprint,
+      input.report,
+    ),
+    policyThresholds: input.policyThresholds,
     horizonDays: input.horizonDays,
     shadowRegistryVersion: SHADOW_REGISTRY_VERSION,
   })).digest('hex');
@@ -50,7 +48,7 @@ function axisScores(report: DiagnosisReport): Record<RiskAxisId, number | null> 
 export function buildValidationSnapshot(input: BuildValidationSnapshotInput): ValidationSnapshotV1 {
   const headSha = input.snapshot.sourceCommitSha;
   if (!headSha) {
-    throw new Error('validation snapshots require a Git commit SHA');
+    throw new ConfigError(input.snapshot.repositoryPath, 'validation snapshots require a Git commit SHA');
   }
   const dueAt = new Date(input.recordedAt.getTime());
   dueAt.setUTCDate(dueAt.getUTCDate() + input.horizonDays);

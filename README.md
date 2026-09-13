@@ -106,7 +106,7 @@ npm run validate
 r3-doctor calibration compare . --repository-validation-passed
 ```
 
-`no-regression` は sample の dueAt 以降でのみ記録できます。明示フラグのない scan は validation artifact を作成しません。詳細は [Shadow Score Validation](docs/spec/shadow-score-validation.md) を参照してください。
+`no-regression` は sample の dueAt 以降でのみ記録できます。明示フラグのない scan は validation artifact を作成しません。記録には clean な Git worktree が必要なので、`.gitignore` に `.r3-doctor/validation/` を追加してください。誤登録した outcome は `validation outcome . --sample <id> --outcome <kind> --replace` で上書きできます。詳細は [Shadow Score Validation](docs/spec/shadow-score-validation.md) を参照してください。
 
 ## LLM integration smoke test（開発者向け、課金あり）
 

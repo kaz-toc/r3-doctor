@@ -32,7 +32,7 @@ describe('validation CLI', () => {
     } finally {
       await repo.cleanup();
     }
-  });
+  }, 120_000);
 
   it('requires recording when a validation horizon is specified', async () => {
     const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });

@@ -1,14 +1,11 @@
 import { z } from 'zod';
 
 import { ASSESSMENT_CONTRACT_VERSION, signalIdSchema } from '../schema/report.v1.js';
+import { isoTimestampSchema } from '../shared/iso-timestamp.js';
 import { SHADOW_CANDIDATE_IDS } from './shadow-score.js';
 
-const isoTimestampSchema = z.string().refine((value) => {
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) && date.toISOString() === value;
-}, 'must be an ISO-8601 UTC timestamp');
-
 const scoreSchema = z.number().int().min(0).max(100);
+const policyThresholdSchema = z.number().min(0).max(100);
 const ratioSchema = z.number().min(0).max(1);
 const axisScoresSchema = z.object({
   'structural-fragility': scoreSchema.nullable(),
@@ -57,9 +54,9 @@ export const validationSnapshotV1Schema = z.object({
   assessmentContractVersion: z.literal(ASSESSMENT_CONTRACT_VERSION),
   analysisContextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   policyThresholds: z.object({
-    advisory: scoreSchema,
-    gate: scoreSchema,
-  }).strict().refine((value) => value.advisory <= value.gate, 'advisory must not exceed gate'),
+    advisory: policyThresholdSchema,
+    gate: policyThresholdSchema,
+  }).strict(),
   v4: z.object({
     score: scoreSchema,
     confidence: ratioSchema,

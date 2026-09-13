@@ -1,4 +1,3 @@
-import { ConfigError } from '../shared/errors.js';
 import type { ValidationOutcomeV1, ValidationSnapshotV1 } from './schema.js';
 
 export type ValidationSampleState = 'pending' | 'due' | 'complete';
@@ -16,6 +15,7 @@ export type ValidationStatusSample = {
 export type ValidationStatus = {
   counts: Record<ValidationSampleState, number>;
   samples: ValidationStatusSample[];
+  warnings: string[];
 };
 
 export function buildValidationStatus(
@@ -25,9 +25,10 @@ export function buildValidationStatus(
   retentionDays: number,
 ): ValidationStatus {
   const snapshotsById = new Map(snapshots.map((sample) => [sample.sampleId, sample]));
+  const warnings: string[] = [];
   for (const outcome of outcomes) {
     if (!snapshotsById.has(outcome.sampleId)) {
-      throw new ConfigError(`outcomes/${outcome.sampleId}.json`, 'outcome references an unknown validation sample');
+      warnings.push(`outcomes/${outcome.sampleId}.json references a missing validation sample`);
     }
   }
   const outcomesById = new Map(outcomes.map((outcome) => [outcome.sampleId, outcome]));
@@ -52,5 +53,5 @@ export function buildValidationStatus(
       retentionExpired: now.getTime() >= retentionAt.getTime(),
     };
   }).sort((left, right) => left.recordedAt.localeCompare(right.recordedAt) || left.sampleId.localeCompare(right.sampleId));
-  return { counts, samples };
+  return { counts, samples, warnings };
 }

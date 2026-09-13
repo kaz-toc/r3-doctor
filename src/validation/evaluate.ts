@@ -1,9 +1,15 @@
 import type { ShadowCandidateId } from './shadow-score.js';
 import type { ValidationOutcomeV1, ValidationSnapshotV1 } from './schema.js';
+import { formatValidationComparison } from './format.js';
 
 export type ModelId = 'v4' | ShadowCandidateId;
-export type PromotionStatus = 'insufficient-data' | 'rejected' | 'eligible-for-review';
+export type PromotionStatus = 'insufficient-data' | 'rejected' | 'eligible-for-review' | 'exploratory';
 export type ScoreBand = '0-30' | '31-60' | '61-80' | '81-100';
+
+const PRIMARY_HORIZON_DAYS = 30;
+const PRIMARY_ADVISORY = 70;
+const PRIMARY_GATE = 85;
+const MISS_RATE_EPSILON = 1e-9;
 
 type ModelRow = {
   repositoryId: string;
@@ -79,6 +85,12 @@ function bandFor(score: number): ScoreBand {
   return BANDS.find((band) => score >= band.min && score <= band.max)?.band ?? '81-100';
 }
 
+function isPrimaryCohort(horizonDays: number, advisory: number, gate: number): boolean {
+  return horizonDays === PRIMARY_HORIZON_DAYS
+    && Math.abs(advisory - PRIMARY_ADVISORY) < MISS_RATE_EPSILON
+    && Math.abs(gate - PRIMARY_GATE) < MISS_RATE_EPSILON;
+}
+
 export function computeRocAuc(rows: Array<{ score: number; positive: boolean }>): number | null {
   const positives = rows.filter((row) => row.positive);
   const negatives = rows.filter((row) => !row.positive);
@@ -148,20 +160,33 @@ function buildChecks(
   candidateId: ShadowCandidateId,
   value: ModelMetrics,
   v4: ModelMetrics,
+  advisory: number,
+  gate: number,
   goldenOrdering: Record<ModelId, boolean>,
   repositoryValidationPassed: boolean,
+  deterministicSerialization: boolean,
 ): PromotionCheck[] {
-  const matchingThreshold = value.thresholds.find((threshold) => threshold.advisory === 70 && threshold.gate === 85);
-  const v4Threshold = v4.thresholds.find((threshold) => threshold.advisory === 70 && threshold.gate === 85);
+  const matchingThreshold = value.thresholds.find((threshold) =>
+    Math.abs(threshold.advisory - advisory) < MISS_RATE_EPSILON
+    && Math.abs(threshold.gate - gate) < MISS_RATE_EPSILON,
+  );
+  const v4Threshold = v4.thresholds.find((threshold) =>
+    Math.abs(threshold.advisory - advisory) < MISS_RATE_EPSILON
+    && Math.abs(threshold.gate - gate) < MISS_RATE_EPSILON,
+  );
+  const missRateDelta = matchingThreshold?.missRate === null || matchingThreshold?.missRate === undefined
+    || v4Threshold?.missRate === null || v4Threshold?.missRate === undefined
+    ? null
+    : matchingThreshold.missRate - v4Threshold.missRate;
   return [
     { code: 'samples-per-band', passed: value.bands.every((band) => band.sampleCount >= 30), actual: Math.min(...value.bands.map((band) => band.sampleCount)), required: 30 },
     { code: 'repository-count', passed: value.repositoryCount >= 5, actual: value.repositoryCount, required: 5 },
     { code: 'repository-concentration', passed: value.maximumRepositoryShare <= 0.4, actual: value.maximumRepositoryShare, required: '<=0.40' },
     { code: 'class-counts', passed: value.positiveCount >= 10 && value.negativeCount >= 10, actual: Math.min(value.positiveCount, value.negativeCount), required: 10 },
-    { code: 'auc-improvement', passed: value.rocAuc !== null && v4.rocAuc !== null && value.rocAuc >= v4.rocAuc && value.rocAuc - v4.rocAuc >= 0.03, actual: value.rocAuc === null || v4.rocAuc === null ? null : value.rocAuc - v4.rocAuc, required: '>=0.03 and candidate>=v4' },
-    { code: 'miss-rate', passed: matchingThreshold?.missRate !== null && matchingThreshold?.missRate !== undefined && v4Threshold?.missRate !== null && v4Threshold?.missRate !== undefined && matchingThreshold.missRate - v4Threshold.missRate <= 0.02, actual: matchingThreshold?.missRate === null || matchingThreshold?.missRate === undefined || v4Threshold?.missRate === null || v4Threshold?.missRate === undefined ? null : matchingThreshold.missRate - v4Threshold.missRate, required: '<=0.02' },
+    { code: 'auc-improvement', passed: value.rocAuc !== null && v4.rocAuc !== null && value.rocAuc >= v4.rocAuc && value.rocAuc - v4.rocAuc >= 0.03 - MISS_RATE_EPSILON, actual: value.rocAuc === null || v4.rocAuc === null ? null : value.rocAuc - v4.rocAuc, required: '>=0.03 and candidate>=v4' },
+    { code: 'miss-rate', passed: missRateDelta === null ? false : missRateDelta <= 0.02 + MISS_RATE_EPSILON, actual: missRateDelta, required: '<=0.02' },
     { code: 'band-monotonicity', passed: value.bandRatesNondecreasing === true, actual: value.bandRatesNondecreasing, required: true },
-    { code: 'deterministic-serialization', passed: true, actual: true, required: true },
+    { code: 'deterministic-serialization', passed: deterministicSerialization, actual: deterministicSerialization, required: true },
     { code: 'golden-ordering', passed: goldenOrdering.v4 && goldenOrdering[candidateId], actual: goldenOrdering.v4 && goldenOrdering[candidateId], required: true },
     { code: 'repository-validation', passed: repositoryValidationPassed, actual: repositoryValidationPassed, required: true },
   ];
@@ -173,16 +198,23 @@ function status(checks: PromotionCheck[]): PromotionStatus {
   return checks.every((check) => check.passed) ? 'eligible-for-review' : 'rejected';
 }
 
-export function compareValidationModels(input: {
-  snapshots: ValidationSnapshotV1[];
-  outcomes: ValidationOutcomeV1[];
-  goldenOrdering: Record<ModelId, boolean>;
-  repositoryValidationPassed: boolean;
-}): ValidationComparison {
+function buildComparison(
+  input: {
+    snapshots: ValidationSnapshotV1[];
+    outcomes: ValidationOutcomeV1[];
+    goldenOrdering: Record<ModelId, boolean>;
+    repositoryValidationPassed: boolean;
+    now?: Date;
+  },
+  deterministicSerialization: boolean,
+): ValidationComparison {
+  const now = input.now ?? new Date();
   const outcomes = new Map(input.outcomes.map((outcome) => [outcome.sampleId, outcome]));
   const complete = input.snapshots
     .map((sample) => ({ sample, outcome: outcomes.get(sample.sampleId) }))
-    .filter((entry): entry is { sample: ValidationSnapshotV1; outcome: ValidationOutcomeV1 } => Boolean(entry.outcome))
+    .filter((entry): entry is { sample: ValidationSnapshotV1; outcome: ValidationOutcomeV1 } =>
+      Boolean(entry.outcome) && new Date(entry.sample.dueAt).getTime() <= now.getTime(),
+    )
     .sort((left, right) => left.sample.sampleId.localeCompare(right.sample.sampleId));
   const groups = new Map<string, Array<{ sample: ValidationSnapshotV1; outcome: ValidationOutcomeV1; candidate: ValidationSnapshotV1['shadow'][number] }>>();
   for (const entry of complete) {
@@ -205,7 +237,23 @@ export function compareValidationModels(input: {
     }));
     const candidateMetrics = metrics(rows);
     const v4Metrics = metrics(rows.map((row) => ({ ...row, score: row.v4Score })));
-    const checks = buildChecks(first.candidate.candidateId, candidateMetrics, v4Metrics, input.goldenOrdering, input.repositoryValidationPassed);
+    const primary = isPrimaryCohort(
+      first.sample.horizonDays,
+      first.sample.policyThresholds.advisory,
+      first.sample.policyThresholds.gate,
+    );
+    const checks = primary
+      ? buildChecks(
+          first.candidate.candidateId,
+          candidateMetrics,
+          v4Metrics,
+          first.sample.policyThresholds.advisory,
+          first.sample.policyThresholds.gate,
+          input.goldenOrdering,
+          input.repositoryValidationPassed,
+          deterministicSerialization,
+        )
+      : [];
     return {
       candidateId: first.candidate.candidateId,
       formulaVersion: first.candidate.formulaVersion,
@@ -213,12 +261,16 @@ export function compareValidationModels(input: {
       advisoryThreshold: first.sample.policyThresholds.advisory,
       gateThreshold: first.sample.policyThresholds.gate,
       metrics: candidateMetrics,
-      promotionStatus: status(checks),
+      promotionStatus: primary ? status(checks) : 'exploratory',
       promotionChecks: checks,
     };
   }).sort((left, right) => left.candidateId.localeCompare(right.candidateId) || left.formulaVersion - right.formulaVersion || left.horizonDays - right.horizonDays || left.advisoryThreshold - right.advisoryThreshold || left.gateThreshold - right.gateThreshold);
-  const primary = assessments.filter((assessment) => assessment.horizonDays === 30 && assessment.advisoryThreshold === 70 && assessment.gateThreshold === 85);
-  const exploratory = assessments.filter((assessment) => !primary.includes(assessment));
+  const primary = assessments.filter((assessment) =>
+    isPrimaryCohort(assessment.horizonDays, assessment.advisoryThreshold, assessment.gateThreshold),
+  );
+  const exploratory = assessments.filter((assessment) =>
+    !isPrimaryCohort(assessment.horizonDays, assessment.advisoryThreshold, assessment.gateThreshold),
+  );
   const repositoryIds = new Set(complete.map((entry) => entry.sample.repositoryId));
   const positives = complete.filter((entry) => positive(entry.outcome)).length;
   return {
@@ -226,4 +278,17 @@ export function compareValidationModels(input: {
     primary,
     exploratory,
   };
+}
+
+export function compareValidationModels(input: {
+  snapshots: ValidationSnapshotV1[];
+  outcomes: ValidationOutcomeV1[];
+  goldenOrdering: Record<ModelId, boolean>;
+  repositoryValidationPassed: boolean;
+  now?: Date;
+}): ValidationComparison {
+  const provisional = buildComparison(input, true);
+  const deterministicSerialization = formatValidationComparison(provisional, 'json')
+    === formatValidationComparison(buildComparison(input, true), 'json');
+  return buildComparison(input, deterministicSerialization);
 }
