@@ -18,6 +18,14 @@ function snippet(content: string, overrides: Partial<SecuritySnippet> = {}): Sec
 }
 
 describe('outbound security filter', () => {
+  it.each([
+    '// const password = "example-secret";',
+    'const example = \'password = "example-secret"\';',
+    'const view = <input password="example-secret" />;',
+  ])('REG-2026-030 retains masking for inline assignments in unparsed text: %s', (content) => {
+    expect(filterSecuritySnippet(snippet(content)).snippet?.content).not.toContain('example-secret');
+  });
+
   it('masks secret values without removing source lines', () => {
     const content = 'const password = "example-secret";\nexport const ok = true;\n';
     const result = filterSecuritySnippet({

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-030",
+  "status": "active",
+  "title": "Secret assignments retain redaction across TypeScript syntax",
+  "invariant": "Typed and multiline secret assignments never appear in planned prompts; source line counts and non-secret code remain intact.",
+  "incident": "pr-28-review#secret-assignments",
+  "productionFiles": [
+    "src/addons/security/outbound-filter.ts",
+    "src/addons/security/plan.ts"
+  ],
+  "testFiles": [
+    "tests/security/context-regressions.test.ts",
+    "tests/security/outbound-filter.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/context-regressions.test.ts tests/security/outbound-filter.test.ts -t REG-2026-030"
+  ]
+}

@@ -58,7 +58,7 @@ export type SecurityUnit = {
   /** Directly related units (dependency, caller, guard, or same-file reference), capped per unit. */
   relatedUnitIds: string[];
   limitations: string[];
-  /** Symbol-based anchor such as `function:getOrder` or `method:Service.remove#window-2`. */
+  /** Symbol-based anchor; repeated declarations get #occurrence-N before any #window-N suffix. */
   anchor: string;
   relevance?: SecurityRelevance;
 };

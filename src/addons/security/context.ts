@@ -11,7 +11,7 @@ import type { SecurityRevision } from '../../schema/security-assessment.v1.js';
 import { securityPathExclusionReason } from './outbound-filter.js';
 import type { SecurityUnit } from './types.js';
 
-export const SECURITY_SELECTOR_VERSION = '1.0.0';
+export const SECURITY_SELECTOR_VERSION = '1.0.1';
 export const SECURITY_ANALYSIS_MAX_FILE_BYTES = 1_048_576;
 export const SECURITY_UNIT_WINDOW_LINES = 160;
 export const SECURITY_UNIT_WINDOW_OVERLAP = 20;
@@ -151,9 +151,13 @@ function classUnits(
     }
     const isMethod = (ts.isMethodDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member))
       && member.body !== undefined;
-    const isFunctionProperty = ts.isPropertyDeclaration(member) && member.initializer !== undefined && isFunctionLike(member.initializer);
-    if ((isMethod || isFunctionProperty) && member.name) {
-      return [{ anchor: `method:${className}.${member.name.getText(sourceFile)}`, ...rangeOf(member), names: [] }];
+    const isProperty = ts.isPropertyDeclaration(member) && member.initializer !== undefined;
+    if ((isMethod || isProperty) && member.name) {
+      const kind = isMethod || (isProperty && isFunctionLike(member.initializer!)) ? 'method' : 'field';
+      return [{ anchor: `${kind}:${className}.${member.name.getText(sourceFile)}`, ...rangeOf(member), names: kind === 'field' ? [className] : [] }];
+    }
+    if (ts.isClassStaticBlockDeclaration(member)) {
+      return [{ anchor: `static-block:${className}`, ...rangeOf(member), names: [className] }];
     }
     return [];
   });
@@ -204,7 +208,16 @@ function declaredUnits(sourceFile: ts.SourceFile): DeclaredUnit[] {
     }
   }
   flush();
-  return units;
+  // Repeated callees (and other repeated symbol anchors) identify separate declarations, not one location.
+  const counts = new Map<string, number>();
+  for (const unit of units) counts.set(unit.anchor, (counts.get(unit.anchor) ?? 0) + 1);
+  const occurrences = new Map<string, number>();
+  return units.map((unit) => {
+    if (counts.get(unit.anchor) === 1) return unit;
+    const occurrence = (occurrences.get(unit.anchor) ?? 0) + 1;
+    occurrences.set(unit.anchor, occurrence);
+    return { ...unit, anchor: `${unit.anchor}#occurrence-${occurrence}` };
+  });
 }
 
 function importBindings(sourceFile: ts.SourceFile, fromPath: string, availablePaths: ReadonlySet<string>): ImportBinding[] {
@@ -275,7 +288,7 @@ function relateUnits(parsed: readonly ParsedSource[]): void {
         }
         const target = binding.target ? currentByPath.get(binding.target) : undefined;
         if (!target) {
-          if (!binding.target) unit.limitations.add('unresolved-import');
+          unit.limitations.add('unresolved-import');
           continue;
         }
         for (const candidate of target.units) {

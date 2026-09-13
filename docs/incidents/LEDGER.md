@@ -39,5 +39,10 @@
 | recent-pr-review-2026-09-09#catalog-profile-isolation | 壊れたoperator profileにより情報提供用`llm list`とrepository検証が失敗する | fixed | catalog生成が表示用profile metadataを必須入力として読み込んでいた | profile metadataをbest-effortにし、catalog verifierを隔離環境で実行 | REG-2026-027 | protected | none |
 | pr-27-review#profile-fifo | trusted profile に FIFO を指定すると、通常ファイルの検証前に writer 待ちで停止する | fixed | blocking open の後に通常ファイルかどうかを確認していた | lstat で通常ファイル以外を拒否し、検査後の置換にも non-blocking open と descriptor 検証で対応 | REG-2026-028 | protected | none |
 | pr-27-review#security-preparation-cancellation | security provider の準備中にキャンセルしても provider が起動し prompt を送信する | fixed | 最初の abort 確認と listener 登録の間の非同期処理中に発生したイベントを取りこぼしていた | listener 登録後に abort 状態を再確認し、起動前に終了して一時 directory を削除 | REG-2026-029 | protected | none |
+| pr-28-review#secret-assignments | 型注釈・改行を含む秘密値が送信予定 prompt に残る | fixed | 単一行の代入パターンだけを検出していた | AST による文字列値検出を追加し元の文字列検出も保持 | REG-2026-030 | protected | none |
+| pr-28-review#pem-windows | 窓を跨ぐ秘密鍵の後半が送信予定 prompt に残る | fixed | 分割後の本文では PEM の開始位置が失われる | current/base ソース全体をマスクしてから切り出す | REG-2026-031 | protected | none |
+| pr-28-review#class-initializers | class の初期化コードが coverage に含まれない | fixed | method がある class では他の実行可能 member を捨てていた | field initializer と static block も調査単位にする | REG-2026-032 | protected | none |
+| pr-28-review#handler-identity | 別ルートの所見が統合され主位置・説明が失われる | fixed | 同一 callee の anchor が衝突していた | 重複 symbol anchor を出現順で区別する | REG-2026-033 | protected | none |
+| pr-28-review#excluded-guards | 認可 guard を送れないのに high confidence が維持される | fixed | 存在しても解析対象外の import 先には limitation がなかった | 解析できない参照先も unresolved-import として confidence を制限 | REG-2026-034 | protected | none |
 
 証拠なしに root cause を推測しない。調査で確定するまで `unknown` を使う。

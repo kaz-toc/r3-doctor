@@ -10,7 +10,7 @@ import {
   type SecurityBaseSource,
   type SecuritySourceAnalysis,
 } from './context.js';
-import { filterSecuritySnippet, type OutboundFilterResult } from './outbound-filter.js';
+import { filterSecuritySnippet, sliceFilteredSecuritySnippet, type OutboundFilterResult } from './outbound-filter.js';
 import { buildSecurityPrompt, securitySnippetBlock, securityUnitLine, snippetIdForUnitId } from './prompt.js';
 import type {
   SecurityBatch,
@@ -126,21 +126,29 @@ export function buildSecurityPlan(input: SecurityPlanInput): SecurityPlan {
     : undefined;
 
   const filtered = new Map<string, OutboundFilterResult>();
+  const filteredSources = new Map<string, OutboundFilterResult>();
   const snippetFor = (unit: SecurityUnit): OutboundFilterResult => {
     const cached = filtered.get(unit.unitId);
     if (cached) return cached;
-    const content = (analysis.sources.get(securitySourceKey(unit.revision, unit.path)) ?? '')
-      .split('\n')
-      .slice(unit.startLine - 1, unit.endLine)
-      .join('\n');
-    const result = filterSecuritySnippet({
+    const sourceKey = securitySourceKey(unit.revision, unit.path);
+    let source = filteredSources.get(sourceKey);
+    if (!source) {
+      const content = analysis.sources.get(sourceKey) ?? '';
+      source = filterSecuritySnippet({
+        snippetId: snippetIdForUnitId(unit.unitId),
+        path: unit.path,
+        revision: unit.revision,
+        startLine: 1,
+        endLine: content.split('\n').length,
+        content,
+        contentHash: createHash('sha256').update(content).digest('hex'),
+      });
+      filteredSources.set(sourceKey, source);
+    }
+    const result = sliceFilteredSecuritySnippet(source, {
       snippetId: snippetIdForUnitId(unit.unitId),
-      path: unit.path,
-      revision: unit.revision,
       startLine: unit.startLine,
       endLine: unit.endLine,
-      content,
-      contentHash: createHash('sha256').update(content).digest('hex'),
     });
     filtered.set(unit.unitId, result);
     return result;
