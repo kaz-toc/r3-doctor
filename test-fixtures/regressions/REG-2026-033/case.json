@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-033",
+  "status": "active",
+  "title": "Separate route handlers retain separate findings",
+  "invariant": "Different handler declarations retain distinct findings while repeated reports of one handler merge.",
+  "incident": "pr-28-review#handler-identity",
+  "productionFiles": [
+    "src/addons/security/context.ts",
+    "src/addons/security/response.ts"
+  ],
+  "testFiles": [
+    "tests/security/context-regressions.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/context-regressions.test.ts -t REG-2026-033"
+  ]
+}

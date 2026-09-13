@@ -148,19 +148,19 @@ confinement 対応表（`SECURITY_CONFINEMENT_SUPPORT`）は現在空であり�
 `src/addons/security/context.ts` と `plan.ts` は、immutable snapshot と差分で渡された base 本文だけを読む。
 
 - 対象は TypeScript / JavaScript（`.ts` `.tsx` `.js` `.jsx` `.mjs` `.cjs`）。1 MiB を超えるファイルは解析せず `source-too-large` の未完了にする。
-- 調査単位は、関数、class member、関数引数を持つ top-level 呼び出し（route handler など）、それ以外の連続した top-level 文。import / export 宣言と型宣言は単位にしない。160 行を超える単位は 20 行重複の窓に分ける。
+- 調査単位は、関数、class member（method、field initializer、static block）、関数引数を持つ top-level 呼び出し（route handler など）、それ以外の連続した top-level 文。import / export 宣言と型宣言は単位にしない。160 行を超える単位は 20 行重複の窓に分ける。同一ファイルで同じ symbol anchor が複数現れる場合は出現順の suffix を付け、別の宣言を同じ所見位置として統合しない。
 - 優先度は、HTTP handler、外部入力、SQL / command / code / HTTP / file / HTML の sink、弱い暗号、guard の静的な手掛かりの重みの合計。手掛かりのない単位も列挙し、Regression Evidence や `diagnosticSkipRoots` を除外条件にしない。
-- 関連コードは、static import の binding と同一ファイル内の名前参照から dependency / caller / guard を直接 1 段だけ解決する（1 単位あたり最大 8）。dynamic import、computed call、外部 middleware、解決できない import は limitation に残す。全プログラムの taint analysis ではない。
+- 関連コードは、static import の binding と同一ファイル内の名前参照から dependency / caller / guard を直接 1 段だけ解決する（1 単位あたり最大 8）。dynamic import、computed call、外部 middleware、解決できない import は limitation に残す。参照先が snapshot に存在しても、生成物・秘密ファイル・サイズ超過などで解析できない場合は `unresolved-import` とする。全プログラムの taint analysis ではない。
 - 送信 scope `changed` は変更ファイルの base / current だけを送る。`cluster-context` と `all` はどちらも直接の関連コードまでに限る。分析 scope または送信 scope が `changed` で差分がなければ `base-required` とする。
 - batch は priority 降順 → path → revision → 行の順に first-fit で詰める。1 request の UTF-8 bytes（指示を含む）、全 request の合計 bytes（再送した snippet を含む）、送信する一意 path 数（`llm.maxFiles`）、batch あたり 8 unit、batch 数を満たす場合だけ採用する。入らない unit は `budget-exhausted`、単独でも入らない unit は `prompt-too-large` とし、1 件も送れなければ reason `budget-insufficient` を記録する。
 - prompt は固定指示の後に、送信内容から導いた nonce の fence で untrusted data を囲む。source の各行は `行番号| ` で始まり、fence 行を偽装できない。
 
 ## 送信フィルタ
 
-`src/addons/security/outbound-filter.ts` は snippet ごとに次を適用する。
+`src/addons/security/outbound-filter.ts` は次のフィルタを適用する。送信計画は current / base それぞれのソース全体を先にマスクし、その結果から snippet を切り出す。窓の途中で始まる PEM や複数行の秘密値も、元の秘密領域としてマスクする。
 
 - 送信しない: `.env*`、秘密鍵ファイル（`id_rsa` など、`.pem` `.key` `.p12` `.pfx` `.jks` `.keystore`）、名前に credential(s) / secret(s) を含むファイル、生成物（`dist` `build` `coverage` `node_modules` `vendor` `generated` 配下、`.d.ts` `.min.js` `.bundle.js` `.map`）、NUL を含む本文、制御文字・バックスラッシュ・絶対 path・`..` を含む path。
-- マスクする: PEM 秘密鍵ブロック、既知の token 形式（AWS、GitHub、Slack、OpenAI / Anthropic、Google、Stripe、JWT）、password / secret / token / API key などの名前に代入された文字列リテラル。行数を保ち、prompt には `redacted-lines` として位置だけを示す。送信する本文の hash は元本文の hash と区別する。
+- マスクする: PEM 秘密鍵ブロック、既知の token 形式（AWS、GitHub、Slack、OpenAI / Anthropic、Google、Stripe、JWT）、password / secret / token / API key などの名前に代入された文字列リテラル。型注釈付き代入と複数行の値は TypeScript AST で検出し、コメントやコード例の単一行代入に対する文字列検出も維持する。行数を保ち、prompt には `redacted-lines` として snippet 内の元行番号だけを示す。送信する本文の hash は切り出したマスク済み本文から生成し、元本文の hash と区別する。
 - マスク後にコードが残らない snippet は `masked-unanalyzable` として送らない。パターン検出は未知の秘密情報を完全には除去しない。
 
 ## 応答検証と severity

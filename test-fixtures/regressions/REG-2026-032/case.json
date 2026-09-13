@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-032",
+  "status": "active",
+  "title": "Security units include class initialization",
+  "invariant": "Class field initializers and static blocks are included in sent units and coverage alongside methods, preserving imports through the owning class name.",
+  "incident": "pr-28-review#class-initializers",
+  "productionFiles": [
+    "src/addons/security/context.ts"
+  ],
+  "testFiles": [
+    "tests/security/context-regressions.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/context-regressions.test.ts -t REG-2026-032"
+  ]
+}

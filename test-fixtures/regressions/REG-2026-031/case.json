@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-031",
+  "status": "active",
+  "title": "PEM redaction precedes security windows",
+  "invariant": "Neither current nor base snippets expose PEM payload across window boundaries; fully masked windows remain incomplete.",
+  "incident": "pr-28-review#pem-windows",
+  "productionFiles": [
+    "src/addons/security/outbound-filter.ts",
+    "src/addons/security/plan.ts"
+  ],
+  "testFiles": [
+    "tests/security/context-regressions.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/context-regressions.test.ts -t REG-2026-031"
+  ]
+}

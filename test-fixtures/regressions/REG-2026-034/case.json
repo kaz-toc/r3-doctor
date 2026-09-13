@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-034",
+  "status": "active",
+  "title": "Unavailable guards reduce confidence",
+  "invariant": "A relative import target absent from security analysis is recorded as unresolved even when present in the snapshot, capping finding confidence at low.",
+  "incident": "pr-28-review#excluded-guards",
+  "productionFiles": [
+    "src/addons/security/context.ts",
+    "src/addons/security/severity.ts"
+  ],
+  "testFiles": [
+    "tests/security/context-regressions.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/security/context-regressions.test.ts -t REG-2026-034"
+  ]
+}
