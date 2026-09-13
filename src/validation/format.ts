@@ -1,3 +1,4 @@
+import { R3DoctorError } from '../shared/errors.js';
 import type { ValidationComparison } from './evaluate.js';
 import type { ValidationStatus } from './status.js';
 
@@ -11,13 +12,14 @@ export function escapeConsoleIdentifier(value: string): string {
 
 export function parseValidationFormat(value: string): ValidationFormat {
   if (value === 'console' || value === 'json') return value;
-  throw new Error(`invalid format: ${value}`);
+  throw new R3DoctorError(`invalid format: ${value}`);
 }
 
 export function formatValidationStatus(value: ValidationStatus, format: ValidationFormat): string {
   if (format === 'json') return `${JSON.stringify(value, null, 2)}\n`;
   const lines = [
     `pending=${value.counts.pending} due=${value.counts.due} complete=${value.counts.complete}`,
+    ...value.warnings.map((warning) => `warning=${escapeConsoleIdentifier(warning)}`),
     ...value.samples.map((sample) =>
       `sample=${escapeConsoleIdentifier(sample.sampleId)} state=${sample.state} dueAt=${sample.dueAt}${sample.outcome ? ` outcome=${sample.outcome}` : ''}${sample.retentionExpired ? ' retention=expired' : ''}`,
     ),

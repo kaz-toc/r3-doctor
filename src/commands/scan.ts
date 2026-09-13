@@ -19,7 +19,9 @@ import { buildBudgetedSemanticPrompt } from '../semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from '../semantic/execution-policy.js';
 import type { OperatorProfile } from '../operator/profile.js';
 import { computeShadowScores } from '../validation/shadow-score.js';
+import { warnIfValidationNotGitignored } from '../validation/gitignore-hint.js';
 import { saveValidationSnapshot } from '../validation/storage.js';
+import { VALIDATION_HORIZON_DAYS_MAX } from '../validation/snapshot.js';
 
 const VALID_FORMATS = new Set(['console', 'markdown', 'json']);
 const VALID_VIEWS = new Set(['facts', 'summary', 'actions', 'all']);
@@ -60,6 +62,9 @@ function parseValidationHorizon(value: string | undefined, recording: boolean): 
   const parsed = Number(value ?? '30');
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new R3DoctorError('validation horizon days must be a positive integer');
+  }
+  if (parsed > VALIDATION_HORIZON_DAYS_MAX) {
+    throw new R3DoctorError(`validation horizon days must be at most ${VALIDATION_HORIZON_DAYS_MAX}`);
   }
   return parsed;
 }
@@ -112,16 +117,24 @@ export async function runScanAction(options: ScanActionOptions): Promise<void> {
   const report = await runDiagnosis(snapshot);
   const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
   const output = reporter.format(redactReport(report, policy.redactPaths), format, { view });
+  process.stdout.write(output);
 
+  let validationError: unknown;
   if (options.recordValidation) {
-    const recorded = await saveValidationSnapshot({
-      snapshot,
-      report,
-      shadow: computeShadowScores(snapshot, report),
-      policyThresholds: { advisory: policy.advisoryThreshold, gate: policy.gateThreshold },
-      horizonDays: validationHorizonDays,
-    });
-    process.stderr.write(`validation sample=${recorded.sample.sampleId} status=${recorded.status}\n`);
+    try {
+      const recorded = await saveValidationSnapshot({
+        snapshot,
+        report,
+        shadow: computeShadowScores(snapshot, report),
+        policyThresholds: { advisory: policy.advisoryThreshold, gate: policy.gateThreshold },
+        horizonDays: validationHorizonDays,
+      });
+      process.stderr.write(`validation sample=${recorded.sample.sampleId} status=${recorded.status}\n`);
+      const gitignoreHint = await warnIfValidationNotGitignored(snapshot.repositoryPath);
+      if (gitignoreHint) process.stderr.write(`${gitignoreHint}\n`);
+    } catch (error) {
+      validationError = error;
+    }
   }
   if (options.saveBaseline) {
     const baseline = await saveBaseline(snapshot, report);
@@ -132,8 +145,9 @@ export async function runScanAction(options: ScanActionOptions): Promise<void> {
     const trend = await appendTrend(snapshot, report);
     writeRetentionAudits(trend.retention);
   }
-
-  process.stdout.write(output);
+  if (validationError) {
+    throw validationError;
+  }
 }
 
 function addLlmOptions(command: Command): Command {

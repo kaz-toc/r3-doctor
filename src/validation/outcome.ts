@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { atomicWriteFile } from '../shared/atomic-write.js';
 import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+import { canonicalJson } from '../shared/canonical-json.js';
 import { ConfigError } from '../shared/errors.js';
 import { assertSafeStorageDir, resolveSafeStorageDir, type SafeStorageDirectory } from '../persistence/storage-boundary.js';
 import { VALIDATION_DIRECTORY, VALIDATION_FILE_MAX_BYTES, loadValidationSnapshots } from './storage.js';
@@ -16,13 +17,8 @@ function isMissing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const object = value as Record<string, unknown>;
-    return `{${Object.keys(object).filter((key) => object[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
+function isJsonArtifactName(name: string): boolean {
+  return name.endsWith('.json') && !name.startsWith('.');
 }
 
 function withoutObservedAt(outcome: ValidationOutcomeV1): Record<string, unknown> {
@@ -54,6 +50,12 @@ async function readOutcome(filePath: string, name: string): Promise<ValidationOu
   return result.data;
 }
 
+function assertNotFuture(timestamp: string, fieldName: string, now: Date): void {
+  if (new Date(timestamp).getTime() > now.getTime()) {
+    throw new ConfigError(`outcomes/${fieldName}`, `${fieldName} cannot be in the future`);
+  }
+}
+
 export async function saveValidationOutcome(
   repositoryPath: string,
   input: {
@@ -62,8 +64,9 @@ export async function saveValidationOutcome(
     occurredAt?: string;
     incidentId?: string;
     observedAt?: Date;
+    replace?: boolean;
   },
-): Promise<{ status: 'created' | 'unchanged'; outcome: ValidationOutcomeV1 }> {
+): Promise<{ status: 'created' | 'unchanged' | 'replaced'; outcome: ValidationOutcomeV1 }> {
   const samples = await loadValidationSnapshots(repositoryPath);
   const sample = samples.find((entry) => entry.sampleId === input.sampleId);
   if (!sample) throw new ConfigError(`snapshots/${input.sampleId}.json`, 'validation sample does not exist');
@@ -76,6 +79,10 @@ export async function saveValidationOutcome(
     occurredAt: input.occurredAt,
     incidentId: input.incidentId,
   });
+  assertNotFuture(outcome.observedAt, 'observedAt', observedAt);
+  if (outcome.occurredAt) {
+    assertNotFuture(outcome.occurredAt, 'occurredAt', observedAt);
+  }
   const recorded = new Date(sample.recordedAt).getTime();
   const due = new Date(sample.dueAt).getTime();
   if (outcome.outcome === 'no-regression') {
@@ -100,7 +107,11 @@ export async function saveValidationOutcome(
       ? canonicalJson(withoutObservedAt(stored)) === canonicalJson(withoutObservedAt(outcome))
       : canonicalJson(stored) === canonicalJson(outcome);
     if (!same) {
-      throw new ConfigError(`outcomes/${path.basename(targetPath)}`, 'validation outcome already exists with different content');
+      if (!input.replace) {
+        throw new ConfigError(`outcomes/${path.basename(targetPath)}`, 'validation outcome already exists with different content');
+      }
+      await atomicWriteFile(targetPath, `${canonicalJson(outcome)}\n`, () => assertSafeStorageDir(outcomes));
+      return { status: 'replaced', outcome };
     }
     return { status: 'unchanged', outcome: stored };
   }
@@ -120,7 +131,7 @@ export async function loadValidationOutcomes(repositoryPath: string): Promise<Va
   const names = (await readdir(outcomes.path)).sort();
   const values: ValidationOutcomeV1[] = [];
   for (const name of names) {
-    if (!name.endsWith('.json')) throw new ConfigError(`outcomes/${name}`, 'validation outcomes must use .json filenames');
+    if (!isJsonArtifactName(name)) continue;
     values.push(await readOutcome(path.join(outcomes.path, name), name));
   }
   return values.sort((left, right) => left.observedAt.localeCompare(right.observedAt) || left.sampleId.localeCompare(right.sampleId));

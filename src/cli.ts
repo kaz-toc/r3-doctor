@@ -214,33 +214,31 @@ program
     }
   });
 
-program
-  .command('calibration')
-  .argument('<path-or-command>', 'repository path or compare')
-  .argument('[path]', 'repository path for compare')
-  .option('--golden', 'run golden assessment regression check')
+const calibration = program.command('calibration').description('calibration dataset and validation comparison');
+
+calibration
+  .command('compare')
+  .argument('<path>', 'repository path')
   .option('--format <format>', 'console|json', 'console')
   .option('--repository-validation-passed', 'attest that npm run validate passed', false)
-  .action(async (pathOrCommand: string, repositoryPath: string | undefined, options: {
-    golden?: boolean;
+  .action(async (repositoryPath: string, options: {
     format: string;
     repositoryValidationPassed: boolean;
   }) => {
-    if (pathOrCommand === 'compare') {
-      if (!repositoryPath || options.golden) {
-        throw new R3DoctorError('calibration compare requires a repository path and does not accept --golden');
-      }
-      const resolved = path.resolve(repositoryPath);
-      const comparison = compareValidationModels({
-        snapshots: await loadValidationSnapshots(resolved),
-        outcomes: await loadValidationOutcomes(resolved),
-        goldenOrdering: await runShadowGoldenAssessmentRegression(),
-        repositoryValidationPassed: options.repositoryValidationPassed,
-      });
-      process.stdout.write(formatValidationComparison(comparison, parseValidationFormat(options.format)));
-      return;
-    }
-    if (repositoryPath) throw new R3DoctorError('calibration accepts one repository path');
+    const resolved = path.resolve(repositoryPath);
+    const comparison = compareValidationModels({
+      snapshots: await loadValidationSnapshots(resolved),
+      outcomes: await loadValidationOutcomes(resolved),
+      goldenOrdering: await runShadowGoldenAssessmentRegression(),
+      repositoryValidationPassed: options.repositoryValidationPassed,
+    });
+    process.stdout.write(formatValidationComparison(comparison, parseValidationFormat(options.format)));
+  });
+
+calibration
+  .argument('<path>', 'repository path')
+  .option('--golden', 'run golden assessment regression check')
+  .action(async (repositoryPath: string, options: { golden?: boolean }) => {
     if (options.golden) {
       const report = await runGoldenAssessmentRegression();
       process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -249,17 +247,17 @@ program
       }
       return;
     }
-    const snapshot = await createRepositorySnapshot(path.resolve(pathOrCommand));
+    const snapshot = await createRepositorySnapshot(path.resolve(repositoryPath));
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
     const golden = await runGoldenAssessmentRegression();
-    const calibration = await loadCalibration(
+    const calibrationResult = await loadCalibration(
       snapshot.repositoryPath,
       golden.passed,
       policy.requiredCalibrationConditions,
     );
-    const quality = summarizeCalibrationQuality(calibration);
+    const quality = summarizeCalibrationQuality(calibrationResult);
     process.stdout.write(
-      `${summarizeCalibration(calibration)}\nQuality status: ${quality.status}\n`,
+      `${summarizeCalibration(calibrationResult)}\nQuality status: ${quality.status}\n`,
     );
   });
 
@@ -289,17 +287,20 @@ validation
   .requiredOption('--outcome <kind>', 'regression|revert|hotfix|no-regression')
   .option('--occurred-at <ISO-8601>', 'when a positive outcome occurred')
   .option('--incident <opaque-id>', 'opaque incident identifier')
+  .option('--replace', 'replace an existing outcome with different content', false)
   .action(async (repositoryPath: string, options: {
     sample: string;
     outcome: 'regression' | 'revert' | 'hotfix' | 'no-regression';
     occurredAt?: string;
     incident?: string;
+    replace: boolean;
   }) => {
     const result = await saveValidationOutcome(path.resolve(repositoryPath), {
       sampleId: options.sample,
       outcome: options.outcome,
       occurredAt: options.occurredAt,
       incidentId: options.incident,
+      replace: options.replace,
     });
     process.stderr.write(`validation outcome=${result.outcome.outcome} sample=${result.outcome.sampleId} status=${result.status}\n`);
   });

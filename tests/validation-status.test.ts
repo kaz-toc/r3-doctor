@@ -19,6 +19,15 @@ describe('validation lifecycle status', () => {
     expect(buildValidationStatus([sample], [outcome], new Date('2026-10-01T00:00:00.000Z'), 90)).toMatchObject({
       counts: { pending: 0, due: 0, complete: 1 },
       samples: [{ state: 'complete', outcome: 'no-regression' }],
+      warnings: [],
+    });
+  });
+
+  it('warns about orphan outcomes instead of failing status', () => {
+    const outcome = { sampleId: id, outcome: 'no-regression' } as ValidationOutcomeV1;
+    expect(buildValidationStatus([], [outcome], new Date('2026-10-01T00:00:00.000Z'), 90)).toMatchObject({
+      counts: { pending: 0, due: 0, complete: 0 },
+      warnings: [`outcomes/${id}.json references a missing validation sample`],
     });
   });
 });

@@ -90,7 +90,7 @@ function axesAndClusters(
     const result = scoreAxis({
       axisId,
       evidence: evidence.filter((item) => item.axisId === axisId),
-      semanticFindings: report.semanticFindings.filter((item) => item.axisId === axisId),
+      semanticFindings: scoreEligibleSemanticFindings.filter((item) => item.axisId === axisId),
       productPathCount,
       evaluableMechanismIds: evaluableMechanismIdsForAxis(axisId, report.capabilities),
       snapshotPaths,
