@@ -40,10 +40,11 @@
 - semantic: H1 6件、M9 5件＋特殊パス1件、L10 2件の失敗を確認。最終関連84件成功。
 - calibration/CLI/assessment/Markdown: `tests/codebase-review.test.ts` は修正前13件失敗→修正後13件成功。
 - harness: 新規ケースの変数名表示が修正前失敗→設定テスト9件成功。
+- 最終レビューの追加2件: operator home からの setup と Python/Go 旧baseline比較の新規4件が修正前失敗→修正後成功。周辺8 files / 56 tests、typecheck、diff check成功。
 
 ## 互換性と復旧
 
-v4の強度式・axis重みは維持。正しい循環成分・依存数・churnによりEvidence/scoreは変わり得るため、TypeScript analyzerを1.2.0、semantic providerを2.3.0へ更新し、既存のanalysis context互換性検証に反映した。旧baselineは条件不一致として扱い、再scanして取得する。
+v4の強度式・axis重みは維持。正しい循環成分・依存数・churnによりEvidence/scoreは変わり得るため、TypeScript analyzerを1.2.0、semantic providerを2.3.0へ更新した。全言語共通の `intakeImplementationVersion: "1.0.0"` もanalysis contextに追加し、source上限導入前のPython/Go baselineを含めて条件不一致とする。旧baselineは再scanして取得する。
 
 validationのschema v1は維持。旧artifactを読み取り可能とし、削除・暗黙移行・スコア再計算を行わない。sample ID方式の更新後は同じcommitの再記録が別IDになることがある。復旧は修正前のCLIへ戻すことで可能。生成済みartifactは保持し、新旧方式の重複はsample IDと記録時刻を確認して運用で扱う。
 
@@ -60,6 +61,11 @@ validationのschema v1は維持。旧artifactを読み取り可能とし、削�
 
 ## 最終検証
 
-全体validate、provider canary、固定差分レビューの結果を完了時に追記する。
+- 初回の固定差分レビューは `2a5d0ec..a3f2437` を1回実施。Important 2件（setupの実対象path伝播、全言語intake互換性）を指摘。
+- 1回の修正波 `a3f2437..b5f5135` に上記2件とM11に対応するcanary期待値修正を集約。同じ担当者が元の指摘と修正差分だけを1回再レビューし、2件の解消と残るCritical/Importantなしを確認。
+- 修正波前の全体validateは45 harness tests / 55 files / 413 Vitest tests、typecheck、build、provider catalog検証が成功。
+- 修正波後の最終 `npm run validate` は **exit 0**。45 harness tests、harness validate、typecheck、**57 files / 417 Vitest tests**、build、provider catalog 4件の検証がすべて成功。Vitest実行時間304.68秒。
+- 実providerは通常環境で `@agentclientprotocol/codex-acp@1.10.0` のinspectがavailable。既定canaryの `gpt-5-mini` は当該認証環境で `model_unavailable` だったため、model discoveryが提示した `gpt-5.6-luna` を明示して最終ビルドを検証した。
+- `R3_DOCTOR_LLM_INTEGRATION=1 R3_DOCTOR_LLM_MODEL=gpt-5.6-luna npm run smoke:llm-integration` — **exit 0 / ok: true**。provider available、所見2件。決定的な根拠のないfixtureでsemantic軸が未評価・score 0となるM11の契約も成功。canaryのモデル既定値は維持し、利用環境に応じた明示overrideを追加した。
 
-既定並列の再実行中にホストの load average が約149まで上がり、異なるCLI/Gitテストで同時にタイムアウトした。他プロジェクトのテストも動作していたため、この作業のVitestプロセスと子プロセスだけを同定して停止。インストール済みVitestが対応する `VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1` で並列数を抑えて検証する。チェック、テスト、タイムアウト、CI設定は変更しない。
+既定並列の再実行中にホストの load average が約149まで上がり、異なるCLI/Gitテストで同時にタイムアウトした。他プロジェクトのテストも動作していたため、この作業のVitestプロセスと子プロセスだけを同定して停止。インストール済みVitestが対応する `VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1` で並列数を抑えて最終検証を実施した。テストの除外、タイムアウト延長、CI設定変更は行っていない。

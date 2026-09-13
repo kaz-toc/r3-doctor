@@ -22,8 +22,10 @@
 - [x] Semantic: verify H1/M9/M10/L10 using fake ACP and dry-run prompts; isolate provider runtime, enforce documented send scope and partial profile behavior. Coordinate scan integration with parent.
 - [x] CLI/reporting/calibration: reproduce M3/M4/M11/M12/L1/L3/L7 and fix output composition, bounded reads, eligibility handling, Markdown escaping, early option validation, harness diagnostics.
 - [x] Record every finding's disposition in review follow-up, register active incident regression cases and boundary evidence.
-- [ ] Run `npm run validate`; run applicable persistence, provider, policy and CLI boundary checks.
-- [ ] Commit, one fixed-range independent review, address blocking findings once if needed, scoped re-review, push and verify remote SHA.
+- [x] Run `npm run validate`; run applicable persistence, provider, policy and CLI boundary checks (45 harness tests, 57 files / 417 Vitest tests, typecheck, build, provider catalog passed). Real Codex canary passed using the advertised `gpt-5.6-luna` model.
+- [x] Commit, one fixed-range independent review, address blocking findings once, and scoped re-review. Both Important findings resolved; no remaining Critical/Important in the correction diff.
+
+**Delivery:** Push `fix/codebase-review-2026-09-13` and verify the remote SHA before reporting completion. Keep the original checkout and its untracked review document intact.
 
 ## Verification commands
 
