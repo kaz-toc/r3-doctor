@@ -61,7 +61,7 @@ export type LlmProviderDefinition = {
 function filterEnv(
   providerId: LlmProviderId,
   inheritedEnv: NodeJS.ProcessEnv,
-  runtimeDirectory: string,
+  untrustedRepositoryRoots: readonly string[],
   overrides: Record<string, string> = {},
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
@@ -76,7 +76,7 @@ function filterEnv(
   for (const [key, value] of Object.entries(overrides)) {
     env[key] = value;
   }
-  env.PATH = sanitizeExecutableSearchPath(env.PATH, runtimeDirectory);
+  env.PATH = sanitizeExecutableSearchPath(env.PATH, untrustedRepositoryRoots);
   return env;
 }
 
@@ -88,10 +88,10 @@ function baseLaunch(
 ): LlmLaunchSpec {
   return {
     providerId,
-    command: validateExecutableCommand(input.executablePath, input.runtimeDirectory),
+    command: validateExecutableCommand(input.executablePath, input.untrustedRepositoryRoots),
     args,
-    cwd: input.runtimeDirectory,
-    env: filterEnv(providerId, input.inheritedEnv, input.runtimeDirectory, envOverrides),
+    cwd: input.cwd,
+    env: filterEnv(providerId, input.inheritedEnv, input.untrustedRepositoryRoots, envOverrides),
   };
 }
 

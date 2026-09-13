@@ -41,7 +41,8 @@ export async function inspectLlmProvider(
   const spec = buildLlmLaunchSpec(providerId, {
     executablePath: definition.defaultExecutablePath,
     modelIdentifier: providerId === 'copilot' ? 'auto' : '',
-    runtimeDirectory: repositoryPath,
+    cwd: repositoryPath,
+    untrustedRepositoryRoots: [repositoryPath],
     inheritedEnv: process.env,
   });
 

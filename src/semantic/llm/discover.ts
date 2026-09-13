@@ -79,7 +79,8 @@ export async function discoverLlmModels(input: {
   const spec = buildLlmLaunchSpec(input.provider, {
     executablePath: definition.defaultExecutablePath,
     modelIdentifier: input.provider === 'copilot' ? 'auto' : '',
-    runtimeDirectory,
+    cwd: runtimeDirectory,
+    untrustedRepositoryRoots: [runtimeDirectory],
     inheritedEnv: process.env,
   });
 

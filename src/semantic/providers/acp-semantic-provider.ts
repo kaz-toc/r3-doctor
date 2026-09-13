@@ -32,7 +32,8 @@ export class AcpSemanticProvider implements SemanticProvider {
     const spec = buildLlmLaunchSpec(this.name, {
       executablePath,
       modelIdentifier: this.config.model ?? (this.name === 'copilot' ? 'auto' : ''),
-      runtimeDirectory: snapshot.repositoryPath,
+      cwd: snapshot.repositoryPath,
+      untrustedRepositoryRoots: [snapshot.repositoryPath],
       inheritedEnv: process.env,
     });
 

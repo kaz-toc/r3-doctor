@@ -55,7 +55,18 @@ export type OneShotAcpClient = {
     outputMaxBytes: number;
     modelIdentifier?: string;
     signal?: AbortSignal;
-  }): Promise<LlmResult<{ text: string }>>;
+    /** Runs after initialize and before any session is created; a returned reason stops the call. */
+    verifyInitialize?: (inspection: LlmInspection) => LlmFailureReason | null;
+  }): Promise<LlmResult<OneShotPromptValue>>;
+};
+
+export type LlmPromptUsage = { inputTokens: number; outputTokens: number } | null;
+
+export type OneShotPromptValue = {
+  text: string;
+  inspection: LlmInspection;
+  usage: LlmPromptUsage;
+  resolvedModel: string | null;
 };
 
 type AcpConnection = ReturnType<ReturnType<typeof acp.client>['connect']>;
@@ -378,7 +389,7 @@ async function promptSession(
   outputMaxBytes: number,
   promptPolicy: LlmPromptPolicy,
   signal?: AbortSignal,
-): Promise<LlmResult<{ text: string }>> {
+): Promise<LlmResult<{ text: string; usage: LlmPromptUsage }>> {
   if (!Number.isSafeInteger(outputMaxBytes) || outputMaxBytes < 0) {
     return fail('invalid_response');
   }
@@ -460,8 +471,11 @@ async function promptSession(
           resetIdleDeadline();
           continue;
         }
-        await Promise.race([promptResult, resource.error, idleDeadline, hardDeadline]);
-        return ok({ text: chunks.join('') });
+        const response = await Promise.race([promptResult, resource.error, idleDeadline, hardDeadline]);
+        const usage = response.usage
+          ? { inputTokens: response.usage.inputTokens, outputTokens: response.usage.outputTokens }
+          : null;
+        return ok({ text: chunks.join(''), usage });
       }
     } finally {
       signal?.removeEventListener('abort', onAbort);
@@ -537,8 +551,10 @@ export function createOneShotAcpClient(input?: {
       });
     },
 
-    async oneShotPrompt({ spec, prompt, outputMaxBytes, modelIdentifier, signal }) {
+    async oneShotPrompt({ spec, prompt, outputMaxBytes, modelIdentifier, signal, verifyInitialize }) {
       return withConnection({ spec, spawn: input?.spawn, signal, setupTimeoutMs }, async (resource) => {
+        const rejection = verifyInitialize?.(resource.inspection);
+        if (rejection) return fail(rejection);
         const setup = await raceWithTimeout((async () => {
           const session = await createSession(resource, spec, signal);
           const configured = await configureSession(resource, session, modelIdentifier, signal);
@@ -546,8 +562,17 @@ export function createOneShotAcpClient(input?: {
         })(), resource, setupTimeoutMs, 'session_setup');
         const { session, configured } = setup;
         if (!configured.ok) return configured;
-        return promptSession(resource, session, prompt, outputMaxBytes, promptPolicy, signal);
+        const resolvedModel = resolvedModelIdentifier(session, modelIdentifier);
+        const prompted = await promptSession(resource, session, prompt, outputMaxBytes, promptPolicy, signal);
+        if (!prompted.ok) return prompted;
+        return ok({ ...prompted.value, inspection: resource.inspection, resolvedModel });
       });
     },
   };
+}
+
+function resolvedModelIdentifier(session: LlmAcpSession, requested: string | undefined): string | null {
+  if (session.providerId !== 'copilot' && requested) return requested;
+  const modelOption = findModelOption(session.activeSession.newSessionResponse.configOptions);
+  return modelOption?.type === 'select' ? modelOption.currentValue : null;
 }
