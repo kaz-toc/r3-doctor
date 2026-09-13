@@ -15,6 +15,7 @@ export type DiagnosisDependencies = {
   semanticProviderFactory?: SemanticProviderFactory;
   analyzerPlugins?: AnalyzerPlugin[];
   skipCalibrationResolution?: boolean;
+  changedFiles?: readonly string[];
 };
 
 export async function runDiagnosis(
@@ -28,6 +29,7 @@ export async function runDiagnosis(
     snapshot,
     evidence,
     dependencies.semanticProviderFactory,
+    dependencies.changedFiles,
   );
 
   const report = assessRisk({

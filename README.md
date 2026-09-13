@@ -106,7 +106,7 @@ npm run validate
 r3-doctor calibration compare . --repository-validation-passed
 ```
 
-`no-regression` は sample の dueAt 以降でのみ記録できます。明示フラグのない scan は validation artifact を作成しません。記録には clean な Git worktree が必要なので、`.gitignore` に `.r3-doctor/validation/` を追加してください。誤登録した outcome は `validation outcome . --sample <id> --outcome <kind> --replace` で上書きできます。詳細は [Shadow Score Validation](docs/spec/shadow-score-validation.md) を参照してください。
+`no-regression` は sample の dueAt 以降でのみ記録できます。明示フラグのない scan は validation artifact を作成しません。記録には clean な Git worktree が必要です。r3-doctor が生成する未追跡 validation artifact はこの判定から除外されますが、追跡済み変更やその他の未追跡ファイルは除外されません。ローカル記録を commit に含めないため、`.gitignore` に `.r3-doctor/validation/` を追加することを推奨します。誤登録した outcome は `validation outcome . --sample <id> --outcome <kind> --replace` で上書きできます。詳細は [Shadow Score Validation](docs/spec/shadow-score-validation.md) を参照してください。
 
 ## LLM integration smoke test（開発者向け、課金あり）
 
@@ -121,6 +121,10 @@ R3_DOCTOR_LLM_INTEGRATION=1 OPENAI_API_KEY=... npm run smoke:llm-integration
 CI では Actions → **LLM integration** を手動実行。repository variable `R3_DOCTOR_LLM_INTEGRATION=1` と secret `OPENAI_API_KEY` が必要。
 
 LLM の起動と外部送信は解析対象の `r3-doctor.config.json` では設定できません。実行者が `scan` / `diff` の `--llm-provider` を指定したときだけ有効になります。model、実行ファイル、送信 scope、上限も `--llm-model`、`--llm-executable`、`--llm-send-scope`、`--llm-max-files`、`--llm-max-prompt-bytes` で指定します。対象リポジトリは信頼できない入力として扱われます。
+
+LLM は毎回作成する空の一時ディレクトリで起動し、対象リポジトリの起動設定を読み込ませません。`changed` は scan では HEAD に対する作業ツリー・index・未追跡ソースの変更、diff では `--base` に対する変更を送ります。Git の変更情報がない scan の `changed` はソースを送りません。`cluster-context` は scan の Evidence 対象（関連パスを含む）、diff の変更対象を起点に、直接の依存先・依存元までを候補にします。`all` は全ソースを候補とし、各 scope にファイル数・prompt byte 上限が適用されます。実際の候補は `--dry-run-semantic` で確認できます。
+
+`policy.redactPaths` はレポート出力・保存時のパスマスクです。LLM へ送るソースの名前や内容はマスクしません。外部へ送れないソースは解析対象の `exclude` から除外し、送信前に scope と dry-run の内容を確認してください。provider を指定しない部分的な operator profile は、LLM を有効にするまで待機中の既定値として扱います。
 
 `--llm-executable` は絶対パスまたは bare command name のみを受け付けます。相対パスと解析対象内を指す絶対パスは拒否し、bare command の探索では対象リポジトリ配下および相対 `PATH` entry を除外します。
 

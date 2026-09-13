@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-034",
+  "status": "active",
+  "title": "Untrusted report values cannot inject Markdown",
+  "invariant": "Markdown renders untrusted dynamic text without executable HTML, images, injected headings or table separators.",
+  "incident": "codebase-review-2026-09-13#REG-2026-034",
+  "productionFiles": [
+    "src/reporting/format.ts",
+    "src/reporting/markdown.ts"
+  ],
+  "testFiles": [
+    "tests/codebase-review.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/codebase-review.test.ts -t REG-2026-034"
+  ]
+}

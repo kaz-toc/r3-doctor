@@ -72,13 +72,13 @@ export function parseLlmExecutionPolicy(
     const enabled = provider !== 'none';
     if (!enabled) {
       const providerSpecificOverride = [
-        ['--llm-model', parsed.llmModel],
-        ['--llm-executable', parsed.llmExecutable],
+        ['--llm-model', options.llmModel],
+        ['--llm-executable', options.llmExecutable],
       ].find((entry) => entry[1] !== undefined);
       const runtimeOverride = [
-        ['--llm-send-scope', parsed.llmSendScope],
-        ['--llm-max-files', parsed.llmMaxFiles],
-        ['--llm-max-prompt-bytes', parsed.llmMaxPromptBytes],
+        ['--llm-send-scope', options.llmSendScope],
+        ['--llm-max-files', options.llmMaxFiles],
+        ['--llm-max-prompt-bytes', options.llmMaxPromptBytes],
       ].find((entry) => entry[1] !== undefined);
       const forbiddenOverride = providerSpecificOverride ?? (dryRun ? undefined : runtimeOverride);
       if (forbiddenOverride) {

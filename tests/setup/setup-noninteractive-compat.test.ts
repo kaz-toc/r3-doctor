@@ -83,6 +83,7 @@ describe('setup non-interactive LLM compatibility', () => {
       return true;
     });
     const previousPath = process.env.PATH;
+    const diagnose = vi.spyOn(await import('../../src/pipeline/diagnose.js'), 'runDiagnosis');
     process.env.PATH = '/usr/bin:/bin';
     try {
       const setup = await runSetup({
@@ -98,17 +99,17 @@ describe('setup non-interactive LLM compatibility', () => {
         saveOperatorProfile: false,
         llmInspectAvailable: true,
       });
-      const scanReport = JSON.parse(output.join('')) as {
-        metadata: { llmProvider?: string; semanticProviderStatus: string };
-      };
+      const scanReport = await diagnose.mock.results[0]?.value;
 
       expect(setup.scanRan).toBe(true);
+      expect(output.join('')).toBe('');
       expect(scanReport.metadata.llmProvider).toBe('codex');
       expect(scanReport.metadata.semanticProviderStatus).not.toBe('not-configured');
     } finally {
       if (previousPath === undefined) delete process.env.PATH;
       else process.env.PATH = previousPath;
       stdout.mockRestore();
+      diagnose.mockRestore();
       await repo.cleanup();
     }
   });

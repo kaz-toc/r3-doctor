@@ -4,9 +4,9 @@ LLM を使わず再現可能なシグナル。同一入力・同一設定で同�
 
 | ID | 評価軸 | 説明 | 抽出方法 |
 |---|---|---|---|
-| `dep-cycle` | structural-fragility | 循環 import | import グラフ DFS |
-| `high-fan-out` | change-blast-radius | 1 ファイルから多数へ依存 | fan-out > 閾値 |
-| `high-fan-in` | change-blast-radius | 多数から 1 ファイルへ依存 | fan-in > 閾値 |
+| `dep-cycle` | structural-fragility | 循環 import | 反復 Kosaraju による強連結成分（SCC） |
+| `high-fan-out` | change-blast-radius | 1 ファイルから多数へ依存 | 重複を除いた依存先モジュール数 > 閾値 |
+| `high-fan-in` | change-blast-radius | 多数から 1 ファイルへ依存 | 重複を除いた依存元モジュール数 > 閾値 |
 | `large-file` | structural-fragility | 大規模ソース | 非空行 > 閾値 |
 | `missing-test-pair` | verification-gap | 対応テストファイル不在 | colocated ペアまたは tests/ からの import 参照 |
 | `git-churn` | change-volatility | 短期間の高変更 | git log 集計 |
@@ -21,3 +21,7 @@ LLM を使わず再現可能なシグナル。同一入力・同一設定で同�
 - `pathRole`: `product` / `test` / `tooling` / `generated` / `fixture`
 - `relatedPaths`: 同じ mechanism 内で影響を受ける関連 path
 - `severity`: strength から導出する表示 band。独立に書き換え不可。
+
+循環は2頂点以上の強連結成分（または自己ループ）ごとに1件の Evidence を生成します。単純経路・循環の全列挙は行いません。グラフ走査は O(V+E) で、出力の安定化にはソートを使います。analyzer implementation version 1.2.0 でこの修正と依存の重複排除を識別し、旧解析条件の baseline との比較を抑止します。v4 の強度式・重みは変更しません。
+
+Repository intake は symlink を含む unit root を拒否します。ソースは1ファイル1 MiBまで読み込み、それを超えるファイルは intake issue として除外します。収集したソースの合計が64 MiBを超える場合は IntakeError で終了します。calibration JSON は256 KiB上限で、symlink・非通常ファイルを拒否します。

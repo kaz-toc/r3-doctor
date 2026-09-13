@@ -50,9 +50,6 @@ export type AssessmentInput = {
 
 export function assessRisk(input: AssessmentInput): DiagnosisReport {
   const axisIds = Object.keys(AXIS_NAMES) as RiskAxisId[];
-  const semanticAxisUnevaluated =
-    input.semanticResolution.status !== 'available' ||
-    (input.snapshot.config.llm.enabled && input.semanticFindings.length === 0);
   const evaluatedEvidence = capabilityApprovedEvidence(input.evidence, input.capabilities);
   const productPathCount = countProductPaths(input.snapshot);
   const snapshotPaths = new Set(
@@ -62,6 +59,8 @@ export function assessRisk(input: AssessmentInput): DiagnosisReport {
   const scoreEligibleSemanticFindings = input.semanticFindings.filter((finding) =>
     isScoreEligibleSemanticFinding(finding, snapshotPaths, evidenceById),
   );
+  const semanticAxisUnevaluated =
+    input.semanticResolution.status !== 'available' || scoreEligibleSemanticFindings.length === 0;
 
   const locale = resolveLocale(input.snapshot.config);
   const axes: AxisAssessment[] = axisIds.map((axisId) => {

@@ -117,11 +117,13 @@ export function buildImportGraph(snapshot: RepositorySnapshot, virtualPaths: rea
     }
   }
 
-  return edges.sort((a, b) => `${a.from}->${a.to}`.localeCompare(`${b.from}->${b.to}`));
+  return [...new Map(edges.map((edge) => [JSON.stringify([edge.from, edge.to, edge.kind]), edge])).values()]
+    .sort((a, b) => `${a.from}->${a.to}`.localeCompare(`${b.from}->${b.to}`));
 }
 
 export function findImportCycles(edges: ImportEdge[]): string[][] {
   const graph = new Map<string, string[]>();
+  const reverseGraph = new Map<string, string[]>();
   for (const edge of edges) {
     if (edge.kind !== 'relative') {
       continue;
@@ -129,37 +131,59 @@ export function findImportCycles(edges: ImportEdge[]): string[][] {
     const list = graph.get(edge.from) ?? [];
     list.push(edge.to);
     graph.set(edge.from, list);
+    if (!graph.has(edge.to)) graph.set(edge.to, []);
+    const reverseList = reverseGraph.get(edge.to) ?? [];
+    reverseList.push(edge.from);
+    reverseGraph.set(edge.to, reverseList);
+  }
+
+  // Iterative Kosaraju traversal visits each vertex/edge a bounded number of
+  // times and does not consume the call stack on deep import graphs.
+  const visited = new Set<string>();
+  const finished: string[] = [];
+  for (const node of graph.keys()) {
+    if (visited.has(node)) continue;
+    visited.add(node);
+    const stack = [{ node, next: 0 }];
+    while (stack.length > 0) {
+      const current = stack[stack.length - 1]!;
+      const neighbors = graph.get(current.node)!;
+      if (current.next < neighbors.length) {
+        const next = neighbors[current.next++]!;
+        if (!visited.has(next)) {
+          visited.add(next);
+          stack.push({ node: next, next: 0 });
+        }
+      } else {
+        finished.push(current.node);
+        stack.pop();
+      }
+    }
   }
 
   const cycles: string[][] = [];
-
-  function dfs(node: string, visiting: Set<string>, stack: string[]): void {
-    if (visiting.has(node)) {
-      const start = stack.indexOf(node);
-      if (start >= 0) {
-        cycles.push([...stack.slice(start), node]);
+  visited.clear();
+  for (const node of finished.reverse()) {
+    if (visited.has(node)) continue;
+    const component: string[] = [];
+    const stack = [node];
+    visited.add(node);
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      component.push(current);
+      for (const next of reverseGraph.get(current) ?? []) {
+        if (!visited.has(next)) {
+          visited.add(next);
+          stack.push(next);
+        }
       }
-      return;
     }
-    visiting.add(node);
-    stack.push(node);
-    for (const next of graph.get(node) ?? []) {
-      dfs(next, visiting, stack);
+    if (component.length > 1 || graph.get(node)?.includes(node)) {
+      cycles.push(component.sort());
     }
-    stack.pop();
-    visiting.delete(node);
   }
 
-  for (const node of [...graph.keys()].sort()) {
-    dfs(node, new Set(), []);
-  }
-
-  const uniqueCycles = [...new Map(cycles.map((cycle) => {
-    const key = [...new Set(cycle)].sort().join('->');
-    return [key, [...new Set(cycle)].sort()] as const;
-  })).values()];
-
-  return uniqueCycles;
+  return cycles.sort((left, right) => left[0]!.localeCompare(right[0]!));
 }
 
 function buildRelatedPathsIndex(edges: ImportEdge[], availablePaths: Set<string>): Map<string, string[]> {
@@ -590,7 +614,7 @@ async function collectGitChurn(snapshot: RepositorySnapshot): Promise<Map<string
   const counts = new Map<string, number>();
   for (const [filePath, count] of rawCounts) {
     const normalized = filePath.replace(/\\/g, '/');
-    if (!filePath.includes(' ') && analyzedPaths.has(normalized)) {
+    if (analyzedPaths.has(normalized)) {
       counts.set(filePath, count);
     }
   }

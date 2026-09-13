@@ -156,7 +156,7 @@ export function negotiateCapabilities(
 
 export class TypeScriptAnalyzerPlugin implements AnalyzerPlugin {
   readonly id = 'typescript-javascript-v1';
-  readonly implementationVersion = '1.1.0';
+  readonly implementationVersion = '1.2.0';
   readonly extensions = LANGUAGE_EXTENSIONS['typescript-javascript'];
   readonly capabilities: AnalyzerCapability[] = [
     {

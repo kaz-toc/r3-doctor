@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-031",
+  "status": "active",
+  "title": "Calibration reads are bounded and contained",
+  "invariant": "Calibration is a bounded regular repository file and diagnostics never echo its invalid content.",
+  "incident": "codebase-review-2026-09-13#REG-2026-031",
+  "productionFiles": [
+    "src/calibration/dataset.ts",
+    "src/calibration/quality.ts"
+  ],
+  "testFiles": [
+    "tests/codebase-review.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/codebase-review.test.ts -t REG-2026-031"
+  ]
+}

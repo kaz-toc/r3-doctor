@@ -111,3 +111,12 @@ test('walkFiles is lexical and does not follow symbolic links', async (t) => {
   assert.deepEqual(files, [join(root, 'src', 'a.ts'), join(root, 'src', 'z.ts')]);
 });
 
+
+test('REG-2026-035 config errors identify invalid fields and paths and reject single backslashes', async () => {
+  const root = await temporaryRoot();
+  assert.throws(() => validateConfig({ ...validConfig, sourceRoots: [42] }, root), /sourceRoots must be/);
+  assert.throws(() => validateConfig({ ...validConfig, sourceExtensions: ['.ts', '.ts'] }, root), /sourceExtensions contains a duplicate/);
+  assert.throws(() => resolveRepositoryPath(root, '/private/source'), /\/private\/source/);
+  assert.throws(() => resolveRepositoryPath(root, '../source'), /\.\.\/source/);
+  assert.throws(() => validateConfig({ ...validConfig, excludeSegments: ['a\\b'] }, root), /path segments/);
+});

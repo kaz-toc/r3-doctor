@@ -23,7 +23,7 @@ export function registerLlmListCommand(program: Command): void {
     .option('--format <format>', 'console|json', 'console')
     .option('--inspect', 'probe provider availability via ACP initialize', false)
     .option('--provider <id>', 'limit --inspect to one provider (copilot|cursor|codex|claude|openai|anthropic)')
-    .option('--path <path>', 'repository path for --inspect ACP runtime directory', process.cwd())
+    .option('--path <path>', 'repository path excluded from --inspect executable search', process.cwd())
     .action(async (options: {
       format: string;
       inspect?: boolean;

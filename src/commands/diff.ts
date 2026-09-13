@@ -89,9 +89,16 @@ export async function runDiffDiagnosis(
 ): Promise<DiffReport> {
   const resolved = path.resolve(repositoryPath);
   const currentSnapshot = snapshotOverride ?? await createRepositorySnapshot(resolved, undefined, llmConfig);
-  const current = await runDiagnosis(currentSnapshot);
+  const git = new DefaultGitProvider();
+  const resolvedBaseSha = currentSnapshot.gitAvailable && currentSnapshot.sourceCommitSha
+    ? await git.resolveRef(currentSnapshot.repositoryPath, baseRef)
+    : undefined;
+  const changedFiles = resolvedBaseSha
+    ? await git.listChangedFiles(currentSnapshot.repositoryPath, resolvedBaseSha)
+    : [];
+  const current = await runDiagnosis(currentSnapshot, { changedFiles });
   const policy = await loadPolicy(currentSnapshot.repositoryPath, currentSnapshot.config.policyFile);
-  if (!currentSnapshot.gitAvailable || !currentSnapshot.sourceCommitSha) {
+  if (!resolvedBaseSha) {
     return redactDiffReport(
       {
         schemaVersion: DIFF_SCHEMA_VERSION,
@@ -110,9 +117,6 @@ export async function runDiffDiagnosis(
     );
   }
 
-  const git = new DefaultGitProvider();
-  const resolvedBaseSha = await git.resolveRef(currentSnapshot.repositoryPath, baseRef);
-  const changedFiles = await git.listChangedFiles(currentSnapshot.repositoryPath, resolvedBaseSha);
   const blastRadius = computeBlastRadius(changedFiles, currentSnapshot.repositoryPath, currentSnapshot.files);
   const storedBaseline = await loadBaseline(currentSnapshot, resolvedBaseSha);
   const comparison = compareDiagnosis(current, storedBaseline.entry, {

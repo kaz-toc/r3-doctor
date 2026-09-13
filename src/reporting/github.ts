@@ -1,3 +1,4 @@
+import { escapeMarkdownText } from './markdown.js';
 import { writeFile } from 'node:fs/promises';
 
 import type { DiffReport } from '../schema/report.v1.js';
@@ -11,16 +12,6 @@ function escapeWorkflowProperty(value: string): string {
   return escapeWorkflowData(value).replace(/:/g, '%3A').replace(/,/g, '%2C');
 }
 
-function escapeMarkdownText(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/([`*_[\]{}()#+\-.!|])/g, '\\$1');
-}
 
 function annotationLines(diff: DiffReport): string[] {
   const lines: string[] = [];

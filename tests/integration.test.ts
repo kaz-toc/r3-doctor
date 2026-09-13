@@ -257,7 +257,7 @@ describe('integration: CLI-owned semantic policy', () => {
 });
 
 describe('integration: ACP semantic provider', () => {
-  it('evaluates semantic ambiguity through the default factory with fake ACP spawn', async () => {
+  it('REG-2026-033 evaluates grounded semantic ambiguity through the default factory with fake ACP spawn', async () => {
     const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'r3-doctor-acp-semantic-'));
     try {
       await mkdir(path.join(repositoryPath, 'src'), { recursive: true });
@@ -271,7 +271,7 @@ describe('integration: ACP semantic provider', () => {
           authMethods: [],
         },
         promptChunks: [
-          '[{"axisId":"semantic-ambiguity","path":"src/a.ts","summary":"Naming is ambiguous","relatedEvidenceIds":[],"confidence":0.7}]',
+          '[{"axisId":"semantic-ambiguity","path":"src/a.ts","summary":"Naming is ambiguous","relatedEvidenceIds":["evidence:missing-test-pair:src/a.ts"],"confidence":0.7}]',
         ],
       });
 

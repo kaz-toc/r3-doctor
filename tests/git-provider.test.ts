@@ -39,9 +39,11 @@ async function installFakeGit(output: string): Promise<{
   const executable = path.join(binDirectory, 'git');
   const argsLog = path.join(directory, 'args.log');
   const envLog = path.join(directory, 'env.log');
+  const outputFile = path.join(directory, 'output');
+  await writeFile(outputFile, output);
   await writeFile(
     executable,
-    `#!/bin/sh\nprintf '%s\\n' \"$@\" > '${argsLog}'\nprintf '%s\\n' \"\${OPENAI_API_KEY-}\" > '${envLog}'\nprintf '%s\\n' '${output}'\n`,
+    `#!/bin/sh\nprintf '%s\\n' \"$@\" > '${argsLog}'\nprintf '%s\\n' \"\${OPENAI_API_KEY-}\" > '${envLog}'\ncat '${outputFile}'\n`,
   );
   await chmod(executable, 0o755);
   process.env.PATH = `${binDirectory}:${originalPath ?? ''}`;
@@ -97,7 +99,7 @@ describe('git provider boundaries', () => {
   });
 
   it('routes churn collection through the same sanitized Git boundary', async () => {
-    const fake = await installFakeGit('src/a.ts\nsrc/a.ts\nsrc/b.ts');
+    const fake = await installFakeGit('src/a.ts\0\0src/a.ts\0src/b.ts\0');
     process.env.OPENAI_API_KEY = 'must-not-reach-git';
     try {
       const churn = await new DefaultGitProvider().collectFileChurn(fake.repository, 90);
@@ -119,6 +121,73 @@ describe('git provider boundaries', () => {
       await new DefaultGitProvider().inspectRepository(repo.path);
       const markerExists = await access(marker).then(() => true).catch(() => false);
       expect(markerExists).toBe(false);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('REG-2026-029 ignores only known untracked validation artifacts when checking repository integrity', async () => {
+    const repo = await createGitRepository({ 'src/a.ts': 'export {};\n' });
+    try {
+      const provider = new DefaultGitProvider();
+      const before = await provider.inspectRepository(repo.path);
+      await repo.write('.r3-doctor/validation/repository-id', 'repository identity');
+      await repo.write(`.r3-doctor/validation/snapshots/${'a'.repeat(64)}.json`, '{}');
+      await repo.write(`.r3-doctor/validation/outcomes/${'b'.repeat(64)}.json`, '{}');
+      const after = await provider.inspectRepository(repo.path);
+      expect(before?.dirty).toBe(false);
+      expect(after?.dirty).toBe(false);
+      expect(after?.statusFingerprint).toBe(before?.statusFingerprint);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it.each([
+    '.r3-doctor/validation/notes.json',
+    '.r3-doctor/validation/snapshots/not-a-sample.json',
+    '.r3-doctor/validation/src/feature.ts',
+    'src/line\nname.ts',
+  ])('REG-2026-029 preserves dirty status for unrelated untracked path %s', async (relativePath) => {
+    const repo = await createGitRepository();
+    try {
+      await repo.write(relativePath, 'export {};');
+      expect((await new DefaultGitProvider().inspectRepository(repo.path))?.dirty).toBe(true);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it('REG-2026-029 retains modified tracked validation artifacts and staged rename records', async () => {
+    const artifact = `.r3-doctor/validation/snapshots/${'a'.repeat(64)}.json`;
+    const repo = await createGitRepository({ [artifact]: '{}', 'src/a.ts': 'export {};\n' });
+    try {
+      const provider = new DefaultGitProvider();
+      await repo.write(artifact, '{"changed":true}');
+      expect((await provider.inspectRepository(repo.path))?.dirty).toBe(true);
+      await repo.commit('track validation change');
+      const before = await provider.inspectRepository(repo.path);
+      await execFileAsync('git', ['mv', 'src/a.ts', 'src/renamed.ts'], { cwd: repo.path });
+      const after = await provider.inspectRepository(repo.path);
+      expect(after?.dirty).toBe(true);
+      expect(after?.statusFingerprint).not.toBe(before?.statusFingerprint);
+    } finally {
+      await repo.cleanup();
+    }
+  });
+
+  it.each(['untracked', 'tracked'])('REG-2026-030 preserves %s changed paths with Unicode and leading whitespace', async (state) => {
+    const repo = await createGitRepository();
+    try {
+      await repo.write('日本語.ts', 'export const n = 1;');
+      await repo.write(' leading.ts', 'export const n = 1;');
+      if (state === 'tracked') {
+        await repo.commit('add unusual source paths');
+        await repo.write('日本語.ts', 'export const n = 2;');
+        await repo.write(' leading.ts', 'export const n = 2;');
+      }
+      expect(await new DefaultGitProvider().listChangedFiles(repo.path, repo.headSha))
+        .toEqual([' leading.ts', '日本語.ts']);
     } finally {
       await repo.cleanup();
     }

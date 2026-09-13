@@ -46,8 +46,26 @@ export type GitRepositoryState = {
   statusFingerprint: string;
 };
 
+function relevantRepositoryStatus(output: string): string {
+  const tokens = output.split('\0');
+  const records: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const record = tokens[index]!;
+    if (!record) continue;
+    const status = record.slice(0, 2);
+    const filePath = record.slice(3);
+    if (status === '??' && /^\.r3-doctor\/validation\/(?:repository-id|(?:snapshots|outcomes)\/[a-f0-9]{64}\.json)$/.test(filePath)) {
+      continue;
+    }
+    records.push(record);
+    // Porcelain -z rename/copy records contain a second, unprefixed path.
+    if (status.includes('R') || status.includes('C')) records.push(tokens[++index] ?? '');
+  }
+  return records.length > 0 ? `${records.join('\0')}\0` : '';
+}
+
 function normalizeChangedFiles(lines: string[]): string[] {
-  return [...new Set(lines.map((line) => line.trim()).filter((line) => SOURCE_FILE_PATTERN.test(line)))].sort();
+  return [...new Set(lines.filter((line) => SOURCE_FILE_PATTERN.test(line)))].sort();
 }
 
 async function runGitOutput(
@@ -63,14 +81,10 @@ async function runGitOutput(
   return stdout;
 }
 
-async function runGit(repositoryPath: string, args: string[]): Promise<string[]> {
-  return (await runGitOutput(repositoryPath, args)).split('\n');
-}
-
 async function listUntrackedFiles(repositoryPath: string): Promise<string[]> {
   try {
-    const lines = await runGit(repositoryPath, ['ls-files', '--others', '--exclude-standard']);
-    return normalizeChangedFiles(lines);
+    const output = await runGitOutput(repositoryPath, ['ls-files', '--others', '--exclude-standard', '-z']);
+    return normalizeChangedFiles(output.split('\0'));
   } catch {
     return [];
   }
@@ -96,15 +110,15 @@ async function listChangedPaths(repositoryPath: string, args: string[]): Promise
 export class DefaultGitProvider implements GitProvider {
   async collectFileChurn(repositoryPath: string, churnDays: number): Promise<Map<string, number>> {
     try {
-      const lines = await runGit(repositoryPath, [
+      const output = await runGitOutput(repositoryPath, [
         'log',
         `--since=${churnDays} days ago`,
+        '-z',
         '--name-only',
         '--pretty=format:',
       ]);
       const counts = new Map<string, number>();
-      for (const line of lines) {
-        const file = line.trim();
+      for (const file of output.split('\0')) {
         if (file) counts.set(file, (counts.get(file) ?? 0) + 1);
       }
       return counts;
@@ -133,7 +147,7 @@ export class DefaultGitProvider implements GitProvider {
       });
       const { stdout: statusOutput } = await execFileAsync(
         'git',
-        safeGitArgs(['status', '--porcelain=v1', '--untracked-files=all', '--', '.']),
+        safeGitArgs(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.']),
         { cwd: repositoryRealPath, env: gitEnvironment(repositoryRealPath) },
       );
       const { stdout: trackedOutput } = await execFileAsync('git', safeGitArgs(['ls-files', '--cached', '-z']), {
@@ -147,11 +161,12 @@ export class DefaultGitProvider implements GitProvider {
       const containsUntrackedAnalyzedFile = analyzedPaths.some(
         (file) => !trackedFiles.has(file.replace(/\\/g, '/')),
       );
+      const relevantStatus = relevantRepositoryStatus(statusOutput);
       return {
         rootPath,
         headSha: headOutput.trim(),
-        dirty: statusOutput.trim().length > 0 || containsUntrackedAnalyzedFile,
-        statusFingerprint: createHash('sha256').update(statusOutput).digest('hex'),
+        dirty: relevantStatus.length > 0 || containsUntrackedAnalyzedFile,
+        statusFingerprint: createHash('sha256').update(relevantStatus).digest('hex'),
       };
     } catch {
       return undefined;

@@ -142,7 +142,7 @@ export async function runSetup(options: RunSetupOptions): Promise<SetupReport> {
         locale: options.locale,
         llmProvider: llmSetup?.inspectAvailable ? llmSetup.provider : undefined,
         llmModel: llmSetup?.inspectAvailable ? options.llmModel : undefined,
-      });
+      }, { write: () => {} });
       scanRan = true;
       baselineSaved = saveBaseline;
     } catch (error) {

@@ -1,10 +1,11 @@
-import { access, readFile } from 'node:fs/promises';
-import path from 'node:path';
-
 import { z } from 'zod';
 
 import { ConfigError } from '../shared/errors.js';
 import { deriveGateEligible } from '../operations/policy.js';
+import { readFileWithinByteLimit } from '../shared/bounded-file.js';
+import { resolveSafeRepositoryFile } from '../shared/repository-file.js';
+
+const CALIBRATION_FILE_MAX_BYTES = 262_144;
 
 const calibrationConditionsSchema = z
   .array(z.string().trim().min(1))
@@ -64,10 +65,8 @@ export async function loadCalibration(
   goldenRegressionPassed: boolean,
   requiredConditions: string[],
 ): Promise<CalibrationResult> {
-  const calibrationPath = path.join(repositoryPath, '.r3-doctor', 'calibration.json');
-  try {
-    await access(calibrationPath);
-  } catch {
+  const calibrationPath = await resolveSafeRepositoryFile(repositoryPath, '.r3-doctor/calibration.json', 'calibration file');
+  if (!calibrationPath) {
     return {
       schemaVersion: 1,
       records: [],
@@ -80,8 +79,18 @@ export async function loadCalibration(
   }
 
   try {
-    const raw = await readFile(calibrationPath, 'utf8');
-    const dataset = calibrationDatasetSchema.parse(JSON.parse(raw));
+    const raw = await readFileWithinByteLimit(calibrationPath, CALIBRATION_FILE_MAX_BYTES, 'calibration file');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new ConfigError(calibrationPath, 'invalid calibration JSON');
+    }
+    const result = calibrationDatasetSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new ConfigError(calibrationPath, 'invalid calibration schema');
+    }
+    const dataset = result.data;
     const minSamplesPerBand = hasMinimumSamplesForEveryScoreBand(dataset.records);
     const hasFalsePositiveRate = dataset.records.every((record) => record.falsePositiveRate !== undefined);
     const hasMissRate = dataset.records.every((record) => record.missRate !== undefined);
@@ -107,6 +116,7 @@ export async function loadCalibration(
 
     return { ...dataset, gateEligible, missingRequiredConditions, goldenRegressionPassed };
   } catch (error) {
+    if (error instanceof ConfigError) throw error;
     const reason = error instanceof Error ? error.message : String(error);
     throw new ConfigError(calibrationPath, reason);
   }

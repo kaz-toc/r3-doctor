@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { LlmConfig, R3DoctorConfig } from '../shared/config.js';
@@ -20,13 +20,15 @@ import { readFileWithinByteLimit } from '../shared/bounded-file.js';
 const REPOSITORY_CONFIG_MAX_BYTES = 1_048_576;
 const GLOB_EVALUATION_MAX_OPERATIONS = 10_000_000;
 const REPOSITORY_WALK_MAX_ENTRIES = 100_000;
+const SOURCE_FILE_MAX_BYTES = 1_048_576;
+const SOURCE_COLLECTION_MAX_BYTES = 64 * 1_048_576;
 
 type GlobToken = '*' | '**' | '?' | string;
 type CompiledExcludePattern = Readonly<{
   segment?: string;
   tokens?: readonly GlobToken[];
 }>;
-type IntakeWorkBudget = { globOperations: number; visitedEntries: number };
+type IntakeWorkBudget = { globOperations: number; visitedEntries: number; sourceBytes: number };
 
 export type SourceFile = {
   relativePath: string;
@@ -136,13 +138,30 @@ function createExclusionMatcher(
 }
 
 export function isExcluded(relativePath: string, exclude: string[]): boolean {
-  return createExclusionMatcher(exclude, { globOperations: 0, visitedEntries: 0 })(relativePath);
+  return createExclusionMatcher(exclude, { globOperations: 0, visitedEntries: 0, sourceBytes: 0 })(relativePath);
 }
 
-function resolveUnitRoot(repositoryPath: string, root: string): string {
+async function resolveUnitRoot(repositoryPath: string, root: string): Promise<string> {
   const resolved = path.resolve(repositoryPath, root);
   const relative = path.relative(repositoryPath, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(root)) {
+  const escapes = (value: string): boolean => value === '..' || value.startsWith(`..${path.sep}`) || path.isAbsolute(value);
+  if (escapes(relative) || path.isAbsolute(root)) {
+    throw new IntakeError(`unit root escapes repository: ${root}`);
+  }
+  const repositoryRealPath = await realpath(repositoryPath);
+  let component = repositoryRealPath;
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    component = path.join(component, segment);
+    const componentStat = await lstat(component).catch(() => undefined);
+    if (componentStat?.isSymbolicLink()) {
+      throw new IntakeError(`unit root contains a symbolic link: ${root}`);
+    }
+    if (!componentStat?.isDirectory()) {
+      throw new IntakeError(`unit root is missing or unreadable: ${root}`);
+    }
+  }
+  const physicalPath = await realpath(component);
+  if (escapes(path.relative(repositoryRealPath, physicalPath))) {
     throw new IntakeError(`unit root escapes repository: ${root}`);
   }
   return resolved;
@@ -162,7 +181,7 @@ async function walkFiles(
     return true;
   }
 
-  const { readdir, lstat } = await import('node:fs/promises');
+  const { readdir } = await import('node:fs/promises');
   let entries;
   try {
     entries = await readdir(current, { withFileTypes: true });
@@ -219,23 +238,32 @@ async function walkFiles(
       continue;
     }
 
+    const byteLimitMessage = `source file exceeds ${SOURCE_FILE_MAX_BYTES} byte limit`;
+    let content: string;
     try {
-      const content = await readFile(absolutePath, 'utf8');
-      collected.push({
-        relativePath,
-        absolutePath,
-        extension,
-        content,
-        contentHash: hashContent(content),
-        nonBlankLines: countNonBlankLines(content),
-      });
-    } catch {
+      if (stat.size > SOURCE_FILE_MAX_BYTES) throw new Error(byteLimitMessage);
+      content = await readFileWithinByteLimit(absolutePath, SOURCE_FILE_MAX_BYTES, 'source file');
+    } catch (error) {
       issues.push({
         kind: 'unreadable-file',
         path: relativePath,
-        message: 'file could not be read',
+        message: error instanceof Error && error.message === byteLimitMessage
+          ? byteLimitMessage : 'file could not be read',
       });
+      continue;
     }
+    workBudget.sourceBytes += Buffer.byteLength(content, 'utf8');
+    if (workBudget.sourceBytes > SOURCE_COLLECTION_MAX_BYTES) {
+      throw new IntakeError(`source collection exceeded ${SOURCE_COLLECTION_MAX_BYTES} byte limit`);
+    }
+    collected.push({
+      relativePath,
+      absolutePath,
+      extension,
+      content,
+      contentHash: hashContent(content),
+      nonBlankLines: countNonBlankLines(content),
+    });
   }
 
   return false;
@@ -301,10 +329,10 @@ export async function createRepositorySnapshot(
   const extensions = getRegisteredExtensions();
   const gitProvider = new DefaultGitProvider();
   const gitBefore = await gitProvider.inspectRepository(resolved);
-  const roots = unit ? unit.roots.map((root) => resolveUnitRoot(resolved, root)) : [resolved];
+  const roots = unit ? await Promise.all(unit.roots.map((root) => resolveUnitRoot(resolved, root))) : [resolved];
   const files: SourceFile[] = [];
   const intakeIssues: IntakeIssue[] = [];
-  const workBudget: IntakeWorkBudget = { globOperations: 0, visitedEntries: 0 };
+  const workBudget: IntakeWorkBudget = { globOperations: 0, visitedEntries: 0, sourceBytes: 0 };
   const isPathExcluded = createExclusionMatcher(config.exclude, workBudget);
   let truncated = false;
 

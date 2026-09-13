@@ -63,7 +63,7 @@ describe('semantic prompt boundary', () => {
   });
 
   it('publishes a new provider implementation identity for the prompt contract', () => {
-    expect(SEMANTIC_PROVIDER_IMPL_VERSION).toBe('2.2.0');
+    expect(SEMANTIC_PROVIDER_IMPL_VERSION).toBe('2.3.0');
   });
 
   it('requires impactScope and keeps confidence separate from risk magnitude', () => {

@@ -110,6 +110,7 @@ describe('validation issue regressions', () => {
     const repo = await createGitRepository({ 'src/a.ts': 'export const a = 1;\n' });
     try {
       await runScanAction({ repoPath: repo.path, format: 'json', recordValidation: true });
+      await repo.write('src/a.ts', 'export const a = 2;\n');
       const stdout: string[] = [];
       const originalWrite = process.stdout.write.bind(process.stdout);
       process.stdout.write = ((chunk: string | Uint8Array, ...args: unknown[]) => {
@@ -131,7 +132,11 @@ describe('validation issue regressions', () => {
     }
   });
 
-  it('excludes pre-due samples from compare and marks non-primary cohorts exploratory', () => {
+  it.each([
+    { horizonDays: 45, advisory: 70, gate: 85, missRate: 0 },
+    { horizonDays: 30, advisory: 60, gate: 80, missRate: 0 },
+    { horizonDays: 30, advisory: 82.5, gate: 90, missRate: 1 },
+  ])('REG-2026-028 calculates the exploratory $horizonDays-day $advisory/$gate cohort at its saved threshold', ({ horizonDays, advisory, gate, missRate }) => {
     const sampleId = 'a'.repeat(64);
     const snapshot = {
       schemaVersion: 1 as const,
@@ -139,12 +144,12 @@ describe('validation issue regressions', () => {
       repositoryId: '123e4567-e89b-12d3-a456-426614174000',
       recordedAt: '2026-09-01T00:00:00.000Z',
       dueAt: '2026-10-01T00:00:00.000Z',
-      horizonDays: 45,
+      horizonDays,
       reportInputId: 'input',
       headSha: 'a'.repeat(40),
       assessmentContractVersion: 4 as const,
       analysisContextFingerprint: 'b'.repeat(64),
-      policyThresholds: { advisory: 70, gate: 85 },
+      policyThresholds: { advisory, gate },
       v4: { score: 80, confidence: 0.5, axisScores: {
         'structural-fragility': 80, 'change-blast-radius': null, 'verification-gap': null, 'change-volatility': null, 'semantic-ambiguity': null,
       } },
@@ -190,6 +195,8 @@ describe('validation issue regressions', () => {
     expect(exploratory.corpus.completeSampleCount).toBe(1);
     expect(exploratory.primary).toHaveLength(0);
     expect(exploratory.exploratory[0]?.promotionStatus).toBe('exploratory');
+    expect(exploratory.exploratory[0]?.promotionChecks).toEqual([]);
+    expect(exploratory.exploratory[0]?.metrics.thresholds).toEqual([{ advisory, gate, missRate, falsePositiveRate: null }]);
   });
 
   it('supports outcome replacement and orphan outcome warnings', async () => {

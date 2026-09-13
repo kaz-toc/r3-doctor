@@ -4,7 +4,7 @@ import { countProductPaths } from '../assessment/capability.js';
 import { diagnosisContextFingerprint } from '../intake/analysis-context.js';
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { DiagnosisReport, RiskAxisId } from '../schema/report.v1.js';
-import { riskAxisIdSchema } from '../schema/report.v1.js';
+import { ASSESSMENT_CONTRACT_VERSION, riskAxisIdSchema } from '../schema/report.v1.js';
 import { canonicalJson } from '../shared/canonical-json.js';
 import { ConfigError } from '../shared/errors.js';
 import { SHADOW_REGISTRY_VERSION, type ShadowScore } from './shadow-score.js';
@@ -22,18 +22,15 @@ export type BuildValidationSnapshotInput = {
   recordedAt: Date;
 };
 
-function sampleId(input: BuildValidationSnapshotInput, headSha: string): string {
+type SampleContent = Omit<ValidationSnapshotV1, 'sampleId' | 'recordedAt' | 'dueAt'>;
+
+function sampleId(input: BuildValidationSnapshotInput, content: SampleContent): string {
   return createHash('sha256').update(canonicalJson({
-    repositoryId: input.repositoryId,
-    reportInputId: input.report.metadata.inputId,
-    headSha,
-    analysisContextFingerprint: input.snapshot.analysisContextFingerprint,
+    ...content,
     diagnosisContextFingerprint: diagnosisContextFingerprint(
       input.snapshot.analysisContextFingerprint,
       input.report,
     ),
-    policyThresholds: input.policyThresholds,
-    horizonDays: input.horizonDays,
     shadowRegistryVersion: SHADOW_REGISTRY_VERSION,
   })).digest('hex');
 }
@@ -64,16 +61,13 @@ export function buildValidationSnapshot(input: BuildValidationSnapshotInput): Va
     },
     { low: 0, medium: 0, high: 0 },
   );
-  return validationSnapshotV1Schema.parse({
+  const content: SampleContent = {
     schemaVersion: 1,
-    sampleId: sampleId(input, headSha),
     repositoryId: input.repositoryId,
-    recordedAt: input.recordedAt.toISOString(),
-    dueAt: dueAt.toISOString(),
     horizonDays: input.horizonDays,
     reportInputId: input.report.metadata.inputId,
     headSha,
-    assessmentContractVersion: 4,
+    assessmentContractVersion: ASSESSMENT_CONTRACT_VERSION,
     analysisContextFingerprint: input.snapshot.analysisContextFingerprint,
     policyThresholds: input.policyThresholds,
     v4: {
@@ -89,5 +83,11 @@ export function buildValidationSnapshot(input: BuildValidationSnapshotInput): Va
       capabilityCoverage: input.report.repository.confidenceBreakdown.signalCoverage,
       inputCompleteness: input.report.repository.confidenceBreakdown.inputCompleteness,
     },
+  };
+  return validationSnapshotV1Schema.parse({
+    ...content,
+    sampleId: sampleId(input, content),
+    recordedAt: input.recordedAt.toISOString(),
+    dueAt: dueAt.toISOString(),
   });
 }

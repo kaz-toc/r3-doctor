@@ -9,8 +9,9 @@ import type { LlmConfig } from '../../shared/config.js';
 import type { SemanticProvider } from '../types.js';
 import { buildBudgetedSemanticPrompt } from '../semantic-prompt.js';
 import { parseSemanticResponse } from '../semantic-response.js';
+import { withLlmRuntimeDirectory } from '../llm/runtime-directory.js';
 
-export const SEMANTIC_PROVIDER_IMPL_VERSION = '2.2.0';
+export const SEMANTIC_PROVIDER_IMPL_VERSION = '2.3.0';
 
 export class AcpSemanticProvider implements SemanticProvider {
   readonly name: LlmProviderId;
@@ -29,19 +30,22 @@ export class AcpSemanticProvider implements SemanticProvider {
     const { prompt } = buildBudgetedSemanticPrompt(snapshot, evidence, maxPromptBytes);
     const definition = getLlmProviderDefinition(this.name);
     const executablePath = this.config.executablePath ?? definition.defaultExecutablePath;
-    const spec = buildLlmLaunchSpec(this.name, {
-      executablePath,
-      modelIdentifier: this.config.model ?? (this.name === 'copilot' ? 'auto' : ''),
-      runtimeDirectory: snapshot.repositoryPath,
-      inheritedEnv: process.env,
-    });
+    const result = await withLlmRuntimeDirectory(async (runtimeDirectory) => {
+      const spec = buildLlmLaunchSpec(this.name, {
+        executablePath,
+        modelIdentifier: this.config.model ?? (this.name === 'copilot' ? 'auto' : ''),
+        runtimeDirectory,
+        untrustedDirectory: snapshot.repositoryPath,
+        inheritedEnv: process.env,
+      });
 
-    const client = createOneShotAcpClient({ spawn: this.spawn });
-    const result = await client.oneShotPrompt({
-      spec,
-      prompt,
-      outputMaxBytes: LLM_PROMPT_OUTPUT_MAX_BYTES,
-      modelIdentifier: this.config.model,
+      const client = createOneShotAcpClient({ spawn: this.spawn });
+      return client.oneShotPrompt({
+        spec,
+        prompt,
+        outputMaxBytes: LLM_PROMPT_OUTPUT_MAX_BYTES,
+        modelIdentifier: this.config.model,
+      });
     });
 
     if (!result.ok) {

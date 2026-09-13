@@ -4,7 +4,7 @@ import { createOneShotAcpClient } from '../acp/acp-client.js';
 import { buildLlmLaunchSpec, getLlmProviderDefinition } from '../acp/provider-registry.js';
 import type { LlmProviderId, LlmResult } from '../acp/provider-types.js';
 
-import { resolveLlmRuntimeDirectory } from './runtime-directory.js';
+import { withLlmRuntimeDirectory } from './runtime-directory.js';
 
 export type LlmDiscoveredModels = {
   models: readonly string[];
@@ -75,16 +75,18 @@ export async function discoverLlmModels(input: {
   signal?: AbortSignal;
 }): Promise<LlmResult<LlmDiscoveredModels>> {
   const definition = getLlmProviderDefinition(input.provider);
-  const runtimeDirectory = path.resolve(input.path ?? resolveLlmRuntimeDirectory());
-  const spec = buildLlmLaunchSpec(input.provider, {
-    executablePath: definition.defaultExecutablePath,
-    modelIdentifier: input.provider === 'copilot' ? 'auto' : '',
-    runtimeDirectory,
-    inheritedEnv: process.env,
-  });
+  const result = await withLlmRuntimeDirectory(async (runtimeDirectory) => {
+    const spec = buildLlmLaunchSpec(input.provider, {
+      executablePath: definition.defaultExecutablePath,
+      modelIdentifier: input.provider === 'copilot' ? 'auto' : '',
+      runtimeDirectory,
+      untrustedDirectory: path.resolve(input.path ?? process.cwd()),
+      inheritedEnv: process.env,
+    });
 
-  const client = createOneShotAcpClient({ setupTimeoutMs: input.setupTimeoutMs });
-  const result = await client.discoverModels({ spec, signal: input.signal });
+    const client = createOneShotAcpClient({ setupTimeoutMs: input.setupTimeoutMs });
+    return client.discoverModels({ spec, signal: input.signal });
+  });
   if (!result.ok) {
     return result;
   }

@@ -7,10 +7,11 @@ import { R3DoctorError } from '../../shared/errors.js';
 
 import { formatLlmInspectStderr } from './format.js';
 import type { LlmInspectExitCode, LlmProviderInspectRow } from './types.js';
+import { withLlmRuntimeDirectory } from './runtime-directory.js';
 
 export type InspectLlmProviderOptions = {
   provider?: string;
-  path: string;
+  path?: string;
   setupTimeoutMs?: number;
 };
 
@@ -37,16 +38,19 @@ export async function inspectLlmProvider(
   }
 
   const definition = getLlmProviderDefinition(providerId);
-  const repositoryPath = path.resolve(options.path);
-  const spec = buildLlmLaunchSpec(providerId, {
-    executablePath: definition.defaultExecutablePath,
-    modelIdentifier: providerId === 'copilot' ? 'auto' : '',
-    runtimeDirectory: repositoryPath,
-    inheritedEnv: process.env,
-  });
+  const repositoryPath = path.resolve(options.path ?? process.cwd());
+  const result = await withLlmRuntimeDirectory(async (runtimeDirectory) => {
+    const spec = buildLlmLaunchSpec(providerId, {
+      executablePath: definition.defaultExecutablePath,
+      modelIdentifier: providerId === 'copilot' ? 'auto' : '',
+      runtimeDirectory,
+      untrustedDirectory: repositoryPath,
+      inheritedEnv: process.env,
+    });
 
-  const client = createOneShotAcpClient({ setupTimeoutMs: options.setupTimeoutMs });
-  const result = await client.inspect({ spec });
+    const client = createOneShotAcpClient({ setupTimeoutMs: options.setupTimeoutMs });
+    return client.inspect({ spec });
+  });
 
   const row: LlmProviderInspectRow = result.ok
     ? {

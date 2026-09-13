@@ -23,6 +23,7 @@ export type FakeAcpAgentHandle = {
   spawn: LlmSpawn;
   initializeRequests: Array<{ clientCapabilities: ClientCapabilities }>;
   promptRequests: PromptRequest[];
+  sessionDirectories: string[];
   killCount: number;
   spawnCount: number;
 };
@@ -34,6 +35,7 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
     },
     initializeRequests: [],
     promptRequests: [],
+    sessionDirectories: [],
     killCount: 0,
     spawnCount: 0,
   };
@@ -65,7 +67,8 @@ export function fakeAcpAgent(script: FakeAcpAgentScript): FakeAcpAgentHandle {
         }
         return script.initialize;
       })
-      .onRequest(acp.methods.agent.session.new, () => {
+      .onRequest(acp.methods.agent.session.new, ({ params }) => {
+        handle.sessionDirectories.push(params.cwd);
         if (script.hangSessionSetup) {
           return new Promise<{ sessionId: string }>(() => undefined);
         }

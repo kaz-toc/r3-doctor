@@ -13,7 +13,7 @@ npm run validate
 r3-doctor calibration compare . --repository-validation-passed
 ```
 
-`--validation-horizon-days` は 1–365 の正の整数で、`--record-validation` と共にのみ使えます（既定30日）。記録には clean な Git worktree が必要です。`.gitignore` に `.r3-doctor/validation/` を追加してください。
+`--validation-horizon-days` は 1–365 の正の整数で、`--record-validation` と共にのみ使えます（既定30日）。記録には clean な Git worktree が必要です。生成した既知の未追跡 validation artifact は clean 判定から除外します（追跡済み変更、任意ファイル、ソースは除外しません）。ローカル記録を commit に含めないため、`.gitignore` への `.r3-doctor/validation/` 追加を推奨します。
 
 Positive outcome (`regression`, `revert`, `hotfix`) には、recordedAt から dueAt までの `--occurred-at` が必須です（`2026-09-02T00:00:00Z` 形式を受理し、内部は UTC canonical へ正規化）。`no-regression` は dueAt 以降にのみ記録できます。未来の `observedAt` / `occurredAt` は拒否します。既存 outcome を訂正する場合は `--replace` を付けます。
 
@@ -24,7 +24,7 @@ Positive outcome (`regression`, `revert`, `hotfix`) には、recordedAt から d
 - `v5-confidence-uplift`: cluster uplift を cluster confidence で重み付けする。
 - `v5-combined`: soft saturation、activity modifier、confidence-weighted non-volatility cluster uplift を組み合わせる。
 
-中間値は丸めず、最終スコアだけを0–100に clamp して四捨五入します。registry と formula version は snapshot に保存され、保存済み sample を再計算しません。`sampleId` は repository ID、report input ID、HEAD SHA、analysis context fingerprint、diagnosis context fingerprint、policy thresholds、horizon days、shadow registry version から導出します。
+中間値は丸めず、最終スコアだけを0–100に clamp して四捨五入します。registry と formula version は snapshot に保存され、保存済み sample を再計算しません。`sampleId` は repository ID、report input ID、HEAD SHA、analysis context fingerprint、diagnosis context fingerprint、policy thresholds、horizon days、shadow registry version、および記録時刻以外の保存 payload 全体から導出します。同じ commit でもスコアや集約特徴が変化すれば別 sample です。同一 payload の再実行は既存記録時刻を維持します。この導出方式より前の schema v1 artifact は読み取り可能で、暗黙の移行・書き換えは行いません。新方式での再記録は新しい sample ID を生成する場合があります。
 
 ## Storage and privacy
 

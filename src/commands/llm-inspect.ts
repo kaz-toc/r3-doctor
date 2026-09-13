@@ -23,7 +23,7 @@ export function registerLlmInspectCommand(program: Command): void {
     .command('inspect')
     .description('inspect configured LLM provider availability')
     .option('--provider <id>', 'provider id (copilot|cursor|codex|claude|openai|anthropic)')
-    .option('--path <path>', 'repository path used as ACP runtime directory', process.cwd())
+    .option('--path <path>', 'repository path excluded from provider executable search', process.cwd())
     .action(async (options: { provider?: string; path: string }) => {
       const result = await inspectLlmProvider({
         provider: options.provider,

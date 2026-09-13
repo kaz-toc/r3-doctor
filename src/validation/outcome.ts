@@ -71,7 +71,7 @@ export async function saveValidationOutcome(
   const sample = samples.find((entry) => entry.sampleId === input.sampleId);
   if (!sample) throw new ConfigError(`snapshots/${input.sampleId}.json`, 'validation sample does not exist');
   const observedAt = input.observedAt ?? new Date();
-  const outcome = validationOutcomeV1Schema.parse({
+  const parsed = validationOutcomeV1Schema.safeParse({
     schemaVersion: 1,
     sampleId: input.sampleId,
     observedAt: observedAt.toISOString(),
@@ -79,6 +79,11 @@ export async function saveValidationOutcome(
     occurredAt: input.occurredAt,
     incidentId: input.incidentId,
   });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]!;
+    throw new ConfigError('validation outcome', `${issue.path.join('.') || 'outcome'}: ${issue.message}`);
+  }
+  const outcome = parsed.data;
   assertNotFuture(outcome.observedAt, 'observedAt', observedAt);
   if (outcome.occurredAt) {
     assertNotFuture(outcome.occurredAt, 'occurredAt', observedAt);

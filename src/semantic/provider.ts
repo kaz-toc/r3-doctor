@@ -12,6 +12,8 @@ import {
 import type { RepositorySnapshot } from '../intake/snapshot.js';
 import type { Evidence } from '../schema/report.v1.js';
 import { DefaultSemanticProviderFactory } from './provider-factory.js';
+import { DefaultGitProvider } from '../adapters/git-provider.js';
+import { buildImportGraph } from '../evidence/deterministic.js';
 import type { SemanticProvider, SemanticProviderFactory, SemanticProviderResolution } from './types.js';
 
 export type { SemanticProvider, SemanticProviderFactory, SemanticProviderResolution } from './types.js';
@@ -41,24 +43,51 @@ export class NullSemanticProvider implements SemanticProvider {
   }
 }
 
-export function selectLlmCandidateFiles(snapshot: RepositorySnapshot, evidence: Evidence[]): RepositorySnapshot['files'] {
+export function selectLlmCandidateFiles(
+  snapshot: RepositorySnapshot,
+  evidence: Evidence[],
+  changedFiles?: readonly string[],
+): RepositorySnapshot['files'] {
   const maxFiles = snapshot.config.llm.maxFiles;
   const sendScope = snapshot.config.llm.sendScope;
 
   let candidates = [...snapshot.files];
   if (sendScope === 'changed') {
-    const evidencePaths = new Set(evidence.map((item) => item.path).filter(Boolean) as string[]);
-    candidates = candidates.filter((file) => evidencePaths.has(file.relativePath));
+    const changedPaths = new Set(changedFiles ?? []);
+    candidates = candidates.filter((file) => changedPaths.has(file.relativePath));
   } else if (sendScope === 'cluster-context') {
-    const evidencePaths = new Set(evidence.map((item) => item.path).filter(Boolean) as string[]);
-    candidates = candidates.filter(
-      (file) =>
-        evidencePaths.has(file.relativePath) ||
-        evidence.some((item) => item.path && file.relativePath.startsWith(`${item.path.split('/')[0]}/`)),
-    );
+    const seeds = new Set(changedFiles ?? evidence.flatMap((item) => [
+      ...(item.path ? [item.path] : []), ...item.relatedPaths,
+    ]));
+    const contextPaths = new Set(seeds);
+    for (const edge of buildImportGraph(snapshot, [...seeds])) {
+      if (edge.kind !== 'relative') continue;
+      if (seeds.has(edge.from)) contextPaths.add(edge.to);
+      if (seeds.has(edge.to)) contextPaths.add(edge.from);
+    }
+    candidates = candidates.filter((file) => contextPaths.has(file.relativePath));
   }
 
   return candidates.sort((a, b) => b.nonBlankLines - a.nonBlankLines).slice(0, maxFiles);
+}
+
+export async function prepareSemanticInput(
+  snapshot: RepositorySnapshot,
+  evidence: Evidence[],
+  changedFiles?: readonly string[],
+): Promise<{ snapshot: RepositorySnapshot; evidence: Evidence[] }> {
+  let changes = changedFiles;
+  if (changes === undefined && snapshot.config.llm.sendScope === 'changed') {
+    changes = snapshot.gitAvailable && snapshot.sourceCommitSha
+      ? await new DefaultGitProvider().listChangedFiles(snapshot.repositoryPath, snapshot.sourceCommitSha)
+      : [];
+  }
+  const files = selectLlmCandidateFiles(snapshot, evidence, changes);
+  const includedPaths = new Set(files.map((file) => file.relativePath));
+  const scopedEvidence = snapshot.config.llm.sendScope === 'all'
+    ? evidence
+    : evidence.filter((item) => item.path !== undefined && includedPaths.has(item.path));
+  return { snapshot: { ...snapshot, files }, evidence: scopedEvidence };
 }
 
 export function validateSemanticFindings(
@@ -123,6 +152,7 @@ export async function runSemanticAnalysis(
   snapshot: RepositorySnapshot,
   evidence: Evidence[],
   factory: SemanticProviderFactory = new DefaultSemanticProviderFactory(),
+  changedFiles?: readonly string[],
 ): Promise<{ findings: SemanticFinding[]; resolution: SemanticProviderResolution }> {
   const resolution = await resolveSemanticProvider(snapshot, factory);
   if (resolution.status !== 'available') {
@@ -130,12 +160,9 @@ export async function runSemanticAnalysis(
   }
 
   try {
-    const scopedSnapshot = {
-      ...snapshot,
-      files: selectLlmCandidateFiles(snapshot, evidence),
-    };
-    const raw = await resolution.provider.analyze(scopedSnapshot, evidence);
-    const findings = validateSemanticFindings(raw, snapshot, evidence);
+    const scoped = await prepareSemanticInput(snapshot, evidence, changedFiles);
+    const raw = await resolution.provider.analyze(scoped.snapshot, scoped.evidence);
+    const findings = validateSemanticFindings(raw, scoped.snapshot, scoped.evidence);
     return { findings, resolution };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

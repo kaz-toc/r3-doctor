@@ -1,7 +1,6 @@
 import { SETUP_LLM_PROBE_TIMEOUT_MS } from '../semantic/acp/constants.js';
 import { listSetupLlmProviderOptions } from '../semantic/acp/provider-registry.js';
 import { buildLlmCatalog } from '../semantic/llm/catalog.js';
-import { resolveLlmRuntimeDirectory } from '../semantic/llm/runtime-directory.js';
 import type { LlmCatalogReport } from '../schema/llm-catalog.v1.js';
 
 import type { SetupLlmProviderId } from './llm-providers.js';
@@ -16,7 +15,6 @@ export async function probeSetupLlmProviders(
 ): Promise<LlmCatalogReport> {
   return buildLlmCatalog({
     inspect: true,
-    path: resolveLlmRuntimeDirectory(),
     setupOrder: true,
     inspectTimeoutMs: options.inspectTimeoutMs ?? SETUP_LLM_PROBE_TIMEOUT_MS,
     onInspectProgress: options.onProgress

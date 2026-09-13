@@ -23,3 +23,7 @@
 - CI gate 判断は `policy --evaluate` の `reasons` 配列を PR に記録する。
 - gate は `requireCalibration: true` かつ `calibration.gateEligible` のときのみ失敗可能。
 - 判断根拠は人間が `npm run r3-doctor -- policy <path> --evaluate` で再現できる。
+
+## 外部 LLM 送信との区別
+
+`redactPaths` は出力・永続化のパスマスクであり、LLM prompt のソース名・内容には適用しません。送信候補は operator の `--llm-send-scope` と上限で制御します。機密ソースを送信対象から外す場合は repository intake の `exclude` で解析対象から除外し、`--dry-run-semantic` で完成 prompt を確認してください。

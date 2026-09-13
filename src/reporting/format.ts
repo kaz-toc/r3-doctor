@@ -1,3 +1,4 @@
+import { markdown, markdownCode } from './markdown.js';
 import type { DiagnosisReport, DiffReport, Evidence } from '../schema/report.v1.js';
 import type { ReportLocale } from '../i18n/locale.js';
 import { DEFAULT_LOCALE } from '../i18n/locale.js';
@@ -57,17 +58,17 @@ function reportHeaderLines(report: DiagnosisReport): string[] {
   return [
     '# r3-doctor Diagnosis Report',
     '',
-    `- Generated: ${report.metadata.generatedAt}`,
-    `- Input ID: ${report.metadata.inputId}`,
-    `- Contract: v${report.metadata.assessmentContractVersion}`,
-    `- Unevaluated axes: ${unevaluatedCount}`,
+    markdown`- Generated: ${report.metadata.generatedAt}`,
+    markdown`- Input ID: ${report.metadata.inputId}`,
+    markdown`- Contract: v${report.metadata.assessmentContractVersion}`,
+    markdown`- Unevaluated axes: ${unevaluatedCount}`,
     '',
   ];
 }
 
 function formatEvidenceBullet(item: Evidence): string {
   const scoreScope = item.pathRole === 'product' ? '' : ' score=excluded';
-  return `- \`${item.evidenceId}\` [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} role=${item.pathRole}${scoreScope} \`${item.signalId}\` ${item.path ?? 'repo'}: ${item.message}`;
+  return `- ${markdownCode(item.evidenceId)}` + markdown` [${item.severity}] strength=${item.strength} metrics=${formatEvidenceMetrics(item)} role=${item.pathRole}${scoreScope} ${item.signalId} ${item.path ?? 'repo'}: ${item.message}`;
 }
 
 function formatEvidenceConsoleBullet(item: Evidence): string {
@@ -77,16 +78,16 @@ function formatEvidenceConsoleBullet(item: Evidence): string {
 
 function renderFactGroupMarkdown(group: FactEvidenceGroup, locale: ReportLocale): string[] {
   const lines = [
-    `### ${group.mechanismLabel}`,
-    `- Mechanism ID: ${group.mechanismId}`,
-    `- Trigger: ${group.triggerSummary}`,
+    markdown`### ${group.mechanismLabel}`,
+    markdown`- Mechanism ID: ${group.mechanismId}`,
+    markdown`- Trigger: ${group.triggerSummary}`,
     '- Evidence:',
   ];
   for (const item of group.evidence) {
     lines.push(`  ${formatEvidenceBullet(item)}`);
   }
   if (group.remainingEvidenceCount > 0) {
-    lines.push(`  - ${remainingSuffix(locale, 'format.remainingEvidence', group.remainingEvidenceCount)}`);
+    lines.push(markdown`  - ${remainingSuffix(locale, 'format.remainingEvidence', group.remainingEvidenceCount)}`);
   }
   lines.push('');
   return lines;
@@ -111,15 +112,15 @@ function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state
   const { facts } = model;
   const lines = [heading, '', '### Analysis coverage', ''];
   for (const capability of facts.capabilities) {
-    lines.push(`- ${capability.language} (${capability.completeness}, ${capability.analyzerId})`);
-    lines.push(`  - supported: ${capability.supportedSignals.join(', ') || 'none'}`);
-    lines.push(`  - unevaluated: ${capability.unevaluatedSignals.join(', ') || 'none'}`);
+    lines.push(markdown`- ${capability.language} (${capability.completeness}, ${capability.analyzerId})`);
+    lines.push(markdown`  - supported: ${capability.supportedSignals.join(', ') || 'none'}`);
+    lines.push(markdown`  - unevaluated: ${capability.unevaluatedSignals.join(', ') || 'none'}`);
   }
   lines.push('');
   if (facts.limitationSummaries.length > 0) {
     lines.push('### Limitations', '');
     for (const limitation of facts.limitationSummaries) {
-      lines.push(`- ${limitation}`);
+      lines.push(markdown`- ${limitation}`);
     }
     lines.push('');
   }
@@ -128,10 +129,10 @@ function renderFactsMarkdown(model: ReportViewModel, heading = '## Current state
     lines.push(...renderFactGroupMarkdown(group, locale));
   }
   if (facts.totalEvidenceCount > facts.factGroups.reduce((sum, group) => sum + group.evidence.length + group.remainingEvidenceCount, 0)) {
-    lines.push(`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
+    lines.push(markdown`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
     lines.push('');
   } else if (facts.totalEvidenceCount > 0) {
-    lines.push(`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
+    lines.push(markdown`- Full evidence list available via \`--format json\` (${facts.totalEvidenceCount} total)`);
     lines.push('');
   }
   return lines;
@@ -169,27 +170,27 @@ function renderSummaryMarkdown(
   const lines = [
     heading,
     '',
-    `- Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand})`,
-    `- Confidence: ${summary.confidence}`,
-    `- Calibration: ${summary.calibrationStatus}`,
+    markdown`- Regression Risk Score: ${summary.regressionRiskScore} (${summary.scoreBand})`,
+    markdown`- Confidence: ${summary.confidence}`,
+    markdown`- Calibration: ${summary.calibrationStatus}`,
     ...(summary.calibrationMissingConditions.length > 0
-      ? [`- Calibration gaps: ${summary.calibrationMissingConditions.join('; ')}`]
+      ? [markdown`- Calibration gaps: ${summary.calibrationMissingConditions.join('; ')}`]
       : []),
-    `- Unevaluated axes: ${summary.unevaluatedAxisCount}`,
+    markdown`- Unevaluated axes: ${summary.unevaluatedAxisCount}`,
     '',
-    `> ${summary.disclaimer}`,
+    markdown`> ${summary.disclaimer}`,
     '',
     '## Why this score',
     '',
-    `- Axis base: ${summary.scoreBreakdown.axisBase}`,
-    `- Critical cluster uplift: ${summary.scoreBreakdown.criticalClusterUplift}`,
+    markdown`- Axis base: ${summary.scoreBreakdown.axisBase}`,
+    markdown`- Critical cluster uplift: ${summary.scoreBreakdown.criticalClusterUplift}`,
     '',
     '| Axis | Score | Peak | Breadth | Diversity | Contribution | Confidence | Top rationale |',
     '|---|---:|---:|---:|---:|---:|---:|---|',
   ];
   for (const axis of summary.axes) {
     lines.push(
-      `| ${axis.name} | ${axis.scoreLabel} | ${axis.scoreBreakdown.peak} | ${axis.scoreBreakdown.breadth} | ${axis.scoreBreakdown.diversity} | ${axis.contributionPoints} | ${axis.confidence} | ${axis.topRationale} |`,
+      markdown`| ${axis.name} | ${axis.scoreLabel} | ${axis.scoreBreakdown.peak} | ${axis.scoreBreakdown.breadth} | ${axis.scoreBreakdown.diversity} | ${axis.contributionPoints} | ${axis.confidence} | ${axis.topRationale} |`,
     );
   }
   lines.push('');
@@ -198,13 +199,13 @@ function renderSummaryMarkdown(
     lines.push(...renderClusterMarkdown(block, { includeEvidence: options.includeClusterEvidence, locale }));
   }
   if (summary.remainingClusterCount > 0) {
-    lines.push(`- ${remainingSuffix(locale, 'format.remainingClusters', summary.remainingClusterCount)}`);
+    lines.push(markdown`- ${remainingSuffix(locale, 'format.remainingClusters', summary.remainingClusterCount)}`);
     lines.push('');
   }
   if (summary.limitations.length > 0) {
     lines.push('## Limitations', '');
     for (const limitation of summary.limitations) {
-      lines.push(`- ${limitation}`);
+      lines.push(markdown`- ${limitation}`);
     }
     lines.push('');
   }
@@ -219,22 +220,22 @@ function renderClusterMarkdown(
   const { cluster, evidence, remainingEvidenceCount } = block;
   const includeEvidence = options.includeEvidence ?? true;
   const lines = [
-    `### ${cluster.title} (${cluster.score})`,
-    `- Trigger: ${cluster.triggerChanges.join('; ')}`,
-    `- Mechanism: ${cluster.failureMechanism}`,
-    `- Measurable impact: score ${cluster.score}, confidence ${cluster.confidence}`,
+    markdown`### ${cluster.title} (${cluster.score})`,
+    markdown`- Trigger: ${cluster.triggerChanges.join('; ')}`,
+    markdown`- Mechanism: ${cluster.failureMechanism}`,
+    markdown`- Measurable impact: score ${cluster.score}, confidence ${cluster.confidence}`,
   ];
   if (includeEvidence) {
     lines.push('- Evidence:');
     for (const item of evidence) {
-      lines.push(`  - \`${item.evidenceId}\` ${item.path ?? 'repo'}: ${item.message}`);
+      lines.push(markdown`  - ${item.evidenceId} ${item.path ?? 'repo'}: ${item.message}`);
     }
     if (remainingEvidenceCount > 0) {
-      lines.push(`  - ${remainingSuffix(locale, 'format.remainingEvidence', remainingEvidenceCount)}`);
+      lines.push(markdown`  - ${remainingSuffix(locale, 'format.remainingEvidence', remainingEvidenceCount)}`);
     }
   } else {
     const totalEvidence = evidence.length + remainingEvidenceCount;
-    lines.push(`- Evidence: ${totalEvidence} items (see Current state)`);
+    lines.push(markdown`- Evidence: ${totalEvidence} items (see Current state)`);
   }
   lines.push('');
   return lines;
@@ -305,22 +306,22 @@ function renderActionItemMarkdown(
     ? ` (${remainingSuffix(locale, 'format.remainingPaths', remainingPathCount)})`
     : '';
   const lines = [
-    `### ${intervention.priority}. ${intervention.title}`,
-    `- Priority score: ${intervention.priorityScore}; Confidence: ${effectiveConfidence}; Cost: ${intervention.cost}`,
-    `- Rationale: ${intervention.rationale}`,
-    `- First step: ${intervention.firstStep}`,
-    `- Targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`,
-    `- Verify: ${intervention.verification}`,
-    `- Horizon: ${intervention.verificationHorizon}`,
+    markdown`### ${intervention.priority}. ${intervention.title}`,
+    markdown`- Priority score: ${intervention.priorityScore}; Confidence: ${effectiveConfidence}; Cost: ${intervention.cost}`,
+    markdown`- Rationale: ${intervention.rationale}`,
+    markdown`- First step: ${intervention.firstStep}`,
+    markdown`- Targets: ${displayPaths.join(', ') || 'n/a'}${pathSuffix}`,
+    markdown`- Verify: ${intervention.verification}`,
+    markdown`- Horizon: ${intervention.verificationHorizon}`,
   ];
   if (item.changeRelevance) {
-    lines.push(`- PR relevance: ${item.changeRelevance}`);
+    lines.push(markdown`- PR relevance: ${item.changeRelevance}`);
   }
   if (linkedClusters.length > 0) {
-    lines.push(`- Linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
+    lines.push(markdown`- Linked clusters: ${linkedClusters.map((cluster) => cluster.clusterId).join(', ')}`);
   }
   if (includeLinkedEvidence && linkedEvidence.length > 0) {
-    lines.push(`- Linked evidence: ${linkedEvidence.map((evidence) => evidence.evidenceId).join(', ')}`);
+    lines.push(markdown`- Linked evidence: ${linkedEvidence.map((evidence) => evidence.evidenceId).join(', ')}`);
   }
   lines.push('');
   return lines;
@@ -337,7 +338,7 @@ function renderActionsMarkdown(
     lines.push(...renderActionItemMarkdown(item, { ...options, locale }));
   }
   if (model.actions.remainingActionCount > 0) {
-    lines.push(`- ${remainingSuffix(locale, 'format.remainingInterventions', model.actions.remainingActionCount)}`);
+    lines.push(markdown`- ${remainingSuffix(locale, 'format.remainingInterventions', model.actions.remainingActionCount)}`);
     lines.push('');
   }
   return lines;
@@ -481,12 +482,12 @@ function formatBlastRadiusMarkdownLines(diff: DiffReport): string[] {
     return lines;
   }
   for (const entry of diff.comparison.blastRadius) {
-    lines.push(`#### ${entry.changedFile}`);
-    lines.push(`- Direct dependents: ${entry.directDependents.join(', ') || 'none'}`);
-    lines.push(`- Direct dependencies: ${entry.directDependencies.join(', ') || 'none'}`);
-    lines.push(`- Transitive dependents: ${entry.transitiveDependents.join(', ') || 'none'}`);
-    lines.push(`- Transitive dependencies: ${entry.transitiveDependencies.join(', ') || 'none'}`);
-    lines.push(`- Paths: ${entry.paths.map((p) => `${p.from}->${p.to}`).join('; ') || 'none'}`);
+    lines.push(markdown`#### ${entry.changedFile}`);
+    lines.push(markdown`- Direct dependents: ${entry.directDependents.join(', ') || 'none'}`);
+    lines.push(markdown`- Direct dependencies: ${entry.directDependencies.join(', ') || 'none'}`);
+    lines.push(markdown`- Transitive dependents: ${entry.transitiveDependents.join(', ') || 'none'}`);
+    lines.push(markdown`- Transitive dependencies: ${entry.transitiveDependencies.join(', ') || 'none'}`);
+    lines.push(markdown`- Paths: ${entry.paths.map((p) => `${p.from}->${p.to}`).join('; ') || 'none'}`);
     lines.push('');
   }
   return lines;
@@ -526,7 +527,7 @@ function formatSignalChangeMarkdownLines(diff: DiffReport): string[] {
     for (const change of changes) {
       any = true;
       lines.push(
-        `- [${kind}] \`${change.evidenceId}\` [${change.currentSeverity}] \`${change.signalId}\` ${change.path ?? 'repo'}: ${change.message}`,
+        markdown`- [${kind}] ${change.evidenceId} [${change.currentSeverity}] ${change.signalId} ${change.path ?? 'repo'}: ${change.message}`,
       );
     }
   }
@@ -562,19 +563,19 @@ function diffSummaryLines(diff: DiffReport, locale: ReportLocale = DEFAULT_LOCAL
 
 function diffSummaryMarkdown(diff: DiffReport, heading = '## Diff Comparison', locale: ReportLocale = DEFAULT_LOCALE): string[] {
   const lines = [heading, ''];
-  lines.push(`- Compatible: ${diff.comparison.compatible}`);
+  lines.push(markdown`- Compatible: ${diff.comparison.compatible}`);
   if (diff.comparison.reason) {
-    lines.push(`- Reason: ${diff.comparison.reason}`);
+    lines.push(markdown`- Reason: ${diff.comparison.reason}`);
   }
   if (diff.comparison.compatible && diff.base) {
-    lines.push(`- Baseline: ${diff.comparison.baselineId ?? diff.base.metadata.inputId}`);
-    lines.push(`- Base score: ${diff.base.repository.regressionRiskScore}`);
-    lines.push(`- Risk delta: ${diff.comparison.riskDelta ?? 0}`);
+    lines.push(markdown`- Baseline: ${diff.comparison.baselineId ?? diff.base.metadata.inputId}`);
+    lines.push(markdown`- Base score: ${diff.base.repository.regressionRiskScore}`);
+    lines.push(markdown`- Risk delta: ${diff.comparison.riskDelta ?? 0}`);
   } else if (isMissingStoredBaseline(diff)) {
-    lines.push(`- ${t(locale, 'diff.noBaseline.currentScore', { score: diff.current.repository.regressionRiskScore })}`);
-    lines.push(`- ${t(locale, 'diff.noBaseline.nextStep')}`);
+    lines.push(markdown`- ${t(locale, 'diff.noBaseline.currentScore', { score: diff.current.repository.regressionRiskScore })}`);
+    lines.push(markdown`- ${t(locale, 'diff.noBaseline.nextStep')}`);
   }
-  lines.push(`- Changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
+  lines.push(markdown`- Changed files: ${diff.comparison.changedFiles.join(', ') || 'none'}`);
   lines.push('');
   return lines;
 }
@@ -633,7 +634,7 @@ function renderDiffSummaryMarkdown(diff: DiffReport, locale: ReportLocale = DEFA
     lines.push('- (none)');
   } else {
     for (const cluster of changedClusters.slice(0, 5)) {
-      lines.push(`- [${cluster.score}] ${cluster.title} (${cluster.mechanismId})`);
+      lines.push(markdown`- [${cluster.score}] ${cluster.title} (${cluster.mechanismId})`);
     }
   }
   lines.push('');

@@ -24,6 +24,7 @@ function launchSpec(
     executablePath: getLlmProviderDefinition(providerId).defaultExecutablePath,
     modelIdentifier: providerId === 'copilot' ? 'auto' : '',
     runtimeDirectory: ISOLATED_CWD,
+    untrustedDirectory: ISOLATED_CWD,
     inheritedEnv: { PATH: '/bin' },
     ...overrides,
   });
@@ -183,6 +184,7 @@ describe('createOneShotAcpClient', () => {
       executablePath: 'codex-acp',
       modelIdentifier: '',
       runtimeDirectory: ISOLATED_CWD,
+      untrustedDirectory: ISOLATED_CWD,
       inheritedEnv: {
         PATH: '/bin',
         HTTPS_PROXY: 'http://proxy.example:8080',
@@ -204,6 +206,7 @@ describe('createOneShotAcpClient', () => {
         executablePath: 'codex-acp',
         modelIdentifier: '',
         runtimeDirectory: repositoryPath,
+        untrustedDirectory: repositoryPath,
         inheritedEnv: { PATH: `${repositoryBin}${path.delimiter}/usr/bin${path.delimiter}relative-bin` },
       });
 
@@ -219,6 +222,7 @@ describe('createOneShotAcpClient', () => {
       const input = {
         modelIdentifier: '',
         runtimeDirectory: repositoryPath,
+        untrustedDirectory: repositoryPath,
         inheritedEnv: { PATH: '/usr/bin' },
       };
       expect(() => getLlmProviderDefinition('codex').buildLaunch({

@@ -5,6 +5,18 @@ import { describe, expect, it } from 'vitest';
 import { parseLlmExecutionPolicy } from '../../src/semantic/execution-policy.js';
 
 describe('operator-owned LLM execution policy', () => {
+  it.each([undefined, 'none'] as const)('REG-2026-030 keeps a partial profile with provider %s inactive until selected', (provider) => {
+    const profile = { schemaVersion: 1 as const, llm: {
+      provider, model: 'model-id', sendScope: 'changed' as const, maxFiles: 2,
+    } };
+    expect(parseLlmExecutionPolicy({}, false, profile)).toMatchObject({
+      enabled: false, provider: 'none', sendScope: 'changed', maxFiles: 2,
+    });
+    expect(parseLlmExecutionPolicy({ llmProvider: 'codex' }, false, profile)).toMatchObject({
+      enabled: true, provider: 'codex', model: 'model-id', sendScope: 'changed', maxFiles: 2,
+    });
+  });
+
   it.each([
     ['model', { llmModel: 'model-id' }],
     ['executable', { llmExecutable: path.resolve('provider') }],

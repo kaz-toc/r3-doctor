@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-032",
+  "status": "active",
+  "title": "CLI validates options before diagnosis and composes one setup JSON",
+  "invariant": "Setup scan keeps stdout a single JSON value and diff rejects format/view before intake.",
+  "incident": "codebase-review-2026-09-13#REG-2026-032",
+  "productionFiles": [
+    "src/commands/scan.ts",
+    "src/setup/run.ts",
+    "src/cli.ts"
+  ],
+  "testFiles": [
+    "tests/codebase-review.test.ts"
+  ],
+  "verificationCommands": [
+    "npm test -- tests/codebase-review.test.ts -t REG-2026-032"
+  ]
+}

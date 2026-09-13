@@ -5,7 +5,6 @@ import {
   type OperatorProfile,
 } from '../operator/profile.js';
 import type { ReportLocale } from '../i18n/locale.js';
-import { resolveLlmRuntimeDirectory } from '../semantic/llm/runtime-directory.js';
 import { runLlmInspect } from '../semantic/llm/inspect.js';
 import type { LlmConfig } from '../shared/config.js';
 import { llmProviderSchema } from '../shared/config.js';
@@ -83,7 +82,6 @@ export async function configureOperatorLlm(options: LlmSetupOptions): Promise<Ll
   const provider = parseSetupProvider(options.provider);
   const inspect = await runLlmInspect({
     provider,
-    path: resolveLlmRuntimeDirectory(),
   });
   const profilePath = options.profilePath ?? defaultOperatorProfilePath();
   const base: LlmSetupReport = {

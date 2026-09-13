@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "REG-2026-035",
+  "status": "active",
+  "title": "Harness errors identify inputs and reject backslash segments",
+  "invariant": "Invalid harness fields and paths are identified and backslash path segments fail validation.",
+  "incident": "codebase-review-2026-09-13#REG-2026-035",
+  "productionFiles": [
+    "harness/config.mjs",
+    "harness/paths.mjs"
+  ],
+  "testFiles": [
+    "harness/__tests__/config.test.mjs"
+  ],
+  "verificationCommands": [
+    "node --test harness/__tests__/config.test.mjs"
+  ]
+}

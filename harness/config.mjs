@@ -18,10 +18,10 @@ const ARRAY_FIELDS = [
 
 function requireUniqueStrings(value, field) {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || item.length === 0)) {
-    throw new HarnessConfigError(`\${field} must be an array of non-empty strings`);
+    throw new HarnessConfigError(`${field} must be an array of non-empty strings`);
   }
   if (new Set(value).size !== value.length) {
-    throw new HarnessConfigError(`\${field} contains a duplicate entry`);
+    throw new HarnessConfigError(`${field} contains a duplicate entry`);
   }
 }
 
@@ -44,7 +44,7 @@ export function validateConfig(value, root) {
   if (value.sourceExtensions.some((extension) => !extension.startsWith('.') || extension.includes('/'))) {
     throw new HarnessConfigError('sourceExtensions entries must begin with a dot and contain no path separator');
   }
-  if (value.excludeSegments.some((segment) => segment.includes('/') || segment.includes('\\\\'))) {
+  if (value.excludeSegments.some((segment) => segment.includes('/') || segment.includes('\\'))) {
     throw new HarnessConfigError('excludeSegments entries must be path segments');
   }
 
@@ -76,14 +76,14 @@ export async function loadConfig(root = process.cwd()) {
   try {
     text = await readFile(path, 'utf8');
   } catch (error) {
-    throw new HarnessConfigError(`cannot read harness.config.json: \${error.message}`, { cause: error });
+    throw new HarnessConfigError(`cannot read harness.config.json: ${error.message}`, { cause: error });
   }
 
   let value;
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new HarnessConfigError(`invalid harness.config.json: \${error.message}`, { cause: error });
+    throw new HarnessConfigError(`invalid harness.config.json: ${error.message}`, { cause: error });
   }
   return validateConfig(value, root);
 }

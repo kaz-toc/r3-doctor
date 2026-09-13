@@ -3,6 +3,7 @@ import type { CalibrationSummary } from '../schema/report.v1.js';
 import { loadPolicy } from '../operations/policy.js';
 import { hasMinimumSamplesForEveryScoreBand, loadCalibration } from './dataset.js';
 import { runGoldenAssessmentRegression } from './golden-regression.js';
+import { defaultConfig } from '../shared/config.js';
 
 const MEASURED_METRICS = [
   'falsePositiveRate',
@@ -65,7 +66,7 @@ export async function resolveCalibrationQuality(
   repositoryPath: string,
   policyFile?: string,
 ): Promise<CalibrationSummary> {
-  const policy = await loadPolicy(repositoryPath, policyFile ?? 'r3-doctor.policy.json');
+  const policy = await loadPolicy(repositoryPath, policyFile ?? defaultConfig.policyFile);
   const preliminary = await loadCalibration(repositoryPath, false, policy.requiredCalibrationConditions);
   if (preliminary.records.length === 0) {
     return { status: 'uncalibrated' };

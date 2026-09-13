@@ -14,7 +14,7 @@ import { normalizeConfig } from '../shared/config.js';
 import { R3DoctorError } from '../shared/errors.js';
 import { redactReport } from '../shared/redaction.js';
 import type { RetentionAudit } from '../persistence/retention.js';
-import { selectLlmCandidateFiles } from '../semantic/provider.js';
+import { prepareSemanticInput } from '../semantic/provider.js';
 import { buildBudgetedSemanticPrompt } from '../semantic/semantic-prompt.js';
 import { parseLlmExecutionPolicy, type LlmCliOptions } from '../semantic/execution-policy.js';
 import type { OperatorProfile } from '../operator/profile.js';
@@ -88,7 +88,10 @@ function writeRetentionAudits(audits: RetentionAudit[]): void {
   }
 }
 
-export async function runScanAction(options: ScanActionOptions): Promise<void> {
+export async function runScanAction(
+  options: ScanActionOptions,
+  output: { write: (value: string) => void } = process.stdout,
+): Promise<void> {
   const llmConfig = parseLlmExecutionPolicy(options, Boolean(options.dryRunSemantic), options.operatorProfile);
   const snapshot = applyLocaleOverride(
     await createRepositorySnapshot(options.repoPath, options.unit, llmConfig),
@@ -98,16 +101,13 @@ export async function runScanAction(options: ScanActionOptions): Promise<void> {
   if (options.dryRunSemantic) {
     const plugins = getDefaultPlugins();
     const { evidence } = await extractEvidenceWithPlugins(snapshot, plugins);
-    const scopedSnapshot = {
-      ...snapshot,
-      files: selectLlmCandidateFiles(snapshot, evidence),
-    };
+    const scoped = await prepareSemanticInput(snapshot, evidence);
     const { prompt } = buildBudgetedSemanticPrompt(
-      scopedSnapshot,
-      evidence,
+      scoped.snapshot,
+      scoped.evidence,
       snapshot.config.llm.maxPromptBytes,
     );
-    process.stdout.write(`${prompt}\n`);
+    output.write(`${prompt}\n`);
     return;
   }
 
@@ -116,8 +116,8 @@ export async function runScanAction(options: ScanActionOptions): Promise<void> {
   const validationHorizonDays = parseValidationHorizon(options.validationHorizonDays, Boolean(options.recordValidation));
   const report = await runDiagnosis(snapshot);
   const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
-  const output = reporter.format(redactReport(report, policy.redactPaths), format, { view });
-  process.stdout.write(output);
+  const formattedReport = reporter.format(redactReport(report, policy.redactPaths), format, { view });
+  output.write(formattedReport);
 
   let validationError: unknown;
   if (options.recordValidation) {

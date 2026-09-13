@@ -18,18 +18,18 @@ export function resolveRepositoryPath(root, relativePath) {
     throw new HarnessConfigError('repository path must be a non-empty string');
   }
   if (isAbsolute(relativePath)) {
-    throw new HarnessConfigError(`absolute repository path is prohibited: \${relativePath}`);
+    throw new HarnessConfigError(`absolute repository path is prohibited: ${relativePath}`);
   }
   const target = resolve(root, relativePath);
   if (outsideRoot(root, target)) {
-    throw new HarnessConfigError(`repository path escapes root: \${relativePath}`);
+    throw new HarnessConfigError(`repository path escapes root: ${relativePath}`);
   }
   return target;
 }
 
 export function toRepositoryPath(root, absolutePath) {
   if (outsideRoot(root, absolutePath)) {
-    throw new HarnessConfigError(`path is outside repository: \${absolutePath}`);
+    throw new HarnessConfigError(`path is outside repository: ${absolutePath}`);
   }
   return relative(resolve(root), resolve(absolutePath)).split(sep).join('/');
 }

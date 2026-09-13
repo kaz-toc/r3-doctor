@@ -8,6 +8,7 @@ export type LlmLaunchInput = {
   executablePath: string;
   modelIdentifier: string;
   runtimeDirectory: string;
+  untrustedDirectory: string;
   inheritedEnv: NodeJS.ProcessEnv;
 };
 

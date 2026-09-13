@@ -107,12 +107,12 @@ addLlmOptions(program
     repoPath: string,
     options: { base: string; format: string; view: string; githubSummary?: string; githubAnnotations?: string; emitAnnotations?: boolean; locale?: string; profile?: string } & LlmCliOptions,
   ) => {
+    const format = parseFormat(options.format);
+    const view = parseView(options.view);
     const operatorProfile = await loadOperatorProfile(options.profile);
     const llmConfig = parseLlmExecutionPolicy(options, false, operatorProfile);
     const snapshot = applyLocaleOverride(await createRepositorySnapshot(repoPath, undefined, llmConfig), options.locale);
     const diff = await runDiffDiagnosis(repoPath, options.base, llmConfig, snapshot);
-    const format = parseFormat(options.format);
-    const view = parseView(options.view);
     const policy = await loadPolicy(snapshot.repositoryPath, snapshot.config.policyFile);
     const redacted = redactDiffReport(diff, policy.redactPaths);
 
