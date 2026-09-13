@@ -79,3 +79,15 @@ _Avoid_: 全 Evidence table、無関係な cluster
 **All View**:
 Summary、Actions、Facts を重複なく 3 章として合成した一体レポート表示。
 _Avoid_: 章間での Evidence や limitation の重複
+
+**セキュリティ候補（Security Finding Candidate）**:
+実送信したコード片への証拠参照を伴う、要確認の脆弱性候補。デグレリスクとは別の意味を持ち、score に加算しない。
+_Avoid_: 確定した脆弱性、再現済み、Risk Signal
+
+**Security Assessment**:
+Security Add-on の完了状態、評価範囲、所見、利用量をまとめた独立の結果。`completed` は宣言した scope を処理したことを表し、安全の保証ではない。
+_Avoid_: セキュリティスコア、安全証明
+
+**Security Coverage**:
+評価対象・送信計画・評価済みの件数と、除外・未完了の理由。host が実送信 manifest と応答検証から算出する。
+_Avoid_: モデルの自己申告による網羅率
